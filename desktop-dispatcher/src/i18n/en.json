@@ -1,0 +1,16 @@
+{
+  "common": {
+    "welcome": "Welcome",
+    "save": "Save",
+    "cancel": "Cancel",
+    "loading": "Loading..."
+  },
+  "menu": {
+    "dashboard": "Dashboard",
+    "clients": "Client Database",
+    "orders": "Orders",
+    "finance": "Finance",
+    "salaries": "Salaries",
+    "settings": "Settings"
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "common": {
+    "welcome": "Xush kelibsiz",
+    "save": "Saqlash",
+    "cancel": "Bekor qilish",
+    "loading": "Yuklanmoqda..."
+  },
+  "menu": {
+    "dashboard": "Boshqaruv Paneli",
+    "clients": "Mijozlar Bazasi",
+    "orders": "Buyurtmalar",
+    "finance": "Buxgalteriya",
+    "salaries": "Ish Haqlari",
+    "settings": "Sozlamalar"
+  }
+}
