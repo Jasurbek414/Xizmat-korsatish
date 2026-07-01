@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { ClipboardList, Trash2, Clock, Search } from 'lucide-react';
-import { getDbItem, setDbItem } from '../store/mockDb';
+import { ClipboardList, Clock, Search } from 'lucide-react';
+import { getDbItem } from '../store/mockDb';
 
 const STATUS_OPTS = [
   { name: 'Qabul qilindi', color: 'bg-orange-500/10 text-orange-600 dark:text-orange-400 border-orange-500/20' },
@@ -28,24 +28,6 @@ const ZakazHolati = () => {
       window.removeEventListener('storage', handleStorageChange);
     };
   }, []);
-
-  const handleStatusChange = (orderId, newStatus) => {
-    const updated = orders.map(ord => {
-      if (ord.id === orderId) {
-        return { ...ord, status: newStatus };
-      }
-      return ord;
-    });
-    setOrders(updated);
-    setDbItem('dispatcher_orders', updated);
-  };
-
-  const handleDeleteOrder = (orderId) => {
-    if (!window.confirm("Buyurtmani o'chirmoqchimisiz?")) return;
-    const updated = orders.filter(ord => ord.id !== orderId);
-    setOrders(updated);
-    setDbItem('dispatcher_orders', updated);
-  };
 
   const getStatusClass = (statusName) => {
     const opt = STATUS_OPTS.find(o => o.name === statusName);
@@ -123,33 +105,9 @@ const ZakazHolati = () => {
                 </div>
               </div>
 
-              {/* Status Select Badge & Delete */}
-              <div className="flex items-center gap-2 shrink-0">
-                
-                {/* Custom Styled Select Badge */}
-                <div className={`relative border rounded-lg px-2 py-1 flex items-center justify-center transition ${getStatusClass(order.status)}`}>
-                  <select
-                    value={order.status}
-                    onChange={(e) => handleStatusChange(order.id, e.target.value)}
-                    className="bg-transparent border-none text-[8.5px] font-extrabold uppercase cursor-pointer focus:outline-none appearance-none pr-1"
-                  >
-                    {STATUS_OPTS.map(opt => (
-                      <option key={opt.name} value={opt.name} className="bg-[var(--bg-card)] text-[var(--text-primary)] font-bold">
-                        {opt.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* Delete button */}
-                <button
-                  type="button"
-                  onClick={() => handleDeleteOrder(order.id)}
-                  className="w-7 h-7 rounded-lg bg-[var(--bg-keypad-btn)] hover:bg-rose-500/10 text-[var(--text-muted)] hover:text-rose-550 flex items-center justify-center transition cursor-pointer border border-[var(--border-color)]"
-                  title="O'chirish"
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                </button>
+              {/* Static Status Badge (Read-only monitoring) */}
+              <div className={`border rounded-lg px-2.5 py-1 text-[8.5px] font-extrabold uppercase tracking-wide shrink-0 select-none ${getStatusClass(order.status)}`}>
+                {order.status}
               </div>
 
             </div>
