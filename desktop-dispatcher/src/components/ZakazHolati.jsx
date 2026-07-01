@@ -64,7 +64,7 @@ const ZakazHolati = () => {
   });
 
   return (
-    <div className="bg-[var(--bg-card)] border border-[var(--border-color)] rounded-2xl p-5 w-full h-full flex flex-col gap-4 text-xs font-semibold text-[var(--text-primary)] shadow-2xl transition-colors duration-300 min-h-0 select-none">
+    <div className="bg-[var(--bg-card)] border border-[var(--border-color)] rounded-2xl p-5 w-full h-full flex flex-col gap-4 text-xs font-semibold text-[var(--text-primary)] shadow-2xl transition-colors duration-300 min-h-0">
       
       {/* Header title */}
       <div className="flex items-center gap-2 border-b border-[var(--border-color)] pb-3.5 shrink-0 select-none">

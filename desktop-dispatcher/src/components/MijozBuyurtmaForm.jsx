@@ -108,7 +108,7 @@ const MijozBuyurtmaForm = ({ onAddOrder, preSelectedClient, onAddressChange }) =
   };
 
   return (
-    <form onSubmit={handleSubmit} className="bg-[var(--bg-card)] border border-[var(--border-color)] rounded-2xl p-4 w-full h-full flex flex-col justify-between text-xs font-semibold text-[var(--text-primary)] shadow-2xl transition-colors duration-300 relative select-none">
+    <form onSubmit={handleSubmit} className="bg-[var(--bg-card)] border border-[var(--border-color)] rounded-2xl p-4 w-full h-full flex flex-col justify-between text-xs font-semibold text-[var(--text-primary)] shadow-2xl transition-colors duration-300 relative">
       
       {/* SECTION 1: MIJOZ */}
       <div className="space-y-2.5">
