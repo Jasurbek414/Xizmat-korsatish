@@ -7,6 +7,7 @@ import SettingsModal from './components/SettingsModal';
 import MijozBuyurtmaForm from './components/MijozBuyurtmaForm';
 import SonggiQongiroqlar from './components/SonggiQongiroqlar';
 import MapPanel from './components/MapPanel';
+import ZakazHolati from './components/ZakazHolati';
 import sipService from './services/sipService';
 import { initMockDb, getDbItem, setDbItem } from './store/mockDb';
 import './App.css';
@@ -184,12 +185,17 @@ const App = () => {
             </div>
           </div>
 
-          {/* Bottom Panel: Call History logs */}
-          <div className="flex-1 min-h-0">
-            <SonggiQongiroqlar
-              onQuickCall={handleQuickCallTrigger}
-              onSelectClient={setIntakeClient}
-            />
+          {/* Bottom Panel: Call History logs & Order Status */}
+          <div className="flex-1 min-h-0 flex flex-col md:flex-row gap-6">
+            <div className="flex-1 min-w-[320px] h-full">
+              <SonggiQongiroqlar
+                onQuickCall={handleQuickCallTrigger}
+                onSelectClient={setIntakeClient}
+              />
+            </div>
+            <div className="flex-1 min-w-[320px] h-full">
+              <ZakazHolati />
+            </div>
           </div>
 
         </div>
