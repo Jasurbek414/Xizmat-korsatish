@@ -8,17 +8,17 @@
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 
-  /* Day (Light) Mode Variables */
-  --bg-app: #e2e8f0;
+  /* Day (Light) Mode Variables - Qaymoqrang (Warm Cream) Theme */
+  --bg-app: #f4efe6;
   --bg-card: #ffffff;
-  --bg-input: #f8fafc;
-  --border-color: #94a3b8;
-  --text-primary: #0f172a;
-  --text-secondary: #334155;
-  --text-muted: #64748b;
+  --bg-input: #ffffff;
+  --border-color: #e3dac9;
+  --text-primary: #1c1917;
+  --text-secondary: #57534e;
+  --text-muted: #8c857b;
   --bg-sidebar: #ffffff;
-  --bg-keypad-btn: #f1f5f9;
-  --bg-keypad-btn-hover: #cbd5e1;
+  --bg-keypad-btn: #fafaf9;
+  --bg-keypad-btn-hover: #f5f2eb;
 }
 
 .dark {
@@ -46,14 +46,14 @@ body {
 
 /* Card & Header Shadows Overrides for Day/Night separation */
 .shadow-2xl {
-  box-shadow: 0 10px 25px -5px rgba(15, 23, 42, 0.12), 0 8px 10px -6px rgba(15, 23, 42, 0.06) !important;
+  box-shadow: 0 10px 30px -10px rgba(41, 37, 36, 0.12), 0 4px 10px -5px rgba(41, 37, 36, 0.06) !important;
 }
 .dark .shadow-2xl {
   box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5) !important;
 }
 
 .shadow-md {
-  box-shadow: 0 4px 12px -3px rgba(15, 23, 42, 0.08), 0 2px 6px -2px rgba(15, 23, 42, 0.04) !important;
+  box-shadow: 0 4px 15px -3px rgba(41, 37, 36, 0.06), 0 2px 6px -2px rgba(41, 37, 36, 0.03) !important;
 }
 .dark .shadow-md {
   box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -1px rgba(0, 0, 0, 0.1) !important;
