@@ -33,6 +33,49 @@ const DEFAULT_SIP_LINES = [
   { id: 'sip_line_3', label: 'Qo\'llab-quvvatlash 103', domain: 'sip.servicecore.uz', extension: '103', password: 'sip_password_103', port: '5060', connected: true, isActive: false }
 ];
 
+const DEFAULT_ORDERS = [
+  {
+    id: 'ORD-2026-00001',
+    client_name: 'Jasur Mavlonov',
+    phone: '+998 99 888 77 66',
+    address: 'Toshkent sh., Yunusobod tumani, 4-kvartal',
+    tovar_nomi: 'Gilam Yuvish (15 kv.m)',
+    izoh: 'Tezkor yetkazib berilsin, 2 ta gilam',
+    status: 'Tayyorlanmoqda',
+    created_at: '2026-07-02 00:20'
+  },
+  {
+    id: 'ORD-2026-00002',
+    client_name: 'Zilola Karimova',
+    phone: '+998 90 777 66 55',
+    address: 'Toshkent sh., Chilonzor tumani, 1-kvartal',
+    tovar_nomi: 'Parda tozalash (4 dona)',
+    izoh: 'Mehmonxona pardalari',
+    status: 'Qabul qilindi',
+    created_at: '2026-07-02 00:15'
+  },
+  {
+    id: 'ORD-2026-00003',
+    client_name: 'Alisher Qodirov',
+    phone: '+998 90 123 45 67',
+    address: 'Toshkent sh., Mirobod tumani, Nukus ko\'chasi 12',
+    tovar_nomi: 'Yostiq tozalash (5 dona)',
+    izoh: 'Kuryer soat 18:00 dan keyin kelsin',
+    status: 'Yo\'lda',
+    created_at: '2026-07-01 23:45'
+  },
+  {
+    id: 'ORD-2026-00004',
+    client_name: 'Dostonbek Ergashev',
+    phone: '+998 93 321 65 54',
+    address: 'Toshkent sh., Yakkasaroy tumani, Shota Rustaveli 25',
+    tovar_nomi: 'Ko\'rpa tozalash (2 dona)',
+    izoh: 'To\'lov naqd pul shaklida',
+    status: 'Yetkazildi',
+    created_at: '2026-07-01 22:30'
+  }
+];
+
 export const initMockDb = () => {
   if (!localStorage.getItem('dispatcher_clients')) {
     localStorage.setItem('dispatcher_clients', JSON.stringify(DEFAULT_CLIENTS));
@@ -49,8 +92,9 @@ export const initMockDb = () => {
   if (!localStorage.getItem('dispatcher_sip_lines')) {
     localStorage.setItem('dispatcher_sip_lines', JSON.stringify(DEFAULT_SIP_LINES));
   }
-  if (!localStorage.getItem('dispatcher_orders')) {
-    localStorage.setItem('dispatcher_orders', JSON.stringify([]));
+  // Initialize with mock orders if empty or not present
+  if (!localStorage.getItem('dispatcher_orders') || JSON.parse(localStorage.getItem('dispatcher_orders')).length === 0) {
+    localStorage.setItem('dispatcher_orders', JSON.stringify(DEFAULT_ORDERS));
   }
 };
 
