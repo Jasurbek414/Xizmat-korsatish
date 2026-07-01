@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { MapPin, X, User, Phone, Briefcase, Layers, Coins, FileText } from 'lucide-react';
+import { MapPin, User, Phone, Briefcase, Layers, Coins, FileText } from 'lucide-react';
 import { getDbItem, setDbItem } from '../store/mockDb';
 
 const SERVICES = [
@@ -9,7 +9,7 @@ const SERVICES = [
   { name: 'Ko\'rpa tozalash', unit: 'dona', price: 25000 }
 ];
 
-const IntakeForm = ({ onAddOrder, onCancel, preSelectedClient }) => {
+const IntakeForm = ({ onAddOrder, preSelectedClient }) => {
   const [fullName, setFullName] = useState('');
   const [phone, setPhone] = useState('');
   const [address, setAddress] = useState('');
@@ -19,7 +19,7 @@ const IntakeForm = ({ onAddOrder, onCancel, preSelectedClient }) => {
   const [price, setPrice] = useState(SERVICES[0].price.toString());
   const [description, setDescription] = useState('');
 
-  // Sync when preSelectedClient changes (e.g. caller incoming or customer selected)
+  // Sync when preSelectedClient changes
   useEffect(() => {
     if (preSelectedClient) {
       setFullName(preSelectedClient.full_name || '');
@@ -55,14 +55,12 @@ const IntakeForm = ({ onAddOrder, onCancel, preSelectedClient }) => {
     setQty('1');
     setPrice(service.price.toString());
     setDescription('');
-    if (onCancel) onCancel();
   };
 
   const handleSubmit = (e) => {
     e.preventDefault();
     if (!fullName || !phone || !address) return;
 
-    // Check if client exists in DB, else register automatically
     const clients = getDbItem('dispatcher_clients') || [];
     const exists = clients.some(c => c.phone.replace(/\s+/g, '') === phone.replace(/\s+/g, ''));
     
@@ -93,20 +91,18 @@ const IntakeForm = ({ onAddOrder, onCancel, preSelectedClient }) => {
   };
 
   return (
-    <div className="bg-[#111522] border border-white/[0.04] rounded-2xl p-5 w-full h-full flex flex-col justify-between select-none text-xs font-semibold text-slate-200 shadow-2xl">
+    <form 
+      id="intake-form" 
+      onSubmit={handleSubmit}
+      onReset={(e) => { e.preventDefault(); handleClear(); }}
+      className="bg-[#111522] border border-white/[0.04] rounded-2xl p-5 w-full h-full flex flex-col justify-between select-none text-xs font-semibold text-slate-200 shadow-2xl"
+    >
       
       {/* Title */}
       <div className="flex justify-between items-center border-b border-white/[0.04] pb-3.5 shrink-0">
         <span className="font-extrabold text-[11px] text-slate-100 uppercase tracking-widest flex items-center gap-2 font-outfit">
           <FileText className="w-4 h-4 text-indigo-400" /> BUYURTMA TUSHGANDA
         </span>
-        <button 
-          type="button" 
-          onClick={handleClear}
-          className="p-1 text-slate-500 hover:text-slate-300 cursor-pointer rounded-lg transition hover:bg-white/5"
-        >
-          <X className="w-4 h-4" />
-        </button>
       </div>
 
       {/* Form Fields Scroll Container */}
@@ -222,25 +218,7 @@ const IntakeForm = ({ onAddOrder, onCancel, preSelectedClient }) => {
 
       </div>
 
-      {/* Buttons Row */}
-      <div className="flex justify-end gap-3.5 pt-4 border-t border-white/[0.04] shrink-0 mt-2">
-        <button
-          type="button"
-          onClick={handleClear}
-          className="px-5 py-2.5 bg-[#1c243b] hover:bg-[#232d4a] text-slate-350 hover:text-slate-200 font-extrabold rounded-xl transition cursor-pointer text-[10px] uppercase tracking-wider font-outfit"
-        >
-          Bekor qilish
-        </button>
-        <button
-          type="submit"
-          onClick={handleSubmit}
-          className="px-6 py-2.5 bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400 text-white font-extrabold rounded-xl transition cursor-pointer text-[10px] uppercase tracking-wider shadow-lg shadow-indigo-500/10 active:scale-95 font-outfit"
-        >
-          Saqlash
-        </button>
-      </div>
-
-    </div>
+    </form>
   );
 };
 

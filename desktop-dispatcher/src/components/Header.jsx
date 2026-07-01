@@ -5,8 +5,8 @@ const Header = ({ auth, sipStatus, onToggleSettings, onLogout }) => {
   return (
     <header className="h-14 border-b border-white/[0.04] bg-[#0c0f1a] flex items-center justify-between px-6 shrink-0 select-none relative z-20 shadow-md">
       {/* Left branding */}
-      <span className="text-xs font-black text-slate-100 tracking-widest font-mono uppercase">
-        Terminal v1.1
+      <span className="text-xs font-black text-slate-100 tracking-widest font-mono uppercase font-outfit">
+        Terminal Advanced v1.2
       </span>
 
       {/* Right profile & control widgets */}
