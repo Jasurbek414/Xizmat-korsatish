@@ -140,7 +140,7 @@ const MijozBuyurtmaForm = ({ onAddOrder, preSelectedClient }) => {
               value={fullName}
               onChange={(e) => setFullName(e.target.value)}
               placeholder="Ism familiya"
-              className="w-full bg-[var(--bg-input)] border border-[var(--border-color)] focus:border-indigo-500/50 rounded-xl pl-9.5 pr-3 py-2 text-xs text-[var(--text-primary)] font-bold focus:outline-none transition-all duration-300 focus:ring-4 focus:ring-indigo-500/5"
+              className="w-full bg-[var(--bg-input)] border border-stone-300 dark:border-white/[0.06] focus:border-indigo-500/50 rounded-xl pl-9.5 pr-3 py-2 text-xs text-[var(--text-primary)] font-bold focus:outline-none transition-all duration-300 focus:ring-4 focus:ring-indigo-500/5"
               required
             />
           </div>
@@ -152,7 +152,7 @@ const MijozBuyurtmaForm = ({ onAddOrder, preSelectedClient }) => {
               value={phoneVal}
               onChange={(e) => setPhoneVal(e.target.value)}
               placeholder="+998..."
-              className="w-full bg-[var(--bg-input)] border border-[var(--border-color)] focus:border-indigo-500/50 rounded-xl pl-9.5 pr-3 py-2 text-xs text-[var(--text-primary)] font-mono font-bold focus:outline-none transition-all duration-300 focus:ring-4 focus:ring-indigo-500/5"
+              className="w-full bg-[var(--bg-input)] border border-stone-300 dark:border-white/[0.06] focus:border-indigo-500/50 rounded-xl pl-9.5 pr-3 py-2 text-xs text-[var(--text-primary)] font-mono font-bold focus:outline-none transition-all duration-300 focus:ring-4 focus:ring-indigo-500/5"
               required
             />
           </div>
@@ -167,7 +167,7 @@ const MijozBuyurtmaForm = ({ onAddOrder, preSelectedClient }) => {
               value={address}
               onChange={(e) => setAddress(e.target.value)}
               placeholder="Manzil"
-              className="w-full bg-[var(--bg-input)] border border-[var(--border-color)] focus:border-indigo-500/50 rounded-xl pl-9.5 pr-3 py-2 text-xs text-[var(--text-primary)] font-bold focus:outline-none transition-all duration-300 focus:ring-4 focus:ring-indigo-500/5"
+              className="w-full bg-[var(--bg-input)] border border-stone-300 dark:border-white/[0.06] focus:border-indigo-500/50 rounded-xl pl-9.5 pr-3 py-2 text-xs text-[var(--text-primary)] font-bold focus:outline-none transition-all duration-300 focus:ring-4 focus:ring-indigo-500/5"
             />
           </div>
           <button
@@ -187,7 +187,7 @@ const MijozBuyurtmaForm = ({ onAddOrder, preSelectedClient }) => {
             value={landmark}
             onChange={(e) => setLandmark(e.target.value)}
             placeholder="Mo'ljal (masalan: metro yonida)"
-            className="w-full bg-[var(--bg-input)] border border-[var(--border-color)] focus:border-indigo-500/50 rounded-xl pl-9.5 pr-3 py-2 text-xs text-[var(--text-primary)] font-bold focus:outline-none transition-all duration-300 focus:ring-4 focus:ring-indigo-500/5"
+            className="w-full bg-[var(--bg-input)] border border-stone-300 dark:border-white/[0.06] focus:border-indigo-500/50 rounded-xl pl-9.5 pr-3 py-2 text-xs text-[var(--text-primary)] font-bold focus:outline-none transition-all duration-300 focus:ring-4 focus:ring-indigo-500/5"
           />
         </div>
       </div>
@@ -206,7 +206,7 @@ const MijozBuyurtmaForm = ({ onAddOrder, preSelectedClient }) => {
             <select
               value={service}
               onChange={(e) => handleServiceChange(e.target.value)}
-              className="w-full bg-[var(--bg-input)] border border-[var(--border-color)] focus:border-indigo-500/50 rounded-xl pl-8 pr-2 py-2 text-xs text-[var(--text-primary)] font-bold focus:outline-none transition-all duration-300 cursor-pointer appearance-none"
+              className="w-full bg-[var(--bg-input)] border border-stone-300 dark:border-white/[0.06] focus:border-indigo-500/50 rounded-xl pl-8 pr-2 py-2 text-xs text-[var(--text-primary)] font-bold focus:outline-none transition-all duration-300 cursor-pointer appearance-none"
             >
               {SERVICES.map(s => (
                 <option key={s.name} value={s.name}>{s.name}</option>
@@ -221,7 +221,7 @@ const MijozBuyurtmaForm = ({ onAddOrder, preSelectedClient }) => {
               value={qty}
               onChange={(e) => handleQtyChange(e.target.value)}
               placeholder="Hajmi"
-              className="w-full bg-[var(--bg-input)] border border-[var(--border-color)] focus:border-indigo-500/50 rounded-xl pl-8 pr-2 py-2 text-xs text-[var(--text-primary)] font-mono font-bold focus:outline-none transition-all duration-300"
+              className="w-full bg-[var(--bg-input)] border border-stone-300 dark:border-white/[0.06] focus:border-indigo-500/50 rounded-xl pl-8 pr-2 py-2 text-xs text-[var(--text-primary)] font-mono font-bold focus:outline-none transition-all duration-300"
               required
             />
           </div>
@@ -233,7 +233,7 @@ const MijozBuyurtmaForm = ({ onAddOrder, preSelectedClient }) => {
               value={price}
               onChange={(e) => setPrice(e.target.value)}
               placeholder="Narx"
-              className="w-full bg-[var(--bg-input)] border border-[var(--border-color)] focus:border-indigo-500/50 rounded-xl pl-8 pr-2 py-2 text-xs text-indigo-500 dark:text-indigo-400 font-mono font-bold focus:outline-none transition-all duration-300"
+              className="w-full bg-[var(--bg-input)] border border-stone-300 dark:border-white/[0.06] focus:border-indigo-500/50 rounded-xl pl-8 pr-2 py-2 text-xs text-indigo-500 dark:text-indigo-400 font-mono font-bold focus:outline-none transition-all duration-300"
               required
             />
           </div>
@@ -245,7 +245,7 @@ const MijozBuyurtmaForm = ({ onAddOrder, preSelectedClient }) => {
           <select
             value={campaign}
             onChange={(e) => setCampaign(e.target.value)}
-            className="w-full bg-[var(--bg-input)] border border-[var(--border-color)] focus:border-indigo-500/50 rounded-xl pl-9.5 pr-3 py-2 text-xs text-[var(--text-primary)] font-bold focus:outline-none transition-all duration-300 cursor-pointer appearance-none"
+            className="w-full bg-[var(--bg-input)] border border-stone-300 dark:border-white/[0.06] focus:border-indigo-500/50 rounded-xl pl-9.5 pr-3 py-2 text-xs text-[var(--text-primary)] font-bold focus:outline-none transition-all duration-300 cursor-pointer appearance-none"
           >
             {CAMPAIGNS.map(c => (
               <option key={c} value={c}>{c}</option>
@@ -259,7 +259,7 @@ const MijozBuyurtmaForm = ({ onAddOrder, preSelectedClient }) => {
           <select
             value={driver}
             onChange={(e) => setDriver(e.target.value)}
-            className="w-full bg-[var(--bg-input)] border border-[var(--border-color)] focus:border-indigo-500/50 rounded-xl pl-9.5 pr-3 py-2 text-xs text-[var(--text-primary)] font-bold focus:outline-none transition-all duration-300 cursor-pointer appearance-none"
+            className="w-full bg-[var(--bg-input)] border border-stone-300 dark:border-white/[0.06] focus:border-indigo-500/50 rounded-xl pl-9.5 pr-3 py-2 text-xs text-[var(--text-primary)] font-bold focus:outline-none transition-all duration-300 cursor-pointer appearance-none"
           >
             {DRIVERS.map(d => (
               <option key={d} value={d}>{d}</option>
@@ -275,7 +275,7 @@ const MijozBuyurtmaForm = ({ onAddOrder, preSelectedClient }) => {
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             placeholder="Izoh..."
-            className="w-full bg-[var(--bg-input)] border border-[var(--border-color)] focus:border-indigo-500/50 rounded-xl pl-9.5 pr-3 py-2 text-xs text-[var(--text-primary)] font-bold focus:outline-none transition-all duration-300 focus:ring-4 focus:ring-indigo-500/5"
+            className="w-full bg-[var(--bg-input)] border border-stone-300 dark:border-white/[0.06] focus:border-indigo-500/50 rounded-xl pl-9.5 pr-3 py-2 text-xs text-[var(--text-primary)] font-bold focus:outline-none transition-all duration-300 focus:ring-4 focus:ring-indigo-500/5"
           />
         </div>
       </div>
