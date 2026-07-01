@@ -32,10 +32,12 @@ const SonggiQongiroqlar = ({ onQuickCall, onSelectClient }) => {
 
   const handleRowClick = (log) => {
     if (onSelectClient) {
+      const clients = getDbItem('dispatcher_clients') || [];
+      const client = clients.find(c => c.phone.replace(/\s+/g, '') === log.phone.replace(/\s+/g, ''));
       onSelectClient({
-        full_name: log.client_name || 'Noma\'lum',
+        full_name: client ? client.full_name : 'Noma\'lum',
         phone: log.phone,
-        address: ''
+        address: client ? client.address : ''
       });
     }
   };

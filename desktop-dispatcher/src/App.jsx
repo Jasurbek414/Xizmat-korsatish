@@ -6,6 +6,7 @@ import IncomingCallOverlay from './components/IncomingCallOverlay';
 import SettingsModal from './components/SettingsModal';
 import MijozBuyurtmaForm from './components/MijozBuyurtmaForm';
 import SonggiQongiroqlar from './components/SonggiQongiroqlar';
+import MapPanel from './components/MapPanel';
 import sipService from './services/sipService';
 import { initMockDb, getDbItem, setDbItem } from './store/mockDb';
 import './App.css';
@@ -101,13 +102,12 @@ const App = () => {
     const order = {
       id: 'ORD-2026-0000' + (activeOrders.length + 1),
       client_name: orderData.client_name,
-      service_name: orderData.service_name,
-      price: orderData.price,
+      phone: orderData.phone,
       address: orderData.address,
-      payment_method: orderData.payment_method,
-      description: orderData.description,
+      tovar_nomi: orderData.tovar_nomi,
+      izoh: orderData.izoh,
       status: 'Qabul qilindi',
-      created_at: new Date().toISOString()
+      created_at: orderData.created_at || new Date().toISOString()
     };
 
     const updated = [order, ...activeOrders];
@@ -164,15 +164,24 @@ const App = () => {
           </div>
         </div>
 
-        {/* Column 2 (Right): Top Customer/Order Form, Bottom Call Logs History */}
+        {/* Column 2 (Right): Top Customer/Order Form & Map, Bottom Call Logs History */}
         <div className="flex-1 h-full flex flex-col gap-6 min-w-[500px] overflow-hidden">
           
-          {/* Top Panel: Customer & Order Form Card */}
-          <div className="shrink-0">
-            <MijozBuyurtmaForm
-              onAddOrder={handleCreateOrder}
-              preSelectedClient={intakeClient}
-            />
+          {/* Top Panel: Customer Form + Map Panel */}
+          <div className="shrink-0 flex flex-col md:flex-row gap-6 h-[330px]">
+            <div className="flex-1 min-w-[320px] h-full">
+              <MijozBuyurtmaForm
+                onAddOrder={handleCreateOrder}
+                preSelectedClient={intakeClient}
+                onAddressChange={(addr) => setIntakeClient(prev => ({ ...(prev || {}), address: addr }))}
+              />
+            </div>
+            <div className="flex-1 min-w-[320px] h-full">
+              <MapPanel 
+                address={intakeClient?.address || ''}
+                onAddressSelect={(addr) => setIntakeClient(prev => ({ ...(prev || {}), address: addr }))}
+              />
+            </div>
           </div>
 
           {/* Bottom Panel: Call History logs */}
