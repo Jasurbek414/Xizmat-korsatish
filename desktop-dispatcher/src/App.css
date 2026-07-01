@@ -9,16 +9,16 @@
   -moz-osx-font-smoothing: grayscale;
 
   /* Day (Light) Mode Variables */
-  --bg-app: #f1f5f9;
+  --bg-app: #e2e8f0;
   --bg-card: #ffffff;
   --bg-input: #f8fafc;
-  --border-color: rgba(15, 23, 42, 0.08);
+  --border-color: #cbd5e1;
   --text-primary: #0f172a;
-  --text-secondary: #475569;
-  --text-muted: #94a3b8;
+  --text-secondary: #334155;
+  --text-muted: #64748b;
   --bg-sidebar: #ffffff;
   --bg-keypad-btn: #f1f5f9;
-  --bg-keypad-btn-hover: #e2e8f0;
+  --bg-keypad-btn-hover: #cbd5e1;
 }
 
 .dark {
