@@ -64,10 +64,10 @@ const Clients = ({ onCallTrigger, onSelectIntakeClient }) => {
     <div className="flex flex-col gap-6 h-full min-h-0 text-xs font-semibold select-none">
       
       {/* Top Panel: Faol Buyurtmalar (Kanban Board) */}
-      <div className="bg-[#151b2d] border border-slate-800/60 rounded-xl p-4.5 flex flex-col min-h-0">
-        <div className="border-b border-slate-800/40 pb-2 mb-3">
-          <span className="text-[11px] font-extrabold text-slate-100 uppercase tracking-widest border-b-2 border-indigo-500 pb-2">
-            FAOL BUYURTMALAR ({activeOrdersCount})
+      <div className="flex-1 min-h-0 bg-[#111522] border border-white/[0.04] rounded-2xl p-5 flex flex-col shadow-2xl">
+        <div className="border-b border-white/[0.04] pb-3.5 mb-4 shrink-0">
+          <span className="text-[11px] font-extrabold text-slate-100 uppercase tracking-widest border-b-2 border-indigo-500 pb-2.5 font-outfit">
+            Faol Buyurtmalar <span className="ml-1 text-slate-500 font-bold">({activeOrdersCount})</span>
           </span>
         </div>
         
@@ -81,16 +81,17 @@ const Clients = ({ onCallTrigger, onSelectIntakeClient }) => {
       </div>
 
       {/* Bottom Panel: Mijozlar List */}
-      <div className="bg-[#151b2d] border border-slate-800/60 rounded-xl p-4.5 flex flex-col min-h-0">
-        <div className="flex justify-between items-center border-b border-slate-800/40 pb-2.5 mb-3.5">
-          <span className="text-[11px] font-extrabold text-slate-100 uppercase tracking-widest border-b-2 border-indigo-500 pb-2">
-            MIJOZLAR ({clients.length})
+      <div className="flex-1 min-h-0 bg-[#111522] border border-white/[0.04] rounded-2xl p-5 flex flex-col shadow-2xl">
+        <div className="flex justify-between items-center border-b border-white/[0.04] pb-3 mb-4 shrink-0">
+          <span className="text-[11px] font-extrabold text-slate-100 uppercase tracking-widest border-b-2 border-indigo-500 pb-2 font-outfit">
+            Mijozlar Bazasi <span className="ml-1 text-slate-500 font-bold">({clients.length})</span>
           </span>
           <button
+            type="button"
             onClick={() => setShowAddClient(true)}
-            className="text-[10px] text-indigo-400 font-extrabold hover:underline flex items-center gap-1 cursor-pointer"
+            className="text-[10px] text-indigo-400 font-extrabold hover:text-indigo-300 transition flex items-center gap-1 cursor-pointer font-outfit uppercase tracking-wider"
           >
-            + Yangi mijoz
+            + Yangi mijoz qo'shish
           </button>
         </div>
 

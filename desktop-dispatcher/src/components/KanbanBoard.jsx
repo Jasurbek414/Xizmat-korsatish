@@ -26,26 +26,26 @@ const KanbanBoard = ({ orders, onUpdateStatus, onSelectOrderClient }) => {
   const getBadgeStyle = (status) => {
     const s = status.toLowerCase();
     if (s === 'qabul qilindi' || s === 'yangi' || s === 'new') {
-      return 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30';
+      return 'bg-blue-500/10 text-blue-400 border border-blue-500/20';
     }
     if (s === 'yakunlandi' || s === 'completed') {
-      return 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30';
+      return 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20';
     }
     if (s === 'bekor qilindi') {
-      return 'bg-rose-500/20 text-rose-400 border border-rose-500/30';
+      return 'bg-rose-500/10 text-rose-400 border border-rose-500/20';
     }
     if (s === 'yetkazilmoqda' || s === 'etkazib berish' || s === 'to delivery') {
-      return 'bg-amber-500/20 text-amber-400 border border-amber-500/30';
+      return 'bg-amber-500/10 text-amber-400 border border-amber-500/20';
     }
-    return 'bg-indigo-500/20 text-indigo-400 border border-indigo-500/30'; // Processing
+    return 'bg-purple-500/10 text-purple-400 border border-purple-500/20'; // Processing
   };
 
   const getBadgeText = (status) => {
     const s = status.toLowerCase();
-    if (s === 'qabul qilindi' || s === 'yangi') return 'New';
-    if (s === 'yakunlandi') return 'Completed';
-    if (s === 'yetkazilmoqda' || s === 'etkazib berish') return 'To Delivery';
-    if (s === 'bajarilmoqda') return 'Processing';
+    if (s === 'qabul qilindi' || s === 'yangi') return 'Yangi';
+    if (s === 'yakunlandi') return 'Yopildi';
+    if (s === 'yetkazilmoqda' || s === 'etkazib berish') return 'Yo\'lda';
+    if (s === 'bajarilmoqda') return 'Jarayonda';
     return status;
   };
 
@@ -59,7 +59,6 @@ const KanbanBoard = ({ orders, onUpdateStatus, onSelectOrderClient }) => {
     }
   };
 
-  // Simple cycle status on card double click or menu click
   const handleCycleStatus = (order, e) => {
     e.stopPropagation();
     let nextStatus = 'Qabul qilindi';
@@ -73,10 +72,10 @@ const KanbanBoard = ({ orders, onUpdateStatus, onSelectOrderClient }) => {
   };
 
   const columns = [
-    { id: 'yangi', title: 'YANGI', count: getColumnOrders('yangi').length },
-    { id: 'jarayonda', title: 'JARAYONDA', count: getColumnOrders('jarayonda').length },
-    { id: 'etkazish', title: 'ETKAZIB BERISH', count: getColumnOrders('etkazish').length },
-    { id: 'yopildi', title: 'YOPILDI', count: getColumnOrders('yopildi').length }
+    { id: 'yangi', title: 'Yangi', count: getColumnOrders('yangi').length, color: 'border-t-blue-500 bg-blue-500/2' },
+    { id: 'jarayonda', title: 'Jarayonda', count: getColumnOrders('jarayonda').length, color: 'border-t-purple-500 bg-purple-500/2' },
+    { id: 'etkazish', title: 'Yo\'lda', count: getColumnOrders('etkazish').length, color: 'border-t-amber-500 bg-amber-500/2' },
+    { id: 'yopildi', title: 'Yopildi', count: getColumnOrders('yopildi').length, color: 'border-t-emerald-500 bg-emerald-500/2' }
   ];
 
   return (
@@ -84,21 +83,21 @@ const KanbanBoard = ({ orders, onUpdateStatus, onSelectOrderClient }) => {
       {columns.map(col => {
         const colOrders = getColumnOrders(col.id);
         return (
-          <div key={col.id} className="flex flex-col bg-[#161e31]/40 border border-slate-800/40 rounded-xl p-3.5 min-h-0">
+          <div key={col.id} className={`flex flex-col bg-[#111522]/40 border-t-2 border border-white/[0.04] rounded-xl p-3.5 min-h-0 transition duration-300 ${col.color}`}>
             {/* Column Header */}
             <div className="flex justify-between items-center mb-3 shrink-0">
-              <span className="text-[10.5px] font-extrabold text-slate-400 tracking-wider">
-                {col.title} ({col.count})
+              <span className="text-[10.5px] font-extrabold text-slate-350 tracking-wider uppercase font-outfit">
+                {col.title} <span className="ml-1 text-slate-500">({col.count})</span>
               </span>
-              <button className="text-slate-500 hover:text-slate-350 cursor-pointer">
-                <MoreHorizontal className="w-4 h-4" />
+              <button className="text-slate-500 hover:text-slate-300 cursor-pointer p-0.5 rounded transition hover:bg-white/5">
+                <MoreHorizontal className="w-3.5 h-3.5" />
               </button>
             </div>
 
             {/* Cards Scroll Container */}
-            <div className="flex-1 overflow-y-auto space-y-2.5 pr-0.5 scrollbar-thin max-h-[170px] min-h-[140px]">
+            <div className="flex-1 overflow-y-auto space-y-2.5 pr-0.5 scrollbar-thin min-h-[140px]">
               {colOrders.length === 0 ? (
-                <div className="text-center py-6 text-[10px] text-slate-600 font-bold">
+                <div className="text-center py-8 text-[10px] text-slate-650 font-bold uppercase tracking-wider select-none">
                   Bo'sh
                 </div>
               ) : (
@@ -109,31 +108,31 @@ const KanbanBoard = ({ orders, onUpdateStatus, onSelectOrderClient }) => {
                       key={o.id}
                       onClick={() => handleCardClick(o)}
                       onDoubleClick={(e) => handleCycleStatus(o, e)}
-                      className={`p-3 bg-[#1c243b] hover:bg-[#232c48] border rounded-xl transition cursor-pointer flex flex-col gap-1.5 shadow ${
-                        isNew ? 'border-emerald-500/40 bg-emerald-500/2' : 'border-slate-800/60'
+                      className={`p-3 bg-[#161c2e] hover:bg-[#1d253d] border rounded-xl transition-all duration-200 cursor-pointer flex flex-col gap-2 shadow-lg hover:shadow-indigo-500/5 active:scale-[0.98] ${
+                        isNew ? 'border-blue-500/25 bg-blue-500/[0.02]' : 'border-white/[0.04]'
                       }`}
                     >
                       <div className="flex justify-between items-start">
-                        <span className="text-[9px] font-mono text-slate-500 font-bold uppercase">
-                          {o.id.replace('ORD-2026-0000', 'ORDER ')}
+                        <span className="text-[8px] font-bold font-mono text-slate-500 tracking-wider">
+                          {o.id.replace('ORD-2026-0000', 'ID: ')}
                         </span>
                       </div>
 
                       <div>
-                        <span className="block font-bold text-slate-200 text-xs leading-none">
+                        <span className="block font-extrabold text-slate-100 text-xs leading-none">
                           {o.client_name}
                         </span>
-                        <span className="block text-[9.5px] text-slate-450 truncate mt-1">
+                        <span className="block text-[9.5px] text-slate-450 truncate mt-1.5">
                           {o.address || 'Kiritilmagan'}
                         </span>
                       </div>
 
-                      <div className="flex justify-between items-center pt-1.5 border-t border-slate-800/40 mt-1">
-                        <span className={`px-1.5 py-0.5 rounded text-[8px] font-extrabold uppercase tracking-wide ${getBadgeStyle(o.status)}`}>
+                      <div className="flex justify-between items-center pt-2 border-t border-white/[0.04] mt-1">
+                        <span className={`px-1.5 py-0.5 rounded text-[7.5px] font-extrabold uppercase tracking-wider ${getBadgeStyle(o.status)}`}>
                           {getBadgeText(o.status)}
                         </span>
                         {o.price > 0 && (
-                          <span className="text-[9px] font-mono text-emerald-500 font-bold">
+                          <span className="text-[9px] font-mono text-emerald-400 font-extrabold">
                             {o.price.toLocaleString()} UZS
                           </span>
                         )}
