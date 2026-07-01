@@ -18,6 +18,21 @@ const Dialer = () => {
   const [activeLineId, setActiveLineId] = useState(sipService.activeLineId);
 
   const timerRef = useRef(null);
+  const numberRef = useRef('');
+  const sipStatusRef = useRef('DISCONNECTED');
+  const callStateRef = useRef({ state: 'IDLE' });
+
+  useEffect(() => {
+    numberRef.current = number;
+  }, [number]);
+
+  useEffect(() => {
+    sipStatusRef.current = sipStatus;
+  }, [sipStatus]);
+
+  useEffect(() => {
+    callStateRef.current = callState;
+  }, [callState]);
 
   const loadLogs = () => {
     const logs = getDbItem('dispatcher_call_logs') || [];
@@ -69,11 +84,47 @@ const Dialer = () => {
       sipService.loadLines();
     };
 
+    const handleKeyDown = (e) => {
+      // Ignore if typing inside any form input or select field
+      const activeEl = document.activeElement;
+      if (activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA' || activeEl.tagName === 'SELECT' || activeEl.isContentEditable)) {
+        return;
+      }
+
+      const key = e.key;
+      if (/[0-9]/.test(key)) {
+        if (numberRef.current.length >= 12) return;
+        setNumber(prev => prev + key);
+      } else if (key === '*') {
+        if (numberRef.current.length >= 12) return;
+        setNumber(prev => prev + '*');
+      } else if (key === '#') {
+        if (numberRef.current.length >= 12) return;
+        setNumber(prev => prev + '#');
+      } else if (key === 'Backspace') {
+        setNumber(prev => prev.slice(0, -1));
+      } else if (key === 'Enter') {
+        e.preventDefault();
+        // Trigger call logic directly from latest refs
+        let clean = numberRef.current.replace(/\D/g, '');
+        if (!clean.startsWith('998')) clean = '998' + clean;
+        if (clean.length >= 7 && sipStatusRef.current === 'CONNECTED' && callStateRef.current.state === 'IDLE') {
+          const displayPhone = '+' + clean;
+          const clients = getDbItem('dispatcher_clients') || [];
+          const client = clients.find(c => c.phone.replace(/\s+/g, '') === displayPhone.replace(/\s+/g, ''));
+          sipService.makeCall(displayPhone, client ? client.full_name : null);
+        }
+      } else if (key === 'Delete' || key === 'Escape') {
+        setNumber('');
+      }
+    };
+
     sipService.addEventListener('statusChange', handleStatusChange);
     sipService.addEventListener('callStateChange', handleCallStateChange);
     sipService.addEventListener('logsChange', handleLogsChange);
     sipService.addEventListener('linesStatusChange', handleLinesStatusChange);
     window.addEventListener('storage', handleStorageChange);
+    window.addEventListener('keydown', handleKeyDown);
 
     return () => {
       sipService.removeEventListener('statusChange', handleStatusChange);
@@ -81,6 +132,7 @@ const Dialer = () => {
       sipService.removeEventListener('logsChange', handleLogsChange);
       sipService.removeEventListener('linesStatusChange', handleLinesStatusChange);
       window.removeEventListener('storage', handleStorageChange);
+      window.removeEventListener('keydown', handleKeyDown);
       if (timerRef.current) clearInterval(timerRef.current);
     };
   }, []);
