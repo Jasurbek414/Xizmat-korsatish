@@ -7,18 +7,41 @@
   overflow: hidden;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+
+  /* Day (Light) Mode Variables */
+  --bg-app: #f1f5f9;
+  --bg-card: #ffffff;
+  --bg-input: #f8fafc;
+  --border-color: rgba(15, 23, 42, 0.08);
+  --text-primary: #0f172a;
+  --text-secondary: #475569;
+  --text-muted: #94a3b8;
+  --bg-sidebar: #ffffff;
+  --bg-keypad-btn: #f1f5f9;
+  --bg-keypad-btn-hover: #e2e8f0;
+}
+
+.dark {
+  /* Night (Dark) Mode Variables */
+  --bg-app: #080b11;
+  --bg-card: #111522;
+  --bg-input: #0a0d16;
+  --border-color: rgba(255, 255, 255, 0.04);
+  --text-primary: #f1f5f9;
+  --text-secondary: #cbd5e1;
+  --text-muted: #64748b;
+  --bg-sidebar: #111522;
+  --bg-keypad-btn: #1c243b;
+  --bg-keypad-btn-hover: #232c48;
 }
 
 body {
   margin: 0;
   overflow: hidden;
   user-select: none;
-  background-color: #fafbfc;
-  transition: background-color 0.3s ease;
-}
-
-.dark body {
-  background-color: #090d16;
+  background-color: var(--bg-app);
+  color: var(--text-primary);
+  transition: background-color 0.3s ease, color 0.3s ease;
 }
 
 /* Glassmorphism Cards */

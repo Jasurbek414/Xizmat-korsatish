@@ -18,27 +18,27 @@ const Keypad = ({
   formatDisplayNumber
 }) => {
   return (
-    <div className="bg-[#151b2d] border border-white/[0.04] rounded-xl p-4 flex flex-col justify-between shrink-0 h-[420px]">
+    <div className="bg-[var(--bg-card)] border border-[var(--border-color)] rounded-xl p-4 flex flex-col justify-between shrink-0 h-[420px] transition-colors duration-300">
       
       {/* SIP Status Header */}
       <div 
         onClick={onToggleSip}
-        className="px-3.5 py-2.5 bg-[#0b0e17] border border-slate-800/60 rounded-lg flex items-center justify-between cursor-pointer hover:bg-[#131722] transition shrink-0"
+        className="px-3.5 py-2.5 bg-[var(--bg-input)] border border-[var(--border-color)] rounded-lg flex items-center justify-between cursor-pointer hover:bg-[var(--bg-keypad-btn-hover)] transition-colors duration-300 shrink-0"
       >
         <div className="flex items-center gap-2">
           <span className={`w-1.5 h-1.5 rounded-full ${
             sipStatus === 'CONNECTED' ? 'bg-emerald-500 animate-pulse' : sipStatus === 'CONNECTING' ? 'bg-amber-500 animate-pulse' : 'bg-rose-500'
           }`} />
-          <span className="text-[10px] text-slate-300 font-bold uppercase tracking-wider font-outfit">
+          <span className="text-[10px] text-[var(--text-primary)] font-bold uppercase tracking-wider font-outfit">
             {sipStatus === 'CONNECTED' ? 'SIP Ulanish: Faol' : sipStatus === 'CONNECTING' ? 'SIP Ulanmoqda...' : 'SIP Ulanmagan'}
           </span>
         </div>
-        <span className="w-1.5 h-1.5 rounded-full bg-slate-600" />
+        <span className="w-1.5 h-1.5 rounded-full bg-slate-500" />
       </div>
 
       {/* Number Display Box */}
-      <div className="w-full bg-[#0b0e17] border border-slate-800/60 p-3 rounded-lg flex items-center justify-center min-h-[46px] my-3.5 shrink-0">
-        <span className="text-sm font-extrabold text-indigo-400 font-mono tracking-wider">
+      <div className="w-full bg-[var(--bg-input)] border border-[var(--border-color)] p-3 rounded-lg flex items-center justify-center min-h-[46px] my-3.5 shrink-0 transition-colors duration-300">
+        <span className="text-sm font-extrabold text-indigo-500 dark:text-indigo-400 font-mono tracking-wider">
           {formatDisplayNumber(number)}
         </span>
       </div>
@@ -55,12 +55,12 @@ const Keypad = ({
             key={btn.d}
             type="button"
             onClick={() => onKeyPress(btn.d)}
-            className="bg-[#1c243b] hover:bg-[#232c48] active:bg-[#5850ec]/20 border border-slate-800/40 rounded-lg flex flex-col items-center justify-center cursor-pointer transition select-none py-1.5 active:scale-95"
+            className="bg-[var(--bg-keypad-btn)] hover:bg-[var(--bg-keypad-btn-hover)] active:bg-[#5850ec]/20 border border-[var(--border-color)] rounded-lg flex flex-col items-center justify-center cursor-pointer transition-colors duration-300 select-none py-1.5 active:scale-95"
           >
-            <span className="text-xs font-bold text-slate-200 font-mono leading-none">
+            <span className="text-xs font-bold text-[var(--text-primary)] font-mono leading-none">
               {btn.d}
             </span>
-            <span className="text-[5.5px] text-slate-500 font-bold block mt-0.5 leading-none h-1 uppercase">
+            <span className="text-[5.5px] text-[var(--text-muted)] font-bold block mt-0.5 leading-none h-1 uppercase">
               {btn.l}
             </span>
           </button>
@@ -73,7 +73,7 @@ const Keypad = ({
           type="button"
           onClick={onBackspace}
           disabled={number.length === 0}
-          className="w-8 h-8 rounded-full bg-[#1c243b] hover:bg-[#232c48] disabled:opacity-30 text-slate-450 flex items-center justify-center cursor-pointer border border-slate-800/40"
+          className="w-8 h-8 rounded-full bg-[var(--bg-keypad-btn)] hover:bg-[var(--bg-keypad-btn-hover)] disabled:opacity-30 text-[var(--text-secondary)] flex items-center justify-center cursor-pointer border border-[var(--border-color)] transition-colors duration-300"
           title="O'chirish"
         >
           <PhoneOff className="w-3.5 h-3.5 rotate-180" />
@@ -104,7 +104,7 @@ const Keypad = ({
           type="button"
           onClick={onClear}
           disabled={number.length === 0}
-          className="w-8 h-8 rounded-full bg-[#1c243b] hover:bg-[#232c48] disabled:opacity-30 text-slate-455 flex items-center justify-center cursor-pointer border border-slate-800/40"
+          className="w-8 h-8 rounded-full bg-[var(--bg-keypad-btn)] hover:bg-[var(--bg-keypad-btn-hover)] disabled:opacity-30 text-[var(--text-secondary)] flex items-center justify-center cursor-pointer border border-[var(--border-color)] transition-colors duration-300"
           title="Tozalash"
         >
           <X className="w-3.5 h-3.5" />
@@ -112,17 +112,17 @@ const Keypad = ({
       </div>
 
       {/* Control Action Bar */}
-      <div className="flex justify-between px-2 pt-2.5 border-t border-slate-800/40 text-[9px] font-bold text-slate-400 select-none shrink-0 mt-1">
+      <div className="flex justify-between px-2 pt-2.5 border-t border-[var(--border-color)] text-[9px] font-bold text-[var(--text-secondary)] select-none shrink-0 mt-1">
         <button 
           type="button"
           onClick={onRedial}
           disabled={sipStatus !== 'CONNECTED' || callState.state !== 'IDLE'}
-          className="flex flex-col items-center gap-1 hover:text-indigo-400 transition cursor-pointer disabled:opacity-40"
+          className="flex flex-col items-center gap-1 hover:text-indigo-500 dark:hover:text-indigo-400 transition cursor-pointer disabled:opacity-40"
         >
           <Phone className="w-3.5 h-3.5" />
           <span>Qayta</span>
         </button>
-        <button type="button" className="flex flex-col items-center gap-1 hover:text-indigo-400 transition cursor-pointer opacity-50 cursor-not-allowed">
+        <button type="button" className="flex flex-col items-center gap-1 hover:text-indigo-500 dark:hover:text-indigo-400 transition cursor-pointer opacity-50 cursor-not-allowed">
           <Share2 className="w-3.5 h-3.5 rotate-90" />
           <span>Transfer</span>
         </button>
@@ -131,7 +131,7 @@ const Keypad = ({
           onClick={onToggleHold}
           disabled={callState.state !== 'ACTIVE' && callState.state !== 'HOLD'}
           className={`flex flex-col items-center gap-1 transition cursor-pointer ${
-            callState.isHeld ? 'text-amber-500' : 'hover:text-indigo-400 disabled:opacity-40'
+            callState.isHeld ? 'text-amber-500 font-black' : 'hover:text-indigo-550 disabled:opacity-40'
           }`}
         >
           {callState.isHeld ? <Play className="w-3.5 h-3.5" /> : <Pause className="w-3.5 h-3.5" />}
@@ -142,7 +142,7 @@ const Keypad = ({
           onClick={onToggleMute}
           disabled={callState.state !== 'ACTIVE' && callState.state !== 'HOLD'}
           className={`flex flex-col items-center gap-1 transition cursor-pointer ${
-            callState.isMuted ? 'text-rose-500' : 'hover:text-indigo-400 disabled:opacity-40'
+            callState.isMuted ? 'text-rose-500 font-black' : 'hover:text-indigo-550 disabled:opacity-40'
           }`}
         >
           {callState.isMuted ? <MicOff className="w-3.5 h-3.5" /> : <Mic className="w-3.5 h-3.5" />}

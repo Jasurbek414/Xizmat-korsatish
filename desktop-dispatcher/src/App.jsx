@@ -15,15 +15,27 @@ const App = () => {
   const [loading, setLoading] = useState(true);
   const [intakeClient, setIntakeClient] = useState(null);
   
+  // Theme state
+  const [theme, setTheme] = useState(() => localStorage.getItem('dispatcher_theme') || 'dark');
+
   // SIP status, settings toggle and incoming call popups
   const [sipStatus, setSipStatus] = useState('DISCONNECTED');
   const [incomingCall, setIncomingCall] = useState(null);
   const [showSettings, setShowSettings] = useState(false);
 
+  // Sync theme with document class
   useEffect(() => {
-    // Ensure dark mode is active
-    document.documentElement.classList.add('dark');
-    
+    if (theme === 'dark') {
+      document.documentElement.classList.add('dark');
+      document.documentElement.classList.remove('light');
+    } else {
+      document.documentElement.classList.add('light');
+      document.documentElement.classList.remove('dark');
+    }
+    localStorage.setItem('dispatcher_theme', theme);
+  }, [theme]);
+
+  useEffect(() => {
     // Seed local database
     initMockDb();
 
@@ -127,7 +139,7 @@ const App = () => {
   }
 
   return (
-    <div className="flex flex-col bg-[#080b11] h-screen text-slate-200 font-sans w-full overflow-hidden relative">
+    <div className="flex flex-col bg-[var(--bg-app)] h-screen text-[var(--text-primary)] font-sans w-full overflow-hidden relative transition-colors duration-300">
       
       {/* Top Header */}
       <Header
@@ -135,15 +147,17 @@ const App = () => {
         sipStatus={sipStatus}
         onToggleSettings={() => setShowSettings(true)}
         onLogout={handleLogout}
+        theme={theme}
+        onToggleTheme={() => setTheme(prev => prev === 'dark' ? 'light' : 'dark')}
       />
 
       {/* Main Grid Workspace */}
       <main className="flex-1 p-6 overflow-hidden h-[calc(100vh-3.5rem)] relative flex flex-col lg:flex-row gap-6 z-10">
         
         {/* Column 1 (Left): Dialer Keypad & Call Stats */}
-        <div className="w-[280px] shrink-0 h-full bg-[#111522] border border-white/[0.04] p-5 rounded-2xl flex flex-col justify-between overflow-hidden relative z-10 shadow-2xl">
-          <div className="flex justify-between items-center pb-2 border-b border-white/[0.04] mb-3.5 select-none shrink-0">
-            <span className="text-[10px] uppercase tracking-wider text-slate-400 font-extrabold font-outfit">SIP Softphone</span>
+        <div className="w-[280px] shrink-0 h-full bg-[var(--bg-sidebar)] border border-[var(--border-color)] p-5 rounded-2xl flex flex-col justify-between overflow-hidden relative z-10 shadow-2xl transition-colors duration-300">
+          <div className="flex justify-between items-center pb-2 border-b border-[var(--border-color)] mb-3.5 select-none shrink-0">
+            <span className="text-[10px] uppercase tracking-wider text-[var(--text-muted)] font-extrabold font-outfit">SIP Softphone</span>
           </div>
           <div className="flex-1 min-h-0">
             <Dialer />

@@ -201,7 +201,7 @@ const Dialer = () => {
   };
 
   return (
-    <div className="flex flex-col h-full text-xs font-semibold select-none text-slate-200 justify-start gap-4">
+    <div className="flex flex-col h-full text-xs font-semibold select-none text-slate-200 justify-between">
       
       {/* 1. Keypad Card */}
       <Keypad
@@ -221,16 +221,18 @@ const Dialer = () => {
         formatDisplayNumber={formatDisplayNumber}
       />
 
-      {/* 2. Sip Lines Panel */}
-      <SipLines
-        sipLines={sipLines}
-        lineStatuses={lineStatuses}
-        activeLineId={activeLineId}
-        callState={callState}
-        duration={duration}
-      />
+      {/* 2. Sip Lines Panel (flex-1 expands lines down) */}
+      <div className="flex-1 min-h-0 mt-3.5">
+        <SipLines
+          sipLines={sipLines}
+          lineStatuses={lineStatuses}
+          activeLineId={activeLineId}
+          callState={callState}
+          duration={duration}
+        />
+      </div>
 
-      {/* 3. Footer Statistics Row */}
+      {/* 3. Footer Statistics Row (pinned at bottom) */}
       <div className="grid grid-cols-4 border-t border-white/5 bg-[#0b0e17]/40 text-center divide-x divide-white/5 text-[7px] font-bold text-slate-450 rounded-xl select-none shrink-0 mt-3.5 font-outfit">
         <div className="py-2.5 flex flex-col items-center justify-center gap-0.5">
           <span className="text-xs font-bold text-slate-100 font-mono leading-none">{chiquvchiCount}</span>

@@ -40,7 +40,6 @@ const SonggiQongiroqlar = ({ onQuickCall, onSelectClient }) => {
     }
   };
 
-  // Filter logs based on active tab
   const getFilteredLogs = () => {
     if (activeTab === 'INCOMING') {
       return logs.filter(log => log.type === 'INCOMING' && log.status !== 'MISSED');
@@ -60,7 +59,7 @@ const SonggiQongiroqlar = ({ onQuickCall, onSelectClient }) => {
     let hours = d.getHours();
     const ampm = hours >= 12 ? 'PM' : 'AM';
     hours = hours % 12;
-    hours = hours ? hours : 12; // 0 should be 12
+    hours = hours ? hours : 12;
     const minutes = d.getMinutes().toString().padStart(2, '0');
     return `${date} • ${hours.toString().padStart(2, '0')}:${minutes} ${ampm}`;
   };
@@ -68,12 +67,12 @@ const SonggiQongiroqlar = ({ onQuickCall, onSelectClient }) => {
   const filteredLogs = getFilteredLogs();
 
   return (
-    <div className="bg-[#111522] border border-white/[0.04] rounded-2xl p-5 w-full h-full flex flex-col gap-4 text-xs font-semibold text-slate-200 shadow-2xl min-h-0">
+    <div className="bg-[var(--bg-card)] border border-[var(--border-color)] rounded-2xl p-5 w-full h-full flex flex-col gap-4 text-xs font-semibold text-[var(--text-primary)] shadow-2xl transition-colors duration-300 min-h-0">
       
       {/* Header title */}
-      <div className="flex items-center gap-2 border-b border-white/[0.04] pb-3.5 shrink-0 select-none">
-        <Clock className="w-4 h-4 text-slate-400" />
-        <span className="font-extrabold text-[10.5px] uppercase tracking-wider text-slate-350 font-outfit">So'nggi Qo'ng'iroqlar</span>
+      <div className="flex items-center gap-2 border-b border-[var(--border-color)] pb-3.5 shrink-0 select-none">
+        <Clock className="w-4 h-4 text-[var(--text-muted)]" />
+        <span className="font-extrabold text-[10.5px] uppercase tracking-wider text-[var(--text-secondary)] font-outfit">So'nggi Qo'ng'iroqlar</span>
       </div>
 
       {/* Tabs list */}
@@ -88,10 +87,10 @@ const SonggiQongiroqlar = ({ onQuickCall, onSelectClient }) => {
             key={tab.id}
             type="button"
             onClick={() => setActiveTab(tab.id)}
-            className={`px-4 py-1.5 rounded-lg text-[9.5px] font-extrabold uppercase tracking-wider transition cursor-pointer text-center ${
+            className={`px-4 py-1.5 rounded-lg text-[9.5px] font-extrabold uppercase tracking-wider transition-all duration-300 cursor-pointer text-center ${
               activeTab === tab.id
-                ? 'bg-[#1c243b] text-white border border-indigo-500/25 shadow-md'
-                : 'bg-white/[0.02] border border-white/[0.04] text-slate-500 hover:text-slate-300'
+                ? 'bg-[var(--bg-keypad-btn-hover)] text-[var(--text-primary)] border border-indigo-500/25 shadow-md'
+                : 'bg-[var(--bg-keypad-btn)]/30 border border-[var(--border-color)] text-[var(--text-muted)] hover:text-[var(--text-primary)]'
             }`}
           >
             {tab.label}
@@ -102,7 +101,7 @@ const SonggiQongiroqlar = ({ onQuickCall, onSelectClient }) => {
       {/* Logs Scroll container */}
       <div className="flex-1 overflow-y-auto space-y-2 pr-0.5 scrollbar-thin min-h-[140px]">
         {filteredLogs.length === 0 ? (
-          <div className="text-center py-10 text-[9.5px] text-slate-655 font-bold uppercase tracking-wider select-none">
+          <div className="text-center py-10 text-[9.5px] text-[var(--text-muted)] font-bold uppercase tracking-wider select-none">
             Qo'ng'iroqlar tarixi bo'sh
           </div>
         ) : (
@@ -114,27 +113,26 @@ const SonggiQongiroqlar = ({ onQuickCall, onSelectClient }) => {
               <div
                 key={log.id}
                 onClick={() => handleRowClick(log)}
-                className="p-3.5 rounded-xl border border-white/[0.04] bg-[#161c2e]/40 hover:bg-[#1d253d]/60 hover:border-slate-800 transition duration-200 cursor-pointer flex items-center justify-between group"
+                className="p-3.5 rounded-xl border border-[var(--border-color)] bg-[var(--bg-input)]/40 hover:bg-[var(--bg-input)]/80 transition-all duration-200 cursor-pointer flex items-center justify-between group"
               >
                 <div className="flex items-center gap-3.5 min-w-0 pr-2">
-                  {/* Arrow Icon */}
                   <div className="shrink-0">
                     {isMissed ? (
                       <PhoneOff className="w-4 h-4 text-rose-500" />
                     ) : isIncoming ? (
                       <div className="w-4 h-4 rounded-full bg-emerald-500/10 text-emerald-500 flex items-center justify-center">
-                        <Check className="w-3 h-3 text-emerald-450 stroke-[3]" />
+                        <Check className="w-3 h-3 text-emerald-400 stroke-[3]" />
                       </div>
                     ) : (
-                      <ArrowUpRight className="w-4 h-4 text-indigo-400" />
+                      <ArrowUpRight className="w-4 h-4 text-indigo-500 dark:text-indigo-400" />
                     )}
                   </div>
 
                   <div className="min-w-0">
-                    <span className="block font-black text-slate-100 text-xs leading-none truncate group-hover:text-indigo-400 transition">
+                    <span className="block font-black text-[var(--text-primary)] text-xs leading-none truncate group-hover:text-indigo-500 dark:group-hover:text-indigo-400 transition">
                       {log.phone}
                     </span>
-                    <span className="block text-[9.5px] text-slate-500 font-mono mt-1.5 leading-none">
+                    <span className="block text-[9.5px] text-[var(--text-muted)] font-mono mt-1.5 leading-none">
                       {formatLogDate(log.created_at)}
                     </span>
                   </div>
@@ -145,7 +143,7 @@ const SonggiQongiroqlar = ({ onQuickCall, onSelectClient }) => {
                   <button
                     type="button"
                     onClick={(e) => handleRemoveLog(log.id, e)}
-                    className="w-7 h-7 rounded-lg bg-[#1c243b] hover:bg-rose-500/10 hover:text-rose-500 text-slate-500 flex items-center justify-center transition cursor-pointer"
+                    className="w-7 h-7 rounded-lg bg-[var(--bg-keypad-btn)] hover:bg-rose-500/10 text-[var(--text-muted)] hover:text-rose-550 flex items-center justify-center transition cursor-pointer border border-[var(--border-color)]"
                     title="O'chirish"
                   >
                     <Minus className="w-3.5 h-3.5" />
@@ -156,7 +154,7 @@ const SonggiQongiroqlar = ({ onQuickCall, onSelectClient }) => {
                       e.stopPropagation();
                       onQuickCall(log.phone, log.client_name);
                     }}
-                    className="w-7 h-7 rounded-lg bg-[#1c243b] group-hover:bg-[#5850ec] text-slate-400 group-hover:text-white flex items-center justify-center transition cursor-pointer"
+                    className="w-7 h-7 rounded-lg bg-[var(--bg-keypad-btn)] group-hover:bg-[#5850ec] text-[var(--text-muted)] group-hover:text-white flex items-center justify-center transition cursor-pointer border border-[var(--border-color)]"
                     title="Qo'ng'iroq qilish"
                   >
                     <Phone className="w-3.5 h-3.5" />
