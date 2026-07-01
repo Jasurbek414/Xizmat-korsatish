@@ -233,22 +233,22 @@ const Dialer = () => {
       </div>
 
       {/* 3. Footer Statistics Row (pinned at bottom) */}
-      <div className="grid grid-cols-4 border-t border-white/5 bg-[#0b0e17]/40 text-center divide-x divide-white/5 text-[7px] font-bold text-slate-450 rounded-xl select-none shrink-0 mt-3.5 font-outfit">
+      <div className="grid grid-cols-4 border border-[var(--border-color)] bg-[var(--bg-keypad-btn-hover)] text-center divide-x divide-[var(--border-color)] text-[7px] font-bold rounded-xl select-none shrink-0 mt-3.5 font-outfit">
         <div className="py-2.5 flex flex-col items-center justify-center gap-0.5">
-          <span className="text-xs font-bold text-slate-100 font-mono leading-none">{chiquvchiCount}</span>
-          <span className="uppercase tracking-wide text-slate-500">Chiquvchi</span>
+          <span className="text-xs font-bold text-[var(--text-primary)] font-mono leading-none">{chiquvchiCount}</span>
+          <span className="uppercase tracking-wide text-[var(--text-muted)]">Chiquvchi</span>
         </div>
         <div className="py-2.5 flex flex-col items-center justify-center gap-0.5">
-          <span className="text-xs font-bold text-slate-100 font-mono leading-none">{kiruvchiCount}</span>
-          <span className="uppercase tracking-wide text-slate-500">Kiruvchi</span>
+          <span className="text-xs font-bold text-[var(--text-primary)] font-mono leading-none">{kiruvchiCount}</span>
+          <span className="uppercase tracking-wide text-[var(--text-muted)]">Kiruvchi</span>
         </div>
         <div className="py-2.5 flex flex-col items-center justify-center gap-0.5">
-          <span className="text-xs font-bold text-slate-100 font-mono leading-none text-rose-500">{javobsizCount}</span>
-          <span className="uppercase tracking-wide text-slate-500">Javobsiz</span>
+          <span className="text-xs font-bold text-rose-500 font-mono leading-none">{javobsizCount}</span>
+          <span className="uppercase tracking-wide text-[var(--text-muted)]">Javobsiz</span>
         </div>
         <div className="py-2.5 flex flex-col items-center justify-center gap-0.5">
-          <span className="text-xs font-bold text-slate-100 font-mono leading-none">{getUmumiyDuration()}</span>
-          <span className="uppercase tracking-wide text-slate-500">Umumiy</span>
+          <span className="text-xs font-bold text-[var(--text-primary)] font-mono leading-none">{getUmumiyDuration()}</span>
+          <span className="uppercase tracking-wide text-[var(--text-muted)]">Umumiy</span>
         </div>
       </div>
 

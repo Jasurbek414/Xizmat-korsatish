@@ -4,7 +4,7 @@ import sipService from '../services/sipService';
 
 const SipLines = ({ sipLines, lineStatuses, activeLineId, callState, duration }) => {
   return (
-    <div className="bg-[var(--bg-card)] border border-[var(--border-color)] rounded-xl p-3.5 select-none flex flex-col h-full min-h-0 transition-colors duration-300">
+    <div className="bg-[var(--bg-input)] border border-[var(--border-color)] rounded-xl p-3.5 select-none flex flex-col h-full min-h-0 transition-colors duration-300">
       <span className="text-[8.5px] font-extrabold tracking-wider text-[var(--text-muted)] uppercase flex items-center justify-between mb-2">
         <span className="flex items-center gap-1.5 font-outfit">
           <Radio className="w-3 h-3 text-[#4f6efe]" /> Liniyalar ({sipLines.length})
