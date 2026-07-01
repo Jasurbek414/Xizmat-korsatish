@@ -225,20 +225,15 @@ const App = () => {
       {/* Main Grid Workspace */}
       <main className="flex-1 p-6 overflow-hidden h-[calc(100vh-3.5rem)] relative flex flex-col lg:flex-row gap-6 z-10">
         
-        {/* Column 1 (Left drawer): Dialer Keypad & Call Logs */}
-        {showDialer && (
-          <div className="w-[300px] shrink-0 h-full bg-[#151b2d] border border-slate-800/60 p-5 rounded-2xl flex flex-col justify-between overflow-hidden relative z-20 animate-slide-right">
-            <div className="flex justify-between items-center pb-2 border-b border-slate-800/40 mb-3 select-none">
-              <span className="text-[10px] uppercase tracking-wider text-slate-400 font-extrabold">SIP Softphone</span>
-              <button onClick={() => setShowDialer(false)} className="text-slate-500 hover:text-slate-350 cursor-pointer">
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-            <div className="flex-1 min-h-0">
-              <Dialer />
-            </div>
+        {/* Column 1: Dialer Keypad & Call Logs (Permanently Visible) */}
+        <div className="w-[280px] shrink-0 h-full bg-[#151b2d] border border-slate-800/60 p-5 rounded-2xl flex flex-col justify-between overflow-hidden relative z-10">
+          <div className="flex justify-between items-center pb-2 border-b border-slate-800/40 mb-3 select-none">
+            <span className="text-[10px] uppercase tracking-wider text-slate-400 font-extrabold">SIP Softphone</span>
           </div>
-        )}
+          <div className="flex-1 min-h-0">
+            <Dialer />
+          </div>
+        </div>
 
         {/* Column 2: Clients list, search and Kanban Active board */}
         <div className="flex-1 min-w-[320px] h-full overflow-hidden">
