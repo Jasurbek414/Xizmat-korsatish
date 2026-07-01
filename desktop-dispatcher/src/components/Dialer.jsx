@@ -201,7 +201,7 @@ const Dialer = () => {
   };
 
   return (
-    <div className="flex flex-col h-full text-xs font-semibold select-none text-slate-200 justify-between">
+    <div className="flex flex-col h-full text-xs font-semibold select-none text-slate-200 justify-start gap-4">
       
       {/* 1. Keypad Card */}
       <Keypad

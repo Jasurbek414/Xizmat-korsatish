@@ -18,7 +18,7 @@ const Keypad = ({
   formatDisplayNumber
 }) => {
   return (
-    <div className="bg-[#151b2d] border border-slate-800/60 rounded-xl p-4.5 flex flex-col justify-between flex-1 min-h-[380px]">
+    <div className="bg-[#151b2d] border border-white/[0.04] rounded-xl p-4 flex flex-col justify-between shrink-0 h-[375px]">
       
       {/* SIP Status Header */}
       <div 
