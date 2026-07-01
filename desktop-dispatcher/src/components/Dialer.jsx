@@ -4,20 +4,14 @@ import { getDbItem, setDbItem } from '../store/mockDb';
 
 import Keypad from './Keypad';
 import SipLines from './SipLines';
-import CallLogs from './CallLogs';
-import DemoPanel from './DemoPanel';
 
 const Dialer = () => {
   const [number, setNumber] = useState('');
   const [callLogs, setCallLogs] = useState([]);
-  const [search, setSearch] = useState('');
   const [callState, setCallState] = useState({ state: 'IDLE', number: '', clientName: '', isMuted: false, isHeld: false });
   const [duration, setDuration] = useState('00:00');
   const [sipStatus, setSipStatus] = useState('DISCONNECTED');
   
-  // Segment view state
-  const [activeView, setActiveView] = useState('dialer'); // 'dialer' or 'logs'
-
   // Multi-line specific states
   const [sipLines, setSipLines] = useState(() => getDbItem('dispatcher_sip_lines') || []);
   const [lineStatuses, setLineStatuses] = useState(sipService.lineStatuses);
@@ -25,7 +19,6 @@ const Dialer = () => {
 
   const timerRef = useRef(null);
 
-  // Initialize and load call logs
   const loadLogs = () => {
     const logs = getDbItem('dispatcher_call_logs') || [];
     setCallLogs(logs);
@@ -42,13 +35,7 @@ const Dialer = () => {
     const handleCallStateChange = (state) => {
       setCallState({ ...state });
       
-      // Auto switch to dialer tab if call becomes active or ringing
-      if (state.state !== 'IDLE') {
-        setActiveView('dialer');
-      }
-
       if (state.state === 'ACTIVE') {
-        // Start duration timer
         if (timerRef.current) clearInterval(timerRef.current);
         const start = state.startTime || Date.now();
         
@@ -98,7 +85,6 @@ const Dialer = () => {
     };
   }, []);
 
-  // Formatter for display
   const formatDisplayNumber = (raw) => {
     let clean = raw.replace(/\D/g, '');
     if (clean.startsWith('998')) {
@@ -152,8 +138,6 @@ const Dialer = () => {
     if (clean.length < 7 || sipStatus !== 'CONNECTED') return;
     
     const displayPhone = '+' + clean;
-    
-    // Check if matches client in DB
     const clients = getDbItem('dispatcher_clients') || [];
     const client = clients.find(c => c.phone.replace(/\s+/g, '') === displayPhone.replace(/\s+/g, ''));
     
@@ -182,12 +166,6 @@ const Dialer = () => {
     }
   };
 
-  const handleQuickCall = (phone, name) => {
-    if (sipStatus !== 'CONNECTED' || callState.state !== 'IDLE') return;
-    setNumber(phone);
-    sipService.makeCall(phone, name);
-  };
-
   const handleToggleSip = () => {
     if (activeLineId) {
       const isConnected = lineStatuses[activeLineId] === 'CONNECTED';
@@ -198,31 +176,6 @@ const Dialer = () => {
       }
     }
   };
-
-  const triggerIncomingSimulation = () => {
-    if (sipStatus !== 'CONNECTED' || callState.state !== 'IDLE') return;
-    
-    const clients = getDbItem('dispatcher_clients') || [];
-    const pool = [
-      ...clients,
-      { full_name: 'Noma\'lum Mijoz', phone: '+998 97 555 44 33' },
-      { full_name: 'Farkhod Karimov', phone: '+998 90 999 11 22' }
-    ];
-
-    const pick = pool[Math.floor(Math.random() * pool.length)];
-    sipService.simulateIncomingCall(pick.phone, pick.full_name);
-  };
-
-  const formatTime = (isoString) => {
-    const d = new Date(isoString);
-    return `${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`;
-  };
-
-  // Filter logs list
-  const filteredLogs = callLogs.filter(log => 
-    log.phone.includes(search) || 
-    (log.client_name && log.client_name.toLowerCase().includes(search.toLowerCase()))
-  );
 
   // Dynamic Statistics
   const chiquvchiCount = callLogs.filter(log => log.type === 'OUTGOING').length;
@@ -248,87 +201,53 @@ const Dialer = () => {
   };
 
   return (
-    <div className="flex flex-col h-full text-xs font-semibold select-none text-slate-200">
+    <div className="flex flex-col h-full text-xs font-semibold select-none text-slate-200 justify-between">
       
-      {/* Segmented View Switcher Header */}
-      <div className="flex bg-[#161e31]/80 border border-slate-800/60 p-1 rounded-xl shrink-0 mb-4">
-        <button
-          type="button"
-          onClick={() => setActiveView('dialer')}
-          className={`flex-1 py-2 rounded-lg text-[9.5px] font-extrabold uppercase tracking-wider transition cursor-pointer text-center ${
-            activeView === 'dialer'
-              ? 'bg-[#5850ec] text-white shadow-md'
-              : 'text-slate-400 hover:text-slate-200'
-          }`}
-        >
-          Klaviatura
-        </button>
-        <button
-          type="button"
-          onClick={() => setActiveView('logs')}
-          className={`flex-1 py-2 rounded-lg text-[9.5px] font-extrabold uppercase tracking-wider transition cursor-pointer text-center ${
-            activeView === 'logs'
-              ? 'bg-[#5850ec] text-white shadow-md'
-              : 'text-slate-400 hover:text-slate-200'
-          }`}
-        >
-          Tarix & Testlar
-        </button>
-      </div>
+      {/* 1. Keypad Card */}
+      <Keypad
+        number={number}
+        sipStatus={sipStatus}
+        callState={callState}
+        duration={duration}
+        onKeyPress={handleKeyPress}
+        onBackspace={handleBackspace}
+        onClear={handleClear}
+        onStartCall={handleStartCall}
+        onEndCall={handleEndCall}
+        onRedial={handleRedial}
+        onToggleHold={handleToggleHold}
+        onToggleMute={handleToggleMute}
+        onToggleSip={handleToggleSip}
+        formatDisplayNumber={formatDisplayNumber}
+      />
 
-      {/* Main Tab Render Container */}
-      <div className="flex-1 min-h-0 flex flex-col justify-between">
-        
-        {activeView === 'dialer' ? (
-          /* TAB 1: softphone dialer KEYPAD VIEW */
-          <div className="flex-1 flex flex-col justify-between min-h-0">
-            <Keypad
-              number={number}
-              sipStatus={sipStatus}
-              callState={callState}
-              duration={duration}
-              onKeyPress={handleKeyPress}
-              onBackspace={handleBackspace}
-              onClear={handleClear}
-              onStartCall={handleStartCall}
-              onEndCall={handleEndCall}
-              onRedial={handleRedial}
-              onToggleHold={handleToggleHold}
-              onToggleMute={handleToggleMute}
-              onToggleSip={handleToggleSip}
-              formatDisplayNumber={formatDisplayNumber}
-            />
+      {/* 2. Sip Lines Panel */}
+      <SipLines
+        sipLines={sipLines}
+        lineStatuses={lineStatuses}
+        activeLineId={activeLineId}
+        callState={callState}
+        duration={duration}
+      />
 
-            <SipLines
-              sipLines={sipLines}
-              lineStatuses={lineStatuses}
-              activeLineId={activeLineId}
-              callState={callState}
-              duration={duration}
-            />
-          </div>
-        ) : (
-          /* TAB 2: CALL LOGS HISTORY & SIMULATOR VIEW */
-          <div className="flex-1 flex flex-col justify-between min-h-0 select-none">
-            <CallLogs
-              filteredLogs={filteredLogs}
-              search={search}
-              onSearchChange={setSearch}
-              onQuickCall={handleQuickCall}
-              chiquvchiCount={chiquvchiCount}
-              kiruvchiCount={kiruvchiCount}
-              javobsizCount={javobsizCount}
-              umumiyDuration={getUmumiyDuration()}
-              formatTime={formatTime}
-            />
-
-            <DemoPanel
-              callState={callState}
-              onSimulate={triggerIncomingSimulation}
-            />
-          </div>
-        )}
-
+      {/* 3. Footer Statistics Row */}
+      <div className="grid grid-cols-4 border-t border-white/5 bg-[#0b0e17]/40 text-center divide-x divide-white/5 text-[7px] font-bold text-slate-450 rounded-xl select-none shrink-0 mt-3.5 font-outfit">
+        <div className="py-2.5 flex flex-col items-center justify-center gap-0.5">
+          <span className="text-xs font-bold text-slate-100 font-mono leading-none">{chiquvchiCount}</span>
+          <span className="uppercase tracking-wide text-slate-500">Chiquvchi</span>
+        </div>
+        <div className="py-2.5 flex flex-col items-center justify-center gap-0.5">
+          <span className="text-xs font-bold text-slate-100 font-mono leading-none">{kiruvchiCount}</span>
+          <span className="uppercase tracking-wide text-slate-500">Kiruvchi</span>
+        </div>
+        <div className="py-2.5 flex flex-col items-center justify-center gap-0.5">
+          <span className="text-xs font-bold text-slate-100 font-mono leading-none text-rose-500">{javobsizCount}</span>
+          <span className="uppercase tracking-wide text-slate-500">Javobsiz</span>
+        </div>
+        <div className="py-2.5 flex flex-col items-center justify-center gap-0.5">
+          <span className="text-xs font-bold text-slate-100 font-mono leading-none">{getUmumiyDuration()}</span>
+          <span className="uppercase tracking-wide text-slate-500">Umumiy</span>
+        </div>
       </div>
 
     </div>
