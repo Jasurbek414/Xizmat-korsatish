@@ -8,17 +8,17 @@
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 
-  /* Day (Light) Mode Variables - Premium Sand & Warm Cream Theme */
-  --bg-app: #d3c8b7;
-  --bg-card: #fdfaf4;
-  --bg-input: #ffffff;
-  --border-color: #e5ded2;
-  --text-primary: #292524;
+  /* Day (Light) Mode Variables - Beige Theme */
+  --bg-app: #ECE4D6;
+  --bg-card: #F8F4ED;
+  --bg-input: #FCFAF7;
+  --border-color: #DDD4C7;
+  --text-primary: #1c1917;
   --text-secondary: #57534e;
   --text-muted: #8c857b;
-  --bg-sidebar: #fdfaf4;
-  --bg-keypad-btn: #faf8f5;
-  --bg-keypad-btn-hover: #f3ece0;
+  --bg-sidebar: #F8F4ED;
+  --bg-keypad-btn: #FCFAF7;
+  --bg-keypad-btn-hover: #ECE4D6;
 }
 
 .dark {
@@ -44,9 +44,8 @@ body {
   transition: background-color 0.3s ease, color 0.3s ease;
 }
 
-/* Global Form Field Shadows (Recessed & Drop Shadow) */
+/* Global Form Field Transitions & Dark Mode Recessed Shadows */
 input, select, textarea {
-  box-shadow: 0 1px 2px rgba(41, 37, 36, 0.04), inset 0 1px 2.5px rgba(41, 37, 36, 0.06) !important;
   transition: box-shadow 0.2s ease-in-out, border-color 0.2s ease-in-out;
 }
 .dark input, .dark select, .dark textarea {
@@ -55,14 +54,14 @@ input, select, textarea {
 
 /* Card & Header Shadows Overrides for Day/Night separation */
 .shadow-2xl {
-  box-shadow: 0 10px 30px -10px rgba(41, 37, 36, 0.12), 0 4px 10px -5px rgba(41, 37, 36, 0.06) !important;
+  box-shadow: 0 4px 20px -2px rgba(41, 37, 36, 0.08), 0 2px 8px -1px rgba(41, 37, 36, 0.04) !important;
 }
 .dark .shadow-2xl {
   box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5) !important;
 }
 
 .shadow-md {
-  box-shadow: 0 4px 15px -3px rgba(41, 37, 36, 0.06), 0 2px 6px -2px rgba(41, 37, 36, 0.03) !important;
+  box-shadow: 0 2px 8px -1px rgba(41, 37, 36, 0.06), 0 1px 3px -1px rgba(41, 37, 36, 0.03) !important;
 }
 .dark .shadow-md {
   box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -1px rgba(0, 0, 0, 0.1) !important;
