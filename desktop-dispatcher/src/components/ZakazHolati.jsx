@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ClipboardList, Trash2, Clock, Check, AlertCircle } from 'lucide-react';
+import { ClipboardList, Trash2, Clock, Search } from 'lucide-react';
 import { getDbItem, setDbItem } from '../store/mockDb';
 
 const STATUS_OPTS = [
@@ -11,6 +11,7 @@ const STATUS_OPTS = [
 
 const ZakazHolati = () => {
   const [orders, setOrders] = useState([]);
+  const [searchQuery, setSearchQuery] = useState('');
 
   const loadOrders = () => {
     const list = getDbItem('dispatcher_orders') || [];
@@ -51,6 +52,17 @@ const ZakazHolati = () => {
     return opt ? opt.color : 'bg-slate-500/10 text-slate-600 border-slate-500/20';
   };
 
+  // Filter orders based on search query
+  const filteredOrders = orders.filter(ord => {
+    const q = searchQuery.toLowerCase();
+    return (
+      ord.client_name?.toLowerCase().includes(q) ||
+      ord.phone?.includes(q) ||
+      ord.tovar_nomi?.toLowerCase().includes(q) ||
+      ord.izoh?.toLowerCase().includes(q)
+    );
+  });
+
   return (
     <div className="bg-[var(--bg-card)] border border-[var(--border-color)] rounded-2xl p-5 w-full h-full flex flex-col gap-4 text-xs font-semibold text-[var(--text-primary)] shadow-2xl transition-colors duration-300 min-h-0 select-none">
       
@@ -60,14 +72,26 @@ const ZakazHolati = () => {
         <span className="font-extrabold text-[10.5px] uppercase tracking-wider text-[var(--text-secondary)] font-outfit">Zakaz Holati</span>
       </div>
 
+      {/* Search Input */}
+      <div className="relative shrink-0 select-none">
+        <Search className="absolute left-3 top-2.5 w-3.5 h-3.5 text-[var(--text-muted)]" />
+        <input
+          type="text"
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          placeholder="Qidirish (ism, tel, tovar)..."
+          className="w-full bg-[var(--bg-input)] border border-[var(--border-color)] rounded-xl pl-9.5 pr-3 py-2 text-xs text-[var(--text-primary)] font-bold focus:outline-none transition-all duration-300 focus:ring-4 focus:ring-indigo-500/5"
+        />
+      </div>
+
       {/* Orders Scroll container */}
       <div className="flex-1 overflow-y-auto space-y-2 pr-0.5 scrollbar-thin min-h-[140px]">
-        {orders.length === 0 ? (
+        {filteredOrders.length === 0 ? (
           <div className="text-center py-10 text-[9.5px] text-[var(--text-muted)] font-bold uppercase tracking-wider select-none">
-            Hozircha buyurtmalar yo'q
+            {searchQuery ? "Mos keladigan buyurtmalar topilmadi" : "Hozircha buyurtmalar yo'q"}
           </div>
         ) : (
-          orders.map(order => (
+          filteredOrders.map(order => (
             <div
               key={order.id}
               className="p-3.5 rounded-xl border border-[var(--border-color)] bg-[var(--bg-input)]/40 hover:bg-[var(--bg-input)]/80 transition-all duration-200 flex items-center justify-between gap-3 group"
