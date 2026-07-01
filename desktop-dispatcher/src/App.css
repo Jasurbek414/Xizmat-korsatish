@@ -8,17 +8,17 @@
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 
-  /* Day (Light) Mode Variables - Qaymoqrang (Warm Cream) Theme */
-  --bg-app: #f4efe6;
-  --bg-card: #ffffff;
+  /* Day (Light) Mode Variables - Premium Sand & Warm Cream Theme */
+  --bg-app: #d3c8b7;
+  --bg-card: #fdfaf4;
   --bg-input: #ffffff;
-  --border-color: #e3dac9;
-  --text-primary: #1c1917;
+  --border-color: #e5ded2;
+  --text-primary: #292524;
   --text-secondary: #57534e;
   --text-muted: #8c857b;
-  --bg-sidebar: #ffffff;
-  --bg-keypad-btn: #fafaf9;
-  --bg-keypad-btn-hover: #f5f2eb;
+  --bg-sidebar: #fdfaf4;
+  --bg-keypad-btn: #faf8f5;
+  --bg-keypad-btn-hover: #f3ece0;
 }
 
 .dark {
