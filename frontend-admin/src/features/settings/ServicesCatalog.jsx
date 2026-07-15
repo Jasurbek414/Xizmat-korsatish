@@ -10,7 +10,7 @@ const ServicesCatalog = () => {
   const [selectedCat, setSelectedCat] = useState('all');
   
   // Modals / Editing state
-  const [newService, setNewService] = useState({ name_uz: '', name_ru: '', name_en: '', price: '', category: '' });
+  const [newService, setNewService] = useState({ name_uz: '', name_ru: '', name_en: '', price: '', category: '', measurement_unit: 'm²' });
   const [editingService, setEditingService] = useState(null);
 
   useEffect(() => {
@@ -23,7 +23,8 @@ const ServicesCatalog = () => {
           name_ru: s.nameRu,
           name_en: s.nameEn,
           price: s.price,
-          category: s.category || ''
+          category: s.category || '',
+          measurement_unit: s.measurementUnit || 'm²'
         }));
         setServices(mapped);
       } catch (err) {
@@ -43,7 +44,8 @@ const ServicesCatalog = () => {
         name_ru: newService.name_ru || newService.name_uz,
         name_en: newService.name_en || newService.name_uz,
         price: parseFloat(newService.price),
-        category: newService.category
+        category: newService.category,
+        measurement_unit: newService.measurement_unit || 'm²'
       });
       
       const mapped = {
@@ -52,11 +54,12 @@ const ServicesCatalog = () => {
         name_ru: saved.nameRu,
         name_en: saved.nameEn,
         price: saved.price,
-        category: saved.category
+        category: saved.category,
+        measurement_unit: saved.measurementUnit || 'm²'
       };
 
       setServices(prev => [...prev, mapped]);
-      setNewService({ name_uz: '', name_ru: '', name_en: '', price: '', category: '' });
+      setNewService({ name_uz: '', name_ru: '', name_en: '', price: '', category: '', measurement_unit: 'm²' });
     } catch (err) {
       console.error("Failed to create service:", err);
     }
@@ -72,7 +75,8 @@ const ServicesCatalog = () => {
         name_ru: editingService.name_ru,
         name_en: editingService.name_en,
         price: parseFloat(editingService.price),
-        category: editingService.category
+        category: editingService.category,
+        measurement_unit: editingService.measurement_unit
       });
 
       const mapped = {
@@ -81,7 +85,8 @@ const ServicesCatalog = () => {
         name_ru: saved.nameRu,
         name_en: saved.nameEn,
         price: saved.price,
-        category: saved.category
+        category: saved.category,
+        measurement_unit: saved.measurementUnit || 'm²'
       };
 
       setServices(prev => prev.map(s => s.id === editingService.id ? mapped : s));
@@ -212,6 +217,23 @@ const ServicesCatalog = () => {
                 />
               </div>
             </div>
+            <div>
+              <label className="block text-slate-500 dark:text-gray-400 mb-1">O'lchov birligi</label>
+              <select
+                value={editingService ? editingService.measurement_unit : newService.measurement_unit}
+                onChange={(e) => editingService
+                  ? setEditingService({ ...editingService, measurement_unit: e.target.value })
+                  : setNewService({ ...newService, measurement_unit: e.target.value })
+                }
+                className="w-full glass-input rounded-xl px-3 py-2 text-slate-800 dark:text-white focus:outline-none bg-white dark:bg-[#1f2937]"
+              >
+                <option value="m²">Kvadrat metr (m²)</option>
+                <option value="dona">Dona (dona)</option>
+                <option value="kg">Kilogram (kg)</option>
+                <option value="metr">Metr (m)</option>
+                <option value="litr">Litr (l)</option>
+              </select>
+            </div>
             <div className="flex gap-2">
               <button 
                 type="submit" 
@@ -270,6 +292,7 @@ const ServicesCatalog = () => {
                 <tr className="border-b border-slate-200 dark:border-white/5 bg-slate-50 dark:bg-white/2 text-slate-500 dark:text-gray-400 text-[10px] font-bold uppercase tracking-wider">
                   <th className="p-4">{t('finance_page.category')}</th>
                   <th className="p-4">{t('settings_page.services_title')}</th>
+                  <th className="p-4">O'lchov birligi</th>
                   <th className="p-4">{t('orders_page.price')}</th>
                   <th className="p-4 text-right">{t('common.actions')}</th>
                 </tr>
@@ -287,6 +310,9 @@ const ServicesCatalog = () => {
                       <div className="text-[9px] text-slate-400 dark:text-gray-500 mt-0.5 uppercase tracking-wide">
                         {service.name_ru || 'RU yo\'q'} / {service.name_en || 'EN yo\'q'}
                       </div>
+                    </td>
+                    <td className="p-4 text-slate-500 dark:text-gray-400 font-bold">
+                      {service.measurement_unit || 'm²'}
                     </td>
                     <td className="p-4 text-indigo-600 dark:text-indigo-400 font-bold font-['Outfit']">
                       {service.price.toLocaleString()} UZS

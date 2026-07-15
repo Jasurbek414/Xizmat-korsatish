@@ -50,6 +50,7 @@ public class ServiceController {
         String nameEn = (String) request.get("name_en");
         Object priceObj = request.get("price");
         String category = (String) request.get("category");
+        String measurementUnit = (String) request.getOrDefault("measurement_unit", "m²");
 
         if (nameUz == null || nameRu == null || nameEn == null || priceObj == null) {
             return ResponseEntity.badRequest().body(Map.of("message", "Xizmat nomlari va narxi kiritilishi shart"));
@@ -66,6 +67,7 @@ public class ServiceController {
                 .nameEn(nameEn.trim())
                 .price(price)
                 .category(category)
+                .measurementUnit(measurementUnit)
                 .build();
 
         ServiceEntity saved = serviceRepository.save(service);
@@ -90,6 +92,7 @@ public class ServiceController {
         if (request.containsKey("name_en")) service.setNameEn((String) request.get("name_en"));
         if (request.containsKey("price")) service.setPrice(new BigDecimal(request.get("price").toString()));
         if (request.containsKey("category")) service.setCategory((String) request.get("category"));
+        if (request.containsKey("measurement_unit")) service.setMeasurementUnit((String) request.get("measurement_unit"));
 
         ServiceEntity saved = serviceRepository.save(service);
         return ResponseEntity.ok(saved);

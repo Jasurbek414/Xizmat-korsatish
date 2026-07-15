@@ -38,6 +38,10 @@ public class ServiceEntity {
     @Column(length = 100)
     private String category;
 
+    @Column(name = "measurement_unit", length = 50)
+    @Builder.Default
+    private String measurementUnit = "m²";
+
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
 

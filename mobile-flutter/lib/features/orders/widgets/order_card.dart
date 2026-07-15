@@ -90,7 +90,7 @@ class OrderCard extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               const Text(
-                "Gilamlar tarkibi",
+                "Buyurtma tarkibi",
                 style: TextStyle(
                   color: AppTheme.textPrimary,
                   fontWeight: FontWeight.bold,
@@ -102,7 +102,7 @@ class OrderCard extends StatelessWidget {
                 onPressed: () => _showAddCarpetDialog(context),
                 icon: const Icon(LucideIcons.plus, size: 12, color: AppTheme.accentColor),
                 label: const Text(
-                  "Gilam qo'shish",
+                  "Buyum qo'shish",
                   style: TextStyle(color: AppTheme.accentColor, fontSize: 10, fontWeight: FontWeight.bold),
                 ),
                 style: TextButton.styleFrom(
@@ -119,7 +119,7 @@ class OrderCard extends StatelessWidget {
             const Padding(
               padding: EdgeInsets.symmetric(vertical: 8),
               child: Text(
-                "Hozircha gilamlar kiritilmagan",
+                "Hozircha buyumlar kiritilmagan",
                 style: TextStyle(color: AppTheme.textSecondary, fontSize: 10, fontStyle: FontStyle.italic),
               ),
             )
@@ -177,10 +177,12 @@ class OrderCard extends StatelessWidget {
   }
 
   void _showAddCarpetDialog(BuildContext context) {
-    final nameController = TextEditingController(text: "Gilam");
-    final lengthController = TextEditingController(text: "4");
-    final widthController = TextEditingController(text: "3");
+    final nameController = TextEditingController(text: order.serviceName);
+    final lengthController = TextEditingController(text: "1");
+    final widthController = TextEditingController(text: "1");
     final qtyController = TextEditingController(text: "1");
+
+    final isAreaBased = order.measurementUnit == 'm²' || order.measurementUnit == 'metr';
 
     showDialog(
       context: context,
@@ -188,7 +190,7 @@ class OrderCard extends StatelessWidget {
         backgroundColor: const Color(0xff1f2937),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: const Text(
-          "Yangi gilam qo'shish",
+          "Yangi buyum qo'shish",
           style: TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold),
         ),
         content: SingleChildScrollView(
@@ -199,46 +201,48 @@ class OrderCard extends StatelessWidget {
                 controller: nameController,
                 style: const TextStyle(color: Colors.white, fontSize: 13),
                 decoration: const InputDecoration(
-                  labelText: "Nomi",
+                  labelText: "Nomi / Turi",
                   labelStyle: TextStyle(color: Colors.white54, fontSize: 11),
                 ),
               ),
               const SizedBox(height: 10),
-              Row(
-                children: [
-                  Expanded(
-                    child: TextField(
-                      controller: lengthController,
-                      keyboardType: TextInputType.number,
-                      style: const TextStyle(color: Colors.white, fontSize: 13),
-                      decoration: const InputDecoration(
-                        labelText: "Bo'yi (m)",
-                        labelStyle: TextStyle(color: Colors.white54, fontSize: 11),
+              if (isAreaBased) ...[
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: lengthController,
+                        keyboardType: TextInputType.number,
+                        style: const TextStyle(color: Colors.white, fontSize: 13),
+                        decoration: const InputDecoration(
+                          labelText: "Bo'yi (m)",
+                          labelStyle: TextStyle(color: Colors.white54, fontSize: 11),
+                        ),
                       ),
                     ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: TextField(
-                      controller: widthController,
-                      keyboardType: TextInputType.number,
-                      style: const TextStyle(color: Colors.white, fontSize: 13),
-                      decoration: const InputDecoration(
-                        labelText: "Eni (m)",
-                        labelStyle: TextStyle(color: Colors.white54, fontSize: 11),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: TextField(
+                        controller: widthController,
+                        keyboardType: TextInputType.number,
+                        style: const TextStyle(color: Colors.white, fontSize: 13),
+                        decoration: const InputDecoration(
+                          labelText: "Eni (m)",
+                          labelStyle: TextStyle(color: Colors.white54, fontSize: 11),
+                        ),
                       ),
                     ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 10),
+                  ],
+                ),
+                const SizedBox(height: 10),
+              ],
               TextField(
                 controller: qtyController,
                 keyboardType: TextInputType.number,
                 style: const TextStyle(color: Colors.white, fontSize: 13),
-                decoration: const InputDecoration(
-                  labelText: "Soni (dona)",
-                  labelStyle: TextStyle(color: Colors.white54, fontSize: 11),
+                decoration: InputDecoration(
+                  labelText: "Miqdori / Soni (${order.measurementUnit})",
+                  labelStyle: const TextStyle(color: Colors.white54, fontSize: 11),
                 ),
               ),
             ],
@@ -251,8 +255,8 @@ class OrderCard extends StatelessWidget {
           ),
           ElevatedButton(
             onPressed: () {
-              final length = double.tryParse(lengthController.text) ?? 0.0;
-              final width = double.tryParse(widthController.text) ?? 0.0;
+              final length = isAreaBased ? (double.tryParse(lengthController.text) ?? 1.0) : 0.0;
+              final width = isAreaBased ? (double.tryParse(widthController.text) ?? 1.0) : 0.0;
               final qty = int.tryParse(qtyController.text) ?? 1;
               Navigator.pop(dialogContext);
               context.read<OrdersCubit>().createOrderItem(order, nameController.text, length, width, qty);
@@ -274,7 +278,9 @@ class _CarpetItemWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isAreaBased = order.measurementUnit == 'm²' || order.measurementUnit == 'metr';
     final area = item.length * item.width;
+    final totalQty = isAreaBased ? (area * item.quantity) : item.quantity.toDouble();
 
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
@@ -292,11 +298,13 @@ class _CarpetItemWidget extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                "${item.name} (${item.quantity} dona)",
+                item.name,
                 style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
               ),
               Text(
-                "${item.length.toStringAsFixed(1)} x ${item.width.toStringAsFixed(1)} = ${area.toStringAsFixed(1)} m²",
+                isAreaBased
+                    ? "${item.quantity} dona (${item.length.toStringAsFixed(1)}x${item.width.toStringAsFixed(1)} m) = ${totalQty.toStringAsFixed(1)} ${order.measurementUnit}"
+                    : "${item.quantity} ${order.measurementUnit}",
                 style: const TextStyle(color: AppTheme.textSecondary, fontSize: 10),
               ),
             ],

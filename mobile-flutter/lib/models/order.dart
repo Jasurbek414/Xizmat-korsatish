@@ -97,6 +97,7 @@ class Order {
   final double collectedPrice;
   final String paymentStatus;
   final List<OrderItemInfo> items;
+  final String measurementUnit;
 
   Order({
     required this.id,
@@ -114,6 +115,7 @@ class Order {
     required this.collectedPrice,
     required this.paymentStatus,
     required this.items,
+    required this.measurementUnit,
   });
 
   factory Order.fromJson(Map<String, dynamic> json) {
@@ -140,6 +142,7 @@ class Order {
               ?.map((i) => OrderItemInfo.fromJson(i as Map<String, dynamic>))
               .toList() ??
           [],
+      measurementUnit: service?['measurementUnit'] ?? 'm²',
     );
   }
 }
