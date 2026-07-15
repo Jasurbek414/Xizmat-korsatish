@@ -129,7 +129,6 @@ class _DriverOrdersScreenState extends State<DriverOrdersScreen> {
                           return OrderCard(
                             order: order,
                             statuses: statuses,
-                            onReject: () => _confirmReject(context, order),
                           );
                         },
                       ),
@@ -138,31 +137,6 @@ class _DriverOrdersScreenState extends State<DriverOrdersScreen> {
           ],
         );
       },
-    );
-  }
-
-  void _confirmReject(BuildContext context, Order order) {
-    showDialog(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('Buyurtmani rad etish'),
-        content: const Text(
-          "Haqiqatan ham bu buyurtmani rad etmoqchimisiz? U dispetcherga qaytariladi.",
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext),
-            child: const Text('Bekor qilish'),
-          ),
-          TextButton(
-            onPressed: () {
-              Navigator.pop(dialogContext);
-              context.read<OrdersCubit>().reject(order);
-            },
-            child: const Text('Rad etish', style: TextStyle(color: AppTheme.dangerColor)),
-          ),
-        ],
-      ),
     );
   }
 }
