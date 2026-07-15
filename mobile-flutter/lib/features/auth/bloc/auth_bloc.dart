@@ -1,8 +1,13 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
+import '../../../core/network/api_exception.dart';
+import '../../../core/permissions/permission_keys.dart';
 import '../../../models/user.dart';
+import '../repository/auth_repository.dart';
 
 // --- Events ---
 abstract class AuthEvent {}
+
+class AppStartedEvent extends AuthEvent {}
 
 class CheckSubdomainEvent extends AuthEvent {
   final String subdomain;
@@ -28,8 +33,13 @@ class SubdomainChecking extends AuthState {}
 
 class SubdomainValid extends AuthState {
   final String subdomain;
+  final String companyId;
   final String companyName;
-  SubdomainValid({required this.subdomain, required this.companyName});
+  SubdomainValid({
+    required this.subdomain,
+    required this.companyId,
+    required this.companyName,
+  });
 }
 
 class SubdomainInvalid extends AuthState {
@@ -43,10 +53,12 @@ class Authenticated extends AuthState {
   final User user;
   final String token;
   final String subdomain;
+  final Permissions permissions;
   Authenticated({
     required this.user,
     required this.token,
     required this.subdomain,
+    required this.permissions,
   });
 }
 
@@ -62,124 +74,131 @@ class AuthError extends AuthState {
 
 // --- BLoC ---
 class AuthBloc extends Bloc<AuthEvent, AuthState> {
-  AuthBloc() : super(AuthInitial()) {
-    on<CheckSubdomainEvent>((event, emit) async {
-      emit(SubdomainChecking());
-      await Future.delayed(const Duration(seconds: 1)); // Simulate API Check
+  final AuthRepository _repository;
 
-      final cleanSub = event.subdomain.trim().toLowerCase();
-      // Mock validation: only allows "expressmail" or "cleanshine"
-      if (cleanSub == 'expressmail') {
-        emit(
-          SubdomainValid(
-            subdomain: cleanSub,
-            companyName: 'Express Mail Tashkent',
-          ),
-        );
-      } else if (cleanSub == 'cleanshine') {
-        emit(
-          SubdomainValid(subdomain: cleanSub, companyName: 'Clean & Shine LLC'),
-        );
-      } else {
-        emit(
-          SubdomainInvalid(
-            'Kompaniya kodi topilmadi. Qaytadan urinib ko\'ring.',
-          ),
-        );
+  AuthBloc({AuthRepository? repository})
+    : _repository = repository ?? AuthRepository(),
+      super(AuthInitial()) {
+    on<AppStartedEvent>(_onAppStarted);
+    on<CheckSubdomainEvent>(_onCheckSubdomain);
+    on<LoginWithCredentialsEvent>(_onLoginWithCredentials);
+    on<ResetSubdomainEvent>((event, emit) => emit(Unauthenticated(subdomain: null)));
+    on<LogoutEvent>(_onLogout);
+  }
+
+  Future<void> _onAppStarted(AppStartedEvent event, Emitter<AuthState> emit) async {
+    final restored = await _repository.restoreSession();
+    if (restored != null) {
+      emit(
+        Authenticated(
+          user: restored.user,
+          token: restored.token,
+          subdomain: '',
+          permissions: restored.permissions,
+        ),
+      );
+    } else {
+      final subdomain = await _repository.readSavedSubdomain();
+      if (subdomain != null && subdomain.isNotEmpty) {
+        try {
+          final info = await _repository.checkSubdomain(subdomain);
+          if (info.status == 'ACTIVE') {
+            emit(
+              SubdomainValid(
+                subdomain: info.subdomain,
+                companyId: info.companyId,
+                companyName: info.companyName,
+              ),
+            );
+            return;
+          }
+        } catch (_) {}
       }
-    });
+      emit(Unauthenticated(subdomain: null));
+    }
+  }
 
-    on<LoginWithCredentialsEvent>((event, emit) async {
-      final currentState = state;
-      if (currentState is! SubdomainValid) {
-        emit(AuthError('Avval kompaniya kodini kiriting!'));
+  Future<void> _onCheckSubdomain(
+    CheckSubdomainEvent event,
+    Emitter<AuthState> emit,
+  ) async {
+    emit(SubdomainChecking());
+    final subdomain = event.subdomain.trim().toLowerCase();
+
+    try {
+      final info = await _repository.checkSubdomain(subdomain);
+      if (info.status != 'ACTIVE') {
+        emit(SubdomainInvalid("Ushbu kompaniya hisobi faol emas."));
         return;
       }
+      emit(
+        SubdomainValid(
+          subdomain: info.subdomain,
+          companyId: info.companyId,
+          companyName: info.companyName,
+        ),
+      );
+    } on ApiException catch (e) {
+      emit(SubdomainInvalid(e.message));
+    } catch (_) {
+      emit(SubdomainInvalid("Kompaniya kodini tekshirishda xatolik yuz berdi."));
+    }
+  }
 
-      emit(AuthLoading());
-      await Future.delayed(const Duration(seconds: 1)); // Simulate API Call
+  Future<void> _onLoginWithCredentials(
+    LoginWithCredentialsEvent event,
+    Emitter<AuthState> emit,
+  ) async {
+    final currentState = state;
+    if (currentState is! SubdomainValid) {
+      emit(AuthError('Avval kompaniya kodini kiriting!'));
+      return;
+    }
 
-      final username = event.username.trim();
-      final password = event.password;
+    emit(AuthLoading());
+    try {
+      final result = await _repository.login(
+        username: event.username.trim(),
+        password: event.password,
+        subdomain: currentState.subdomain,
+        companyId: currentState.companyId,
+      );
 
-      // Mock Credentials validating depending on role:
-      // admin, manager, driver, worker
-      if (password == 'admin') {
-        User? user;
-        if (username == 'admin') {
-          user = User(
-            id: 'u_admin',
-            companyId: 'c1',
-            username: 'admin',
-            fullName: 'Asosiy Administrator',
-            phone: '+998 99 999 99 99',
-            role: 'ADMIN',
-            status: 'ACTIVE',
-            baseSalary: 12000000,
-            kpiBonusPercent: 5,
-          );
-        } else if (username == 'manager') {
-          user = User(
-            id: 'u_manager',
-            companyId: 'c1',
-            username: 'manager',
-            fullName: 'Aziza Qodirova',
-            phone: '+998 90 456 78 90',
-            role: 'MANAGER',
-            status: 'ACTIVE',
-            baseSalary: 8000000,
-            kpiBonusPercent: 2,
-          );
-        } else if (username == 'driver' || username == 'driver1') {
-          user = User(
-            id: 'u1',
-            companyId: 'c1',
-            username: 'driver1',
-            fullName: 'Alisher Qodirov',
-            phone: '+998 90 123 45 67',
-            role: 'WORKER_DRIVER',
-            status: 'ACTIVE',
-            baseSalary: 3000000,
-            kpiBonusPercent: 10,
-          );
-        } else if (username == 'worker') {
-          user = User(
-            id: 'u_seh',
-            companyId: 'c1',
-            username: 'worker',
-            fullName: 'Doston Axmedov',
-            phone: '+998 93 111 22 33',
-            role: 'WORKER_SEH',
-            status: 'ACTIVE',
-            baseSalary: 4500000,
-            kpiBonusPercent: 3,
-          );
-        }
+      emit(
+        Authenticated(
+          user: result.user,
+          token: result.token,
+          subdomain: currentState.subdomain,
+          permissions: result.permissions,
+        ),
+      );
+    } on ApiException catch (e) {
+      emit(AuthError(e.message));
+      emit(currentState);
+    } catch (_) {
+      emit(AuthError("Kutilmagan xatolik yuz berdi. Qaytadan urinib ko'ring."));
+      emit(currentState);
+    }
+  }
 
-        if (user != null) {
+  Future<void> _onLogout(LogoutEvent event, Emitter<AuthState> emit) async {
+    await _repository.logout();
+    final subdomain = await _repository.readSavedSubdomain();
+    if (subdomain != null && subdomain.isNotEmpty) {
+      try {
+        final info = await _repository.checkSubdomain(subdomain);
+        if (info.status == 'ACTIVE') {
           emit(
-            Authenticated(
-              user: user,
-              token: 'mock_jwt_token_for_${user.username}',
-              subdomain: currentState.subdomain,
+            SubdomainValid(
+              subdomain: info.subdomain,
+              companyId: info.companyId,
+              companyName: info.companyName,
             ),
           );
-        } else {
-          emit(AuthError('Foydalanuvchi nomi yoki parol xato!'));
-          emit(currentState); // Return to credential form
+          return;
         }
-      } else {
-        emit(AuthError('Foydalanuvchi nomi yoki parol xato!'));
-        emit(currentState); // Return to credential form
-      }
-    });
-
-    on<ResetSubdomainEvent>((event, emit) {
-      emit(AuthInitial());
-    });
-
-    on<LogoutEvent>((event, emit) {
-      emit(Unauthenticated());
-    });
+      } catch (_) {}
+    }
+    emit(Unauthenticated(subdomain: null));
   }
 }

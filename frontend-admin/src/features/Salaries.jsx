@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { getDbItem, setDbItem } from '../store/mockDb';
+import { getDbItem } from '../store/mockDb';
 import { useTranslation } from 'react-i18next';
+import { api } from '../services/api';
 
 // Import modular components
 import SalariesStats from './salaries/SalariesStats';
@@ -27,214 +28,155 @@ const Salaries = ({ tab }) => {
   // Selected records for Modals
   const [selectedPayslip, setSelectedPayslip] = useState(null);
   const [selectedAdvance, setSelectedAdvance] = useState(null);
+  const [completedStatusId, setCompletedStatusId] = useState(null);
 
   // Load database items and calculate dynamic commissions
   useEffect(() => {
-    const salaryList = getDbItem('salaries') || [];
-    const orderList = getDbItem('orders') || [];
-    const walletList = getDbItem('wallets') || [];
-    const txList = getDbItem('transactions') || [];
+    const loadData = async () => {
+      try {
+        const [salariesData, ordersData, statusesData] = await Promise.all([
+          api.getSalaries(),
+          api.getOrders(),
+          api.getOrderStatuses()
+        ]);
 
-    setOrders(orderList);
-    setWallets(walletList);
-    setTransactions(txList);
+        // "Yakunlangan" - ro'yxatdagi eng oxirgi bosqich (sort_order bo'yicha),
+        // chunki har bir kompaniya statuslarni o'zi moslashtirib sozlaydi.
+        const sortedStatuses = [...statusesData].sort((a, b) => a.sortOrder - b.sortOrder);
+        const completedStatusId = sortedStatuses.length > 0 ? sortedStatuses.slice(-1)[0].id : null;
 
-    // Extract unique pay periods for filter dropdown
-    const uniquePeriods = [...new Set(salaryList.map(s => s.pay_period))];
-    setPeriods(uniquePeriods);
+        const mappedOrders = ordersData.map(o => ({
+          id: o.id,
+          worker_name: o.worker ? o.worker.fullName : '',
+          price: o.price,
+          status_id: o.status ? o.status.id : null,
+          created_at: o.createdAt
+        }));
 
-    // Dynamically calculate completed orders commission (10%) and update worker salaries
-    const computedSalaries = salaryList.map(sal => {
-      // Find completed orders for this worker in this period
-      const workerCompletedOrders = orderList.filter(ord => {
-        const isWorker = ord.worker_name.toLowerCase() === sal.full_name.toLowerCase();
-        const isCompleted = ord.status_id === '4';
-        const ordPeriod = ord.created_at ? ord.created_at.slice(0, 7) : ''; // "2026-06"
-        return isWorker && isCompleted && ordPeriod === sal.pay_period;
-      });
+        const computedSalaries = salariesData.map(sal => {
+          const payPeriodStr = sal.payPeriod.substring(0, 7); // e.g. "2026-06"
 
-      const totalOrdersAmount = workerCompletedOrders.reduce((sum, ord) => sum + ord.price, 0);
-      const commission = Math.round(totalOrdersAmount * 0.1); // 10% commission
+          // Find completed orders for this worker in this period
+          const workerCompletedOrders = mappedOrders.filter(ord => {
+            const isWorker = ord.worker_name.toLowerCase() === sal.user.fullName.toLowerCase();
+            const isCompleted = completedStatusId !== null && ord.status_id === completedStatusId;
+            const ordPeriod = ord.created_at ? ord.created_at.slice(0, 7) : '';
+            return isWorker && isCompleted && ordPeriod === payPeriodStr;
+          });
 
-      // We assume the initial DB "bonus" field is performance base, and we add commission on top
-      // Wait, to prevent compounding commission on every page load, we should calculate relative to a base bonus
-      // We can look at the raw database value to ensure we are adding to the static baseline.
-      // If we don't store baseline, let's look at the default salaries structure.
-      // u1 base_bonus: 450000. u2 base_bonus: 300000.
-      const baselineBonus = sal.user_id === 'u1' ? 450000 : 300000;
-      
-      return {
-        ...sal,
-        bonus: baselineBonus + commission
-      };
-    });
+          const totalOrdersAmount = workerCompletedOrders.reduce((sum, ord) => sum + ord.price, 0);
+          const commission = Math.round(totalOrdersAmount * 0.1); // 10% commission
 
-    setSalaries(computedSalaries);
+          return {
+            id: sal.id,
+            user_id: sal.user.id,
+            full_name: sal.user.fullName,
+            base_salary: sal.baseSalary,
+            bonus: sal.bonus + commission,
+            deductions: sal.deductions,
+            status: sal.status,
+            pay_period: payPeriodStr
+          };
+        });
 
-    // Calculate Summary Stats
-    const total = computedSalaries.reduce((sum, s) => sum + s.base_salary + s.bonus - s.deductions, 0);
-    const paid = computedSalaries.filter(s => s.status === 'PAID').reduce((sum, s) => sum + s.base_salary + s.bonus - s.deductions, 0);
-    const pending = computedSalaries.filter(s => s.status === 'UNPAID').reduce((sum, s) => sum + s.base_salary + s.bonus - s.deductions, 0);
+        setSalaries(computedSalaries);
+        setOrders(mappedOrders);
+        setCompletedStatusId(completedStatusId);
 
-    setSummary({ total, paid, pending });
+        // Extract unique periods
+        const uniquePeriods = [...new Set(computedSalaries.map(s => s.pay_period))];
+        setPeriods(uniquePeriods);
+
+        // Calculate Summary Stats
+        const total = computedSalaries.reduce((sum, s) => sum + s.base_salary + s.bonus - s.deductions, 0);
+        const paid = computedSalaries.filter(s => s.status === 'PAID').reduce((sum, s) => sum + s.base_salary + s.bonus - s.deductions, 0);
+        const pending = computedSalaries.filter(s => s.status === 'UNPAID').reduce((sum, s) => sum + s.base_salary + s.bonus - s.deductions, 0);
+
+        setSummary({ total, paid, pending });
+      } catch (err) {
+        console.error("Failed to load salaries:", err);
+      }
+    };
+
+    loadData();
+    setWallets(getDbItem('wallets') || []);
   }, [tab]);
 
   // Pay single employee salary
-  const handlePaySalary = (id) => {
-    const salaryToPay = salaries.find(s => s.id === id);
-    if (!salaryToPay) return;
+  const handlePaySalary = async (id) => {
+    try {
+      await api.paySalary(id);
 
-    const netSalary = salaryToPay.base_salary + salaryToPay.bonus - salaryToPay.deductions;
+      const updatedSalaries = salaries.map(s => {
+        if (s.id === id) return { ...s, status: 'PAID' };
+        return s;
+      });
+      setSalaries(updatedSalaries);
 
-    // Check Cash Wallet balance
-    const cashWallet = wallets.find(w => w.id === 'cash');
-    if (cashWallet && cashWallet.balance < netSalary) {
-      alert("Kassa (Naqd pul) hisobida yetarli mablag' mavjud emas! Oylik to'lash uchun kassada yetarli pul bo'lishi kerak.");
-      return;
+      // Update Summary
+      const total = updatedSalaries.reduce((sum, s) => sum + s.base_salary + s.bonus - s.deductions, 0);
+      const paid = updatedSalaries.filter(s => s.status === 'PAID').reduce((sum, s) => sum + s.base_salary + s.bonus - s.deductions, 0);
+      const pending = updatedSalaries.filter(s => s.status === 'UNPAID').reduce((sum, s) => sum + s.base_salary + s.bonus - s.deductions, 0);
+      setSummary({ total, paid, pending });
+    } catch (err) {
+      alert(err.message || "Maosh to'lashda xatolik yuz berdi");
     }
-
-    // Deduct from Cash Wallet
-    const updatedWallets = wallets.map(w => {
-      if (w.id === 'cash') return { ...w, balance: w.balance - netSalary };
-      return w;
-    });
-    setWallets(updatedWallets);
-    setDbItem('wallets', updatedWallets);
-
-    // Register Transaction
-    const newTx = {
-      id: 't' + (transactions.length + 1),
-      type: 'EXPENSE',
-      amount: netSalary,
-      category: 'SALARY',
-      wallet_id: 'cash',
-      description: `${salaryToPay.full_name} uchun ${salaryToPay.pay_period} oylik maoshi to'lovi`,
-      created_at: new Date().toISOString()
-    };
-    const updatedTx = [...transactions, newTx];
-    setTransactions(updatedTx);
-    setDbItem('transactions', updatedTx);
-
-    // Mark paid in Salaries
-    const updatedSalaries = salaries.map(s => {
-      if (s.id === id) return { ...s, status: 'PAID' };
-      return s;
-    });
-    setSalaries(updatedSalaries);
-    setDbItem('salaries', updatedSalaries);
-
-    // Update Summary
-    const total = updatedSalaries.reduce((sum, s) => sum + s.base_salary + s.bonus - s.deductions, 0);
-    const paid = updatedSalaries.filter(s => s.status === 'PAID').reduce((sum, s) => sum + s.base_salary + s.bonus - s.deductions, 0);
-    const pending = updatedSalaries.filter(s => s.status === 'UNPAID').reduce((sum, s) => sum + s.base_salary + s.bonus - s.deductions, 0);
-    setSummary({ total, paid, pending });
   };
 
-  // Pay all pending salaries in batch
-  const handlePayAll = () => {
+  // Pay all pending salaries in batch - backend allaqachon har bir to'lov uchun
+  // xarajat tranzaksiyasini avtomatik yaratadi (SalaryController.paySalary), shu
+  // sabab bu yerda alohida "kassa"/tranzaksiya simulyatsiyasi kerak emas.
+  const handlePayAll = async () => {
     const unpaidList = filteredSalaries.filter(s => s.status === 'UNPAID');
     if (unpaidList.length === 0) return;
 
     const totalPayout = unpaidList.reduce((sum, s) => sum + s.base_salary + s.bonus - s.deductions, 0);
+    if (!window.confirm(`Haqiqatan ham barcha ${unpaidList.length} ta xodimning oyliklarini (Jami: ${totalPayout.toLocaleString()} UZS) to'lamoqchimisiz?`)) return;
 
-    // Check Cash Wallet
-    const cashWallet = wallets.find(w => w.id === 'cash');
-    if (cashWallet && cashWallet.balance < totalPayout) {
-      alert(`Kassada yetarli mablag' mavjud emas! Jami to'lov: ${totalPayout.toLocaleString()} UZS, Kassadagi pul: ${cashWallet.balance.toLocaleString()} UZS`);
-      return;
-    }
-
-    if (!window.confirm(`Haqiqatan ham barcha ${unpaidList.length} ta xodimning oyliklarini (Jami: ${totalPayout.toLocaleString()} UZS) kassadan to'lamoqchimisiz?`)) return;
-
-    // Deduct total payout from Cash Wallet
-    const updatedWallets = wallets.map(w => {
-      if (w.id === 'cash') return { ...w, balance: w.balance - totalPayout };
-      return w;
-    });
-    setWallets(updatedWallets);
-    setDbItem('wallets', updatedWallets);
-
-    // Register expense transactions for each unpaid employee
-    const newTransactions = [...transactions];
-    unpaidList.forEach((salaryToPay, idx) => {
-      const netSalary = salaryToPay.base_salary + salaryToPay.bonus - salaryToPay.deductions;
-      newTransactions.push({
-        id: 't' + (newTransactions.length + 1),
-        type: 'EXPENSE',
-        amount: netSalary,
-        category: 'SALARY',
-        wallet_id: 'cash',
-        description: `${salaryToPay.full_name} uchun ${salaryToPay.pay_period} oylik maoshi to'lovi (Guruhli)`,
-        created_at: new Date().toISOString()
-      });
-    });
-    setTransactions(newTransactions);
-    setDbItem('transactions', newTransactions);
-
-    // Mark all as paid
-    const updatedSalaries = salaries.map(s => {
-      if (unpaidList.some(unp => unp.id === s.id)) {
-        return { ...s, status: 'PAID' };
+    try {
+      for (const salaryToPay of unpaidList) {
+        await api.paySalary(salaryToPay.id);
       }
-      return s;
-    });
-    setSalaries(updatedSalaries);
-    setDbItem('salaries', updatedSalaries);
 
-    // Update Summary
-    const total = updatedSalaries.reduce((sum, s) => sum + s.base_salary + s.bonus - s.deductions, 0);
-    const paid = updatedSalaries.filter(s => s.status === 'PAID').reduce((sum, s) => sum + s.base_salary + s.bonus - s.deductions, 0);
-    const pending = updatedSalaries.filter(s => s.status === 'UNPAID').reduce((sum, s) => sum + s.base_salary + s.bonus - s.deductions, 0);
-    setSummary({ total, paid, pending });
+      const updatedSalaries = salaries.map(s =>
+        unpaidList.some(unp => unp.id === s.id) ? { ...s, status: 'PAID' } : s
+      );
+      setSalaries(updatedSalaries);
+
+      const total = updatedSalaries.reduce((sum, s) => sum + s.base_salary + s.bonus - s.deductions, 0);
+      const paid = updatedSalaries.filter(s => s.status === 'PAID').reduce((sum, s) => sum + s.base_salary + s.bonus - s.deductions, 0);
+      const pending = updatedSalaries.filter(s => s.status === 'UNPAID').reduce((sum, s) => sum + s.base_salary + s.bonus - s.deductions, 0);
+      setSummary({ total, paid, pending });
+    } catch (err) {
+      alert(err.message || "Guruhli to'lovda xatolik yuz berdi");
+    }
   };
 
   // Submit Advance or Deduction/Fine
-  const handleAdvanceFineSubmit = (salaryId, type, amt, desc, walletId) => {
-    const updatedSalaries = salaries.map(s => {
-      if (s.id === salaryId) {
-        return {
-          ...s,
-          deductions: s.deductions + amt
-        };
-      }
-      return s;
-    });
+  const handleAdvanceFineSubmit = async (salaryId, type, amt, desc, walletId) => {
+    try {
+      await api.addSalaryDeduction(salaryId, amt);
 
-    setSalaries(updatedSalaries);
-    setDbItem('salaries', updatedSalaries);
-
-    const targetSalary = salaries.find(s => s.id === salaryId);
-    if (!targetSalary) return;
-
-    if (type === 'ADVANCE') {
-      // Deduct from selected wallet
-      const updatedWallets = wallets.map(w => {
-        if (w.id === walletId) return { ...w, balance: w.balance - amt };
-        return w;
+      const updatedSalaries = salaries.map(s => {
+        if (s.id === salaryId) {
+          return {
+            ...s,
+            deductions: s.deductions + amt
+          };
+        }
+        return s;
       });
-      setWallets(updatedWallets);
-      setDbItem('wallets', updatedWallets);
 
-      // Register Expense Transaction in Cashbook
-      const newTx = {
-        id: 't' + (transactions.length + 1),
-        type: 'EXPENSE',
-        amount: amt,
-        category: 'SALARY',
-        wallet_id: walletId,
-        description: `Avans to'lovi: ${desc} (${targetSalary.full_name})`,
-        created_at: new Date().toISOString()
-      };
-      const updatedTx = [...transactions, newTx];
-      setTransactions(updatedTx);
-      setDbItem('transactions', updatedTx);
+      setSalaries(updatedSalaries);
+
+      // Update Summary
+      const total = updatedSalaries.reduce((sum, s) => sum + s.base_salary + s.bonus - s.deductions, 0);
+      const paid = updatedSalaries.filter(s => s.status === 'PAID').reduce((sum, s) => sum + s.base_salary + s.bonus - s.deductions, 0);
+      const pending = updatedSalaries.filter(s => s.status === 'UNPAID').reduce((sum, s) => sum + s.base_salary + s.bonus - s.deductions, 0);
+      setSummary({ total, paid, pending });
+    } catch (err) {
+      alert(err.message || "Avans/Jarima saqlashda xatolik yuz berdi");
     }
-
-    // Update Summary
-    const total = updatedSalaries.reduce((sum, s) => sum + s.base_salary + s.bonus - s.deductions, 0);
-    const paid = updatedSalaries.filter(s => s.status === 'PAID').reduce((sum, s) => sum + s.base_salary + s.bonus - s.deductions, 0);
-    const pending = updatedSalaries.filter(s => s.status === 'UNPAID').reduce((sum, s) => sum + s.base_salary + s.bonus - s.deductions, 0);
-    setSummary({ total, paid, pending });
   };
 
   // Filter salaries by search query and pay period
@@ -268,11 +210,12 @@ const Salaries = ({ tab }) => {
       />
 
       {/* Detailed printable payslip modal */}
-      <PayslipModal 
-        isOpen={!!selectedPayslip} 
-        onClose={() => setSelectedPayslip(null)} 
-        salary={selectedPayslip} 
+      <PayslipModal
+        isOpen={!!selectedPayslip}
+        onClose={() => setSelectedPayslip(null)}
+        salary={selectedPayslip}
         orders={orders}
+        completedStatusId={completedStatusId}
       />
 
       {/* Advance payment & deduction setter modal */}

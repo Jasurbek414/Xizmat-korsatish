@@ -1,9 +1,9 @@
 import React, { useEffect, useRef, useState } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import { getDbItem } from '../store/mockDb';
 import { useTranslation } from 'react-i18next';
 import { Search, MapPin, Navigation, RefreshCw, Info, Phone, Compass, Layers } from 'lucide-react';
+import { api } from '../services/api';
 
 const LeafletMap = ({ tab }) => {
   const { t, i18n } = useTranslation();
@@ -20,56 +20,73 @@ const LeafletMap = ({ tab }) => {
     document.documentElement.classList.contains('dark') ? 'dark' : 'light'
   );
 
-  // Load data from localStorage
-  const loadData = () => {
-    const allUsers = getDbItem('users') || [];
-    const allOrders = getDbItem('orders') || [];
-    const driverUsers = allUsers.filter(u => u.role === 'WORKER_DRIVER');
-    
-    // Enrich driver data with their active orders and calculated status
-    const enrichedDrivers = driverUsers.map(driver => {
-      // Find active orders (status is not '4' which means Completed)
-      const activeOrder = allOrders.find(o => 
-        o.worker_name === driver.full_name && o.status_id !== '4'
-      );
+  // Load data from API
+  const loadData = async () => {
+    try {
+      const [driversData, allOrders, statusesData] = await Promise.all([
+        api.getDriversGps(),
+        api.getOrders(),
+        api.getOrderStatuses()
+      ]);
 
-      let status = 'FREE';
-      if (driver.status === 'BLOCKED') {
-        status = 'OFFLINE';
-      } else if (activeOrder) {
-        status = 'BUSY';
-      }
+      // "Yakunlangan" - ro'yxatdagi eng oxirgi bosqich (sort_order bo'yicha),
+      // chunki har bir kompaniya statuslarni o'zi moslashtirib sozlaydi.
+      const sortedStatuses = [...statusesData].sort((a, b) => a.sortOrder - b.sortOrder);
+      const completedStatusId = sortedStatuses.length > 0 ? sortedStatuses.slice(-1)[0].id : null;
 
-      return {
-        ...driver,
-        status,
-        activeOrder
-      };
-    });
+      const driverUsers = driversData.map(d => ({
+        id: d.id,
+        full_name: d.fullName,
+        username: d.username,
+        role: d.role,
+        phone: d.phone,
+        status: d.status,
+        lat: d.latitude || 41.311081,
+        lng: d.longitude || 69.240562
+      }));
 
-    setDrivers(enrichedDrivers);
-    setOrders(allOrders);
+      const mappedOrders = allOrders.map(o => ({
+        id: o.id,
+        client_name: o.client ? o.client.fullName : '',
+        worker_name: o.worker ? o.worker.fullName : '',
+        status_id: o.status ? o.status.id : null,
+        latitude: o.latitude || 41.311081,
+        longitude: o.longitude || 69.240562,
+        price: o.price
+      }));
+
+      const enrichedDrivers = driverUsers.map(driver => {
+        const activeOrder = mappedOrders.find(o =>
+          o.worker_name === driver.full_name && o.status_id !== completedStatusId
+        );
+
+        let status = 'FREE';
+        if (driver.status === 'BLOCKED') {
+          status = 'OFFLINE';
+        } else if (activeOrder) {
+          status = 'BUSY';
+        }
+
+        return {
+          ...driver,
+          status,
+          activeOrder
+        };
+      });
+
+      setDrivers(enrichedDrivers);
+      setOrders(mappedOrders);
+    } catch (err) {
+      console.error("Failed to load map data:", err);
+    }
   };
 
   useEffect(() => {
     loadData();
-    // Simulate real-time coordinates updates in mock database
+    // Poll the backend GPS coordinates every 6 seconds
     const dbInterval = setInterval(() => {
-      const allUsers = getDbItem('users') || [];
-      const updatedUsers = allUsers.map(u => {
-        if (u.role === 'WORKER_DRIVER' && u.status !== 'BLOCKED' && u.lat && u.lng) {
-          // Add a tiny random walk offset
-          return {
-            ...u,
-            lat: u.lat + (Math.random() - 0.5) * 0.0004,
-            lng: u.lng + (Math.random() - 0.5) * 0.0004
-          };
-        }
-        return u;
-      });
-      localStorage.setItem('users', JSON.stringify(updatedUsers));
       loadData();
-    }, 5000);
+    }, 6000);
 
     return () => clearInterval(dbInterval);
   }, [tab]);

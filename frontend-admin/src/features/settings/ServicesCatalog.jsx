@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { getDbItem, setDbItem } from '../../store/mockDb';
+import { api } from '../../services/api';
 import { Plus, Trash2, Edit3, Search, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
@@ -14,33 +14,91 @@ const ServicesCatalog = () => {
   const [editingService, setEditingService] = useState(null);
 
   useEffect(() => {
-    setServices(getDbItem('services') || []);
+    const loadServices = async () => {
+      try {
+        const data = await api.getServices();
+        const mapped = data.map(s => ({
+          id: s.id,
+          name_uz: s.nameUz,
+          name_ru: s.nameRu,
+          name_en: s.nameEn,
+          price: s.price,
+          category: s.category || ''
+        }));
+        setServices(mapped);
+      } catch (err) {
+        console.error("Failed to load services:", err);
+      }
+    };
+    loadServices();
   }, []);
 
-  const handleAddService = (e) => {
+  const handleAddService = async (e) => {
     e.preventDefault();
     if (!newService.name_uz || !newService.price || !newService.category) return;
 
-    const updated = [...services, { ...newService, id: Date.now().toString(), price: parseFloat(newService.price) }];
-    setServices(updated);
-    setDbItem('services', updated);
-    setNewService({ name_uz: '', name_ru: '', name_en: '', price: '', category: '' });
+    try {
+      const saved = await api.createService({
+        name_uz: newService.name_uz,
+        name_ru: newService.name_ru || newService.name_uz,
+        name_en: newService.name_en || newService.name_uz,
+        price: parseFloat(newService.price),
+        category: newService.category
+      });
+      
+      const mapped = {
+        id: saved.id,
+        name_uz: saved.nameUz,
+        name_ru: saved.nameRu,
+        name_en: saved.nameEn,
+        price: saved.price,
+        category: saved.category
+      };
+
+      setServices(prev => [...prev, mapped]);
+      setNewService({ name_uz: '', name_ru: '', name_en: '', price: '', category: '' });
+    } catch (err) {
+      console.error("Failed to create service:", err);
+    }
   };
 
-  const handleUpdateService = (e) => {
+  const handleUpdateService = async (e) => {
     e.preventDefault();
     if (!editingService.name_uz || !editingService.price || !editingService.category) return;
 
-    const updated = services.map(s => s.id === editingService.id ? { ...editingService, price: parseFloat(editingService.price) } : s);
-    setServices(updated);
-    setDbItem('services', updated);
-    setEditingService(null);
+    try {
+      const saved = await api.updateService(editingService.id, {
+        name_uz: editingService.name_uz,
+        name_ru: editingService.name_ru,
+        name_en: editingService.name_en,
+        price: parseFloat(editingService.price),
+        category: editingService.category
+      });
+
+      const mapped = {
+        id: saved.id,
+        name_uz: saved.nameUz,
+        name_ru: saved.nameRu,
+        name_en: saved.nameEn,
+        price: saved.price,
+        category: saved.category
+      };
+
+      setServices(prev => prev.map(s => s.id === editingService.id ? mapped : s));
+      setEditingService(null);
+    } catch (err) {
+      console.error("Failed to update service:", err);
+    }
   };
 
-  const handleDelete = (id) => {
-    const updated = services.filter(s => s.id !== id);
-    setServices(updated);
-    setDbItem('services', updated);
+  const handleDelete = async (id) => {
+    if (!window.confirm("Haqiqatan ham ushbu xizmatni o'chirib yubormoqchimisiz?")) return;
+    try {
+      await api.deleteService(id);
+      setServices(prev => prev.filter(s => s.id !== id));
+    } catch (err) {
+      console.error("Failed to delete service:", err);
+    }
   };
 
   // Get unique categories for filtration

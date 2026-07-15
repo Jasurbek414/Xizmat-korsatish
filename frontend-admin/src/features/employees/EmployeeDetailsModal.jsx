@@ -3,14 +3,14 @@ import { X, User, Phone, Briefcase, Star, MapPin, CheckCircle } from 'lucide-rea
 import { useTranslation } from 'react-i18next';
 import { formatCurrency } from '../../utils/format';
 
-const EmployeeDetailsModal = ({ isOpen, onClose, user, orders = [] }) => {
+const EmployeeDetailsModal = ({ isOpen, onClose, user, orders = [], completedStatusId = null }) => {
   const { t, i18n } = useTranslation();
 
   if (!isOpen || !user) return null;
 
   // Calculate stats based on orders list
   const workerOrders = orders.filter(o => o.worker_name.toLowerCase() === user.full_name.toLowerCase());
-  const completedOrders = workerOrders.filter(o => o.status_id === '4');
+  const completedOrders = workerOrders.filter(o => completedStatusId !== null && o.status_id === completedStatusId);
 
   // Map settings
   const lat = user.lat || 41.311081;
@@ -65,11 +65,10 @@ const EmployeeDetailsModal = ({ isOpen, onClose, user, orders = [] }) => {
               </p>
             </div>
             <div>
-              <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Muvaffaqiyat ko'rsatkichi</p>
-              <div className="flex items-center gap-1 mt-1 text-amber-500 font-bold">
-                <Star className="w-4 h-4 fill-amber-500" />
-                <span>4.8 / 5.0 Rating</span>
-              </div>
+              <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Ish haqi / Oylik</p>
+              <p className="text-[11px] font-bold text-indigo-600 dark:text-indigo-400 mt-1">
+                {user.salary ? `${parseFloat(user.salary).toLocaleString()} UZS (${user.salary_type === 'MONTHLY' ? 'Oylik' : user.salary_type === 'DAILY' ? 'Kunlik' : 'Soatlik'})` : 'Kiritilmagan'}
+              </p>
             </div>
           </div>
 

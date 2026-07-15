@@ -6,10 +6,10 @@ services:
     container_name: service-core-db
     environment:
       - POSTGRES_DB=service_db
-      - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_USER=${DB_USER:-postgres}
+      - POSTGRES_PASSWORD=${DB_PASSWORD:-postgres}
     ports:
-      - "5436:5432"
+      - "5437:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     restart: always
@@ -18,12 +18,21 @@ services:
     build: ./backend-java
     container_name: service-core-backend
     ports:
-      - "8006:8080"
+      - "8082:8080"
     environment:
       - DB_HOST=db
       - DB_PORT=5432
-      - DB_USER=postgres
-      - DB_PASSWORD=postgres
+      - DB_USER=${DB_USER:-postgres}
+      - DB_PASSWORD=${DB_PASSWORD:-postgres}
+      - JWT_SECRET=${JWT_SECRET}
+      - CORS_ALLOWED_ORIGINS=${CORS_ALLOWED_ORIGINS:-http://localhost:3005}
+      - FIREBASE_SERVICE_ACCOUNT_PATH=${FIREBASE_SERVICE_ACCOUNT_PATH:-}
+    # Push bildirishnomani yoqish uchun: Firebase Console'dan service account JSON kalitini
+    # backend-java/firebase-service-account.json sifatida saqlang, keyin quyidagi qatorni
+    # va yuqoridagi FIREBASE_SERVICE_ACCOUNT_PATH qiymatini ("/app/firebase-service-account.json")
+    # .env faylida faollashtiring:
+    # volumes:
+    #   - ./backend-java/firebase-service-account.json:/app/firebase-service-account.json:ro
     depends_on:
       - db
     restart: always
@@ -32,7 +41,7 @@ services:
     build: ./frontend-admin
     container_name: service-core-frontend
     ports:
-      - "3006:80"
+      - "3005:80"
     restart: always
 
   tunnel:
@@ -43,9 +52,11 @@ services:
     command:
       - "tunnel"
       - "--no-autoupdate"
+      - "--protocol"
+      - "http2"
       - "run"
       - "--token"
-      - "eyJhIjoiMDI5NDc1MzY0YWNjNDEzY2Q2Y2YzNWVkOGU0MjEzNGIiLCJ0IjoiZWQ1NmJmNDEtOWRlMS00ZTZmLWE5Y2YtMWMxM2ZhN2UyZGEzIiwicyI6Ik1URTBZakl3WkRFdE5XSXhOQzAwTnpJeExUbGlaVEV0TVRZME5qUm1OR0UxTW1GbSJ9"
+      - "${CLOUDFLARE_TUNNEL_TOKEN}"
     depends_on:
       - proxy
 

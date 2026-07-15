@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { getDbItem, setDbItem } from '../../store/mockDb';
+import { api } from '../../services/api';
 import { Check, MessageSquare, ToggleLeft, ToggleRight, Sparkles } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
@@ -12,22 +12,55 @@ const NotificationSettings = () => {
     sms_template_assigned: '',
     sms_template_completed: ''
   });
+  const [tokenConfigured, setTokenConfigured] = useState(false);
   const [saved, setSaved] = useState(false);
 
   useEffect(() => {
-    const stored = getDbItem('company_settings');
-    if (stored) {
-      setSettings(stored);
-    }
+    const loadSettings = async () => {
+      try {
+        const data = await api.getCompanySettings();
+        // Xavfsizlik sababli haqiqiy token qiymati serverdan hech qachon qaytarilmaydi -
+        // faqat "mavjud/mavjud emas" holati keladi (smsApiTokenConfigured).
+        setTokenConfigured(!!data.smsApiTokenConfigured);
+        setSettings({
+          sms_enabled: data.smsEnabled !== false,
+          sms_api_token: '',
+          sms_template_created: data.smsTemplateCreated || '',
+          sms_template_assigned: data.smsTemplateAssigned || '',
+          sms_template_completed: data.smsTemplateCompleted || ''
+        });
+      } catch (err) {
+        console.error("Failed to load SMS settings:", err);
+      }
+    };
+    loadSettings();
   }, []);
 
-  const handleSave = (e) => {
+  const handleSave = async (e) => {
     e.preventDefault();
-    const stored = getDbItem('company_settings') || {};
-    const updated = { ...stored, ...settings };
-    setDbItem('company_settings', updated);
-    setSaved(true);
-    setTimeout(() => setSaved(false), 3000);
+    try {
+      const payload = {
+        smsEnabled: settings.sms_enabled,
+        smsTemplateCreated: settings.sms_template_created,
+        smsTemplateAssigned: settings.sms_template_assigned,
+        smsTemplateCompleted: settings.sms_template_completed
+      };
+      // Token faqat admin yangi qiymat kiritgandagina yuboriladi - aks holda
+      // mavjud tokenni bo'sh qiymat bilan ustidan yozib yubormaslik uchun.
+      if (settings.sms_api_token.trim()) {
+        payload.smsApiToken = settings.sms_api_token.trim();
+      }
+
+      await api.updateCompanySettings(payload);
+      if (settings.sms_api_token.trim()) {
+        setTokenConfigured(true);
+        setSettings(prev => ({ ...prev, sms_api_token: '' }));
+      }
+      setSaved(true);
+      setTimeout(() => setSaved(false), 3000);
+    } catch (err) {
+      console.error("Failed to save SMS settings:", err);
+    }
   };
 
   return (
@@ -74,12 +107,19 @@ const NotificationSettings = () => {
           </div>
 
           <div className="space-y-1.5">
-            <label className="text-slate-500 dark:text-gray-400">{t('settings_page.sms_token')}</label>
+            <label className="text-slate-500 dark:text-gray-400 flex items-center gap-1.5">
+              {t('settings_page.sms_token')}
+              {tokenConfigured && (
+                <span className="text-[9px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded-md">
+                  O'rnatilgan
+                </span>
+              )}
+            </label>
             <input
               type="password"
               value={settings.sms_api_token}
               onChange={(e) => setSettings({ ...settings, sms_api_token: e.target.value })}
-              placeholder="masalan: bearer_xyz789..."
+              placeholder={tokenConfigured ? "•••••••• (o'zgartirish uchun yangisini kiriting)" : "masalan: bearer_xyz789..."}
               disabled={!settings.sms_enabled}
               className="w-full glass-input rounded-xl px-3 py-2.5 text-slate-800 dark:text-white focus:outline-none disabled:opacity-50"
             />

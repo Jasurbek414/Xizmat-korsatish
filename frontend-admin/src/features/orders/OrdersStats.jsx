@@ -5,8 +5,11 @@ import { useTranslation } from 'react-i18next';
 const OrdersStats = ({ orders, statuses }) => {
   const { t } = useTranslation();
 
-  // Completed status is '4' (from mockDb DEFAULT_STATUSES)
-  const completedStatusId = '4'; 
+  // "Yakunlangan" - ro'yxatdagi eng oxirgi bosqich (sort_order bo'yicha) hisoblanadi,
+  // chunki har bir kompaniya statuslarni o'zi moslashtirib sozlaydi (qattiq ID emas).
+  const completedStatusId = statuses.length > 0
+    ? [...statuses].sort((a, b) => a.sort_order - b.sort_order).slice(-1)[0].id
+    : null;
   const totalCount = orders.length;
   const completedCount = orders.filter(o => o.status_id === completedStatusId).length;
   const activeCount = totalCount - completedCount;

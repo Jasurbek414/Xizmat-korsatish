@@ -2,42 +2,31 @@ import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { 
   LayoutDashboard, Building2, Users, UserCog, ShoppingCart, 
-  DollarSign, Wallet, Settings2, Map, Languages, LogOut 
+  DollarSign, Wallet, Settings2, Map, Languages, LogOut, PhoneCall
 } from 'lucide-react';
 
-const Sidebar = ({ currentTab, setCurrentTab, role, handleLogout }) => {
-  const { t, i18n } = useTranslation();
+const Sidebar = ({ currentTab, setCurrentTab, role, roleLabel, perms = {}, handleLogout }) => {
+  const { t } = useTranslation();
 
-  const menuItems = role === 'SUPERADMIN' 
+  const menuItems = role === 'SUPERADMIN'
     ? [
-        { id: 'dashboard', label: t('menu.dashboard'), icon: LayoutDashboard },
-        { id: 'companies', label: 'Kompaniyalar', icon: Building2 },
-      ]
+      { id: 'dashboard', label: t('menu.dashboard'), icon: LayoutDashboard },
+      { id: 'companies', label: 'Kompaniyalar', icon: Building2 },
+    ]
     : (() => {
-        const rolesList = JSON.parse(localStorage.getItem('roles')) || [];
-        const roleObj = rolesList.find(r => r.id === role);
-        const perms = roleObj ? roleObj.permissions : {
-          clients: true,
-          employees: true,
-          orders: true,
-          finance: true,
-          salaries: true,
-          settings: true,
-          map: true
-        };
-
-        const items = [
-          { id: 'dashboard', label: t('menu.dashboard'), icon: LayoutDashboard }
-        ];
-        if (perms.clients) items.push({ id: 'clients', label: t('menu.clients'), icon: Users });
-        if (perms.employees) items.push({ id: 'employees', label: t('menu.employees'), icon: UserCog });
-        if (perms.orders) items.push({ id: 'orders', label: t('menu.orders'), icon: ShoppingCart });
-        if (perms.finance) items.push({ id: 'finance', label: t('menu.finance'), icon: DollarSign });
-        if (perms.salaries) items.push({ id: 'salaries', label: t('menu.salaries'), icon: Wallet });
-        if (perms.map) items.push({ id: 'map', label: t('menu.map'), icon: Map });
-        if (perms.settings) items.push({ id: 'settings', label: t('menu.settings'), icon: Settings2 });
-        return items;
-      })();
+      const items = [
+        { id: 'dashboard', label: t('menu.dashboard'), icon: LayoutDashboard }
+      ];
+      if (perms.clients) items.push({ id: 'clients', label: t('menu.clients'), icon: Users });
+      if (perms.orders) items.push({ id: 'orders', label: t('menu.orders'), icon: ShoppingCart });
+      if (perms.finance) items.push({ id: 'finance', label: t('menu.finance'), icon: DollarSign });
+      if (perms.employees) items.push({ id: 'employees', label: t('menu.employees'), icon: UserCog });
+      if (perms.salaries) items.push({ id: 'salaries', label: t('menu.salaries'), icon: Wallet });
+      if (perms.map) items.push({ id: 'map', label: t('menu.map'), icon: Map });
+      if (perms.telephony) items.push({ id: 'telephony', label: 'Telefoniya', icon: PhoneCall });
+      if (perms.settings) items.push({ id: 'settings', label: t('menu.settings'), icon: Settings2 });
+      return items;
+    })();
 
   return (
     <aside className="w-64 bg-white dark:bg-[#111827]/80 border-r border-slate-200 dark:border-white/5 flex flex-col justify-between h-screen sticky top-0 shrink-0 z-40 transition-colors duration-200 shadow-sm dark:shadow-none">
@@ -52,14 +41,7 @@ const Sidebar = ({ currentTab, setCurrentTab, role, handleLogout }) => {
               Service<span className="text-indigo-500 dark:text-indigo-400">Core</span>
             </h1>
             <span className="text-[9px] text-slate-400 dark:text-gray-500 font-semibold tracking-wider uppercase mt-1 block">
-              {role === 'SUPERADMIN' 
-                ? 'Super Admin' 
-                : (() => {
-                    const rolesList = JSON.parse(localStorage.getItem('roles')) || [];
-                    const roleObj = rolesList.find(r => r.id === role);
-                    return roleObj ? (roleObj[`name_${i18n.language}`] || roleObj.name_uz) : role;
-                  })()
-              }
+              {role === 'SUPERADMIN' ? 'Super Admin' : (roleLabel || role)}
             </span>
           </div>
         </div>

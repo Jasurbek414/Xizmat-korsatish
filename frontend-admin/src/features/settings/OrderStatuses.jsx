@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { getDbItem, setDbItem } from '../../store/mockDb';
+import { api } from '../../services/api';
 import { Plus, Trash2, ArrowDown, ArrowUp, Edit3, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
@@ -10,37 +10,101 @@ const OrderStatuses = () => {
   const [editingStatus, setEditingStatus] = useState(null);
 
   useEffect(() => {
-    setStatuses(getDbItem('order_statuses') || []);
+    const loadStatuses = async () => {
+      try {
+        const data = await api.getOrderStatuses();
+        const mapped = data.map(s => ({
+          id: s.id,
+          name_uz: s.nameUz,
+          name_ru: s.nameRu,
+          name_en: s.nameEn,
+          color_code: s.colorCode,
+          sort_order: s.sortOrder,
+          is_system: s.isSystem
+        }));
+        setStatuses(mapped);
+      } catch (err) {
+        console.error("Failed to load statuses:", err);
+      }
+    };
+    loadStatuses();
   }, []);
 
-  const handleAddStatus = (e) => {
+  const handleAddStatus = async (e) => {
     e.preventDefault();
     if (!newStatus.name_uz || !newStatus.name_ru || !newStatus.name_en) return;
 
-    const nextOrder = statuses.length > 0 ? Math.max(...statuses.map(s => s.sort_order)) + 1 : 1;
-    const updated = [...statuses, { ...newStatus, id: Date.now().toString(), sort_order: nextOrder }];
-    setStatuses(updated);
-    setDbItem('order_statuses', updated);
-    setNewStatus({ name_uz: '', name_ru: '', name_en: '', color_code: '#3b82f6' });
+    try {
+      const saved = await api.createOrderStatus({
+        name_uz: newStatus.name_uz,
+        name_ru: newStatus.name_ru,
+        name_en: newStatus.name_en,
+        color_code: newStatus.color_code
+      });
+      
+      const mapped = {
+        id: saved.id,
+        name_uz: saved.nameUz,
+        name_ru: saved.nameRu,
+        name_en: saved.nameEn,
+        color_code: saved.colorCode,
+        sort_order: saved.sortOrder,
+        is_system: saved.isSystem
+      };
+
+      setStatuses(prev => [...prev, mapped]);
+      setNewStatus({ name_uz: '', name_ru: '', name_en: '', color_code: '#3b82f6' });
+    } catch (err) {
+      console.error("Failed to create status:", err);
+    }
   };
 
-  const handleUpdateStatus = (e) => {
+  const handleUpdateStatus = async (e) => {
     e.preventDefault();
     if (!editingStatus.name_uz || !editingStatus.name_ru || !editingStatus.name_en) return;
 
-    const updated = statuses.map(s => s.id === editingStatus.id ? editingStatus : s);
-    setStatuses(updated);
-    setDbItem('order_statuses', updated);
-    setEditingStatus(null);
+    try {
+      const saved = await api.updateOrderStatusDefinition(editingStatus.id, {
+        name_uz: editingStatus.name_uz,
+        name_ru: editingStatus.name_ru,
+        name_en: editingStatus.name_en,
+        color_code: editingStatus.color_code
+      });
+
+      const mapped = {
+        id: saved.id,
+        name_uz: saved.nameUz,
+        name_ru: saved.nameRu,
+        name_en: saved.nameEn,
+        color_code: saved.colorCode,
+        sort_order: saved.sortOrder,
+        is_system: saved.isSystem
+      };
+
+      setStatuses(prev => prev.map(s => s.id === editingStatus.id ? mapped : s));
+      setEditingStatus(null);
+    } catch (err) {
+      console.error("Failed to update status:", err);
+    }
   };
 
-  const handleDelete = (id) => {
-    const updated = statuses.filter(s => s.id !== id);
-    setStatuses(updated);
-    setDbItem('order_statuses', updated);
+  const handleDelete = async (id) => {
+    const status = statuses.find(s => s.id === id);
+    if (status?.is_system) {
+      alert("Tizim statusini o'chirib bo'lmaydi");
+      return;
+    }
+    if (!window.confirm("Haqiqatan ham ushbu statusni o'chirib yubormoqchimisiz?")) return;
+
+    try {
+      await api.deleteOrderStatus(id);
+      setStatuses(prev => prev.filter(s => s.id !== id));
+    } catch (err) {
+      console.error("Failed to delete status:", err);
+    }
   };
 
-  const moveStatus = (index, direction) => {
+  const moveStatus = async (index, direction) => {
     if (direction === 'up' && index === 0) return;
     if (direction === 'down' && index === statuses.length - 1) return;
 
@@ -55,7 +119,12 @@ const OrderStatuses = () => {
     // Recalculate sort_order
     const reordered = updated.map((s, idx) => ({ ...s, sort_order: idx + 1 }));
     setStatuses(reordered);
-    setDbItem('order_statuses', reordered);
+
+    try {
+      await api.reorderStatuses(reordered.map(s => s.id));
+    } catch (err) {
+      console.error("Failed to save reordered statuses:", err);
+    }
   };
 
   return (

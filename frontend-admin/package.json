@@ -11,6 +11,7 @@
   },
   "dependencies": {
     "i18next": "^26.3.2",
+    "jssip": "^3.13.8",
     "leaflet": "^1.9.4",
     "lucide-react": "^1.21.0",
     "react": "^19.2.7",

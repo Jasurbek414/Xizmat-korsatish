@@ -4,7 +4,7 @@ class User {
   final String username;
   final String fullName;
   final String phone;
-  final String role; // SUPERADMIN, ADMIN, MANAGER, WORKER_DRIVER, WORKER_SEH
+  final String role; // Role.key qiymati - masalan ADMIN, MANAGER, WORKER_DRIVER
   final String status; // ACTIVE, BLOCKED
   final double baseSalary;
   final double kpiBonusPercent;
@@ -17,35 +17,36 @@ class User {
     required this.phone,
     required this.role,
     required this.status,
-    required this.baseSalary,
-    required this.kpiBonusPercent,
+    this.baseSalary = 0,
+    this.kpiBonusPercent = 0,
   });
 
-  factory User.fromJson(Map<String, dynamic> json) {
+  /// Backend `/auth/login` va `/auth/me` javoblaridan (camelCase maydonlar).
+  factory User.fromApiJson(Map<String, dynamic> json, {String? companyId}) {
     return User(
       id: json['id'] ?? '',
-      companyId: json['company_id'] ?? '',
+      companyId: companyId ?? json['companyId'] ?? '',
       username: json['username'] ?? '',
-      fullName: json['full_name'] ?? '',
+      fullName: json['fullName'] ?? '',
       phone: json['phone'] ?? '',
-      role: json['role'] ?? 'WORKER_DRIVER',
+      role: json['role'] ?? '',
       status: json['status'] ?? 'ACTIVE',
-      baseSalary: (json['base_salary'] as num?)?.toDouble() ?? 0.0,
-      kpiBonusPercent: (json['kpi_bonus_percent'] as num?)?.toDouble() ?? 0.0,
+      baseSalary: (json['salary'] as num?)?.toDouble() ?? 0.0,
+      kpiBonusPercent: (json['kpiBonusPercent'] as num?)?.toDouble() ?? 0.0,
     );
   }
 
   Map<String, dynamic> toJson() {
     return {
       'id': id,
-      'company_id': companyId,
+      'companyId': companyId,
       'username': username,
-      'full_name': fullName,
+      'fullName': fullName,
       'phone': phone,
       'role': role,
       'status': status,
-      'base_salary': baseSalary,
-      'kpi_bonus_percent': kpiBonusPercent,
+      'salary': baseSalary,
+      'kpiBonusPercent': kpiBonusPercent,
     };
   }
 }

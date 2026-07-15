@@ -1,14 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:hive_flutter/hive_flutter.dart';
 import 'core/theme.dart';
 import 'features/auth/bloc/auth_bloc.dart';
 import 'features/auth/screens/login_screen.dart';
-import 'features/dashboard/screens/admin_dashboard.dart';
-import 'features/dashboard/screens/manager_dashboard.dart';
-import 'features/dashboard/screens/driver_dashboard.dart';
-import 'features/dashboard/screens/workshop_dashboard.dart';
+import 'features/dashboard/screens/main_dashboard.dart';
+import 'features/gps/services/background_gps_service.dart';
+import 'features/notifications/services/push_notification_service.dart';
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await Hive.initFlutter();
+  await BackgroundGpsService.initialize();
+  await PushNotificationService.initialize();
   runApp(const MyApp());
 }
 
@@ -18,7 +22,7 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return BlocProvider(
-      create: (context) => AuthBloc(),
+      create: (context) => AuthBloc()..add(AppStartedEvent()),
       child: MaterialApp(
         title: 'ServiceCore Mobile Console',
         theme: AppTheme.darkTheme,
@@ -34,22 +38,43 @@ class AppNavigator extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return BlocBuilder<AuthBloc, AuthState>(
+    return BlocConsumer<AuthBloc, AuthState>(
+      listener: (context, state) {
+        if (state is Authenticated) {
+          // FCM tokenini backend'ga ro'yxatdan o'tkazish - shu qurilmaga
+          // push bildirishnoma yuborish uchun kerak.
+          PushNotificationService.registerTokenWithBackend();
+        }
+      },
       builder: (context, state) {
         if (state is Authenticated) {
           final user = state.user;
-          // Routing depending on the role
-          switch (user.role) {
-            case 'ADMIN':
-              return AdminDashboard(user: user);
-            case 'MANAGER':
-              return ManagerDashboard(user: user);
-            case 'WORKER_SEH':
-              return WorkshopDashboard(user: user);
-            case 'WORKER_DRIVER':
-            default:
-              return DriverDashboard(user: user);
+
+          if (user.role == 'SUPERADMIN') {
+            return const Scaffold(
+              body: Center(
+                child: Padding(
+                  padding: EdgeInsets.all(24),
+                  child: Text(
+                    "SUPERADMIN roli uchun mobil ilova mavjud emas.\n"
+                    "Iltimos, veb-admin panelidan foydalaning.",
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+              ),
+            );
           }
+
+          // Barcha qolgan rollar (standart yoki admin panelida yaratilgan
+          // maxsus rollar) uchun bitta umumiy dashboard - qaysi bo'limlar
+          // ko'rinishi faqat backend'dan kelgan ruxsatlarga bog'liq.
+          return MainDashboard(user: user, permissions: state.permissions);
+        }
+
+        if (state is AuthInitial) {
+          return const Scaffold(
+            body: Center(child: CircularProgressIndicator()),
+          );
         }
 
         // Default to login screen

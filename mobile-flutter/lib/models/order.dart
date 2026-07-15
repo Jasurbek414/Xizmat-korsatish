@@ -1,83 +1,104 @@
+/// Backend `Order` entity'sining JSON ko'rinishiga mos model (camelCase,
+/// ichma-ich obyektlar). Faqat mobil ilova uchun kerakli maydonlar o'qiladi.
+class OrderStatusInfo {
+  final String id;
+  final String nameUz;
+  final String nameRu;
+  final String nameEn;
+  final String colorCode;
+  final int sortOrder;
+
+  OrderStatusInfo({
+    required this.id,
+    required this.nameUz,
+    required this.nameRu,
+    required this.nameEn,
+    required this.colorCode,
+    required this.sortOrder,
+  });
+
+  factory OrderStatusInfo.fromJson(Map<String, dynamic> json) {
+    return OrderStatusInfo(
+      id: json['id'] ?? '',
+      nameUz: json['nameUz'] ?? '',
+      nameRu: json['nameRu'] ?? '',
+      nameEn: json['nameEn'] ?? '',
+      colorCode: json['colorCode'] ?? '#3b82f6',
+      sortOrder: (json['sortOrder'] as num?)?.toInt() ?? 0,
+    );
+  }
+}
+
+class OrderClientInfo {
+  final String fullName;
+  final String phone;
+  final String address;
+
+  OrderClientInfo({
+    required this.fullName,
+    required this.phone,
+    required this.address,
+  });
+
+  factory OrderClientInfo.fromJson(Map<String, dynamic>? json) {
+    if (json == null) {
+      return OrderClientInfo(fullName: "Noma'lum", phone: '', address: '');
+    }
+    return OrderClientInfo(
+      fullName: json['fullName'] ?? "Noma'lum",
+      phone: json['phone'] ?? '',
+      address: json['address'] ?? '',
+    );
+  }
+}
+
 class Order {
-  final String id; // UUID
-  final String code; // sequential human-readable ID (e.g. ORD-2026-00001)
-  final String clientName;
-  final String clientPhone;
+  final String id;
+  final OrderClientInfo client;
   final String serviceName;
   final double price;
-  final String address;
-  final String statusId;
-  final String statusName;
-  final String statusColor;
-  final String workerName;
   final String description;
-  final double quantity;
-  final String measurementUnit;
+  final String address;
   final double? latitude;
   final double? longitude;
+  final OrderStatusInfo? status;
+  final String? workerId;
+  final String? workerName;
   final String createdAt;
 
   Order({
     required this.id,
-    required this.code,
-    required this.clientName,
-    required this.clientPhone,
+    required this.client,
     required this.serviceName,
     required this.price,
-    required this.address,
-    required this.statusId,
-    required this.statusName,
-    required this.statusColor,
-    required this.workerName,
     required this.description,
-    required this.quantity,
-    required this.measurementUnit,
-    this.latitude,
-    this.longitude,
+    required this.address,
+    required this.latitude,
+    required this.longitude,
+    required this.status,
+    required this.workerId,
+    required this.workerName,
     required this.createdAt,
   });
 
   factory Order.fromJson(Map<String, dynamic> json) {
+    final service = json['service'] as Map<String, dynamic>?;
+    final worker = json['worker'] as Map<String, dynamic>?;
+    final statusJson = json['status'] as Map<String, dynamic>?;
+
     return Order(
       id: json['id'] ?? '',
-      code: json['code'] ?? 'ORD-00000',
-      clientName: json['client_name'] ?? '',
-      clientPhone: json['client_phone'] ?? '',
-      serviceName: json['service_name'] ?? '',
+      client: OrderClientInfo.fromJson(json['client'] as Map<String, dynamic>?),
+      serviceName: service?['nameUz'] ?? "Noma'lum xizmat",
       price: (json['price'] as num?)?.toDouble() ?? 0.0,
-      address: json['address'] ?? '',
-      statusId: json['status_id'] ?? '1',
-      statusName: json['status_name'] ?? 'Qabul qilindi',
-      statusColor: json['status_color'] ?? '#3b82f6',
-      workerName: json['worker_name'] ?? '',
       description: json['description'] ?? '',
-      quantity: (json['quantity'] as num?)?.toDouble() ?? 1.0,
-      measurementUnit: json['measurement_unit'] ?? 'dona',
+      address: json['address'] ?? '',
       latitude: (json['latitude'] as num?)?.toDouble(),
       longitude: (json['longitude'] as num?)?.toDouble(),
-      createdAt: json['created_at'] ?? '',
+      status: statusJson != null ? OrderStatusInfo.fromJson(statusJson) : null,
+      workerId: worker?['id'],
+      workerName: worker?['fullName'],
+      createdAt: json['createdAt'] ?? '',
     );
-  }
-
-  Map<String, dynamic> toJson() {
-    return {
-      'id': id,
-      'code': code,
-      'client_name': clientName,
-      'client_phone': clientPhone,
-      'service_name': serviceName,
-      'price': price,
-      'address': address,
-      'status_id': statusId,
-      'status_name': statusName,
-      'status_color': statusColor,
-      'worker_name': workerName,
-      'description': description,
-      'quantity': quantity,
-      'measurement_unit': measurementUnit,
-      'latitude': latitude,
-      'longitude': longitude,
-      'created_at': createdAt,
-    };
   }
 }

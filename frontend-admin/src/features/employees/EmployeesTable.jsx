@@ -28,6 +28,7 @@ const EmployeesTable = ({
               <th className="p-4">F.I.SH & Foydalanuvchi</th>
               <th className="p-4">{t('employees_page.phone')}</th>
               <th className="p-4">{t('employees_page.role')}</th>
+              <th className="p-4">Ish haqi</th>
               <th className="p-4">Status</th>
               <th className="p-4 text-right">Amallar</th>
             </tr>
@@ -35,7 +36,7 @@ const EmployeesTable = ({
           <tbody className="divide-y divide-slate-100 dark:divide-white/5 text-slate-700 dark:text-gray-300">
             {users.length === 0 ? (
               <tr>
-                <td colSpan="5" className="p-8 text-center text-slate-400 dark:text-gray-500 font-semibold">
+                <td colSpan="6" className="p-8 text-center text-slate-400 dark:text-gray-500 font-semibold">
                   Xodimlar topilmadi
                 </td>
               </tr>
@@ -66,6 +67,20 @@ const EmployeesTable = ({
                     }`}>
                       {u.role === 'WORKER_DRIVER' ? t('employees_page.worker_driver') : t('employees_page.office_staff')}
                     </span>
+                  </td>
+
+                  {/* Salary */}
+                  <td className="p-4 font-semibold text-slate-800 dark:text-white">
+                    {u.salary ? (
+                      <div>
+                        <span>{parseFloat(u.salary).toLocaleString()} UZS</span>
+                        <span className="text-[10px] text-slate-400 font-bold block mt-0.5">
+                          {u.salary_type === 'MONTHLY' ? 'Oylik' : u.salary_type === 'DAILY' ? 'Kunlik' : 'Soatlik'}
+                        </span>
+                      </div>
+                    ) : (
+                      <span className="text-slate-400 font-normal">Kiritilmagan</span>
+                    )}
                   </td>
 
                   {/* Status */}

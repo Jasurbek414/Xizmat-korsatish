@@ -22,20 +22,48 @@ const CreateOrderModal = ({ isOpen, onClose, clients, services, workers, newOrde
 
         <form onSubmit={onSubmit} className="space-y-4 text-xs font-semibold">
           <div>
-            <label className="block text-slate-500 dark:text-gray-400 mb-1">{t('orders_page.select_client')}</label>
-            <select 
-              value={newOrder.client_id}
-              onChange={(e) => setNewOrder({...newOrder, client_id: e.target.value})}
-              className="w-full glass-input rounded-xl px-3 py-2 text-slate-800 dark:text-white focus:outline-none cursor-pointer"
+            <label className="block text-slate-500 dark:text-gray-400 mb-1">Mijoz Telefon Raqami</label>
+            <input 
+              type="text"
+              value={newOrder.client_phone || ''}
+              onChange={(e) => {
+                const val = e.target.value;
+                const cleanInput = val.replace(/\D/g, '');
+                const found = clients.find(c => {
+                  const cleanPhone = c.phone ? c.phone.replace(/\D/g, '') : '';
+                  return cleanPhone && cleanPhone.endsWith(cleanInput) && cleanInput.length >= 7;
+                });
+                
+                if (found) {
+                  setNewOrder({
+                    ...newOrder,
+                    client_phone: val,
+                    client_name: found.fullName || found.full_name || '',
+                    address: found.address || newOrder.address || ''
+                  });
+                } else {
+                  setNewOrder({
+                    ...newOrder,
+                    client_phone: val,
+                    client_name: newOrder.client_name || ''
+                  });
+                }
+              }}
+              placeholder="+998 (90) 123-45-67"
+              className="w-full glass-input rounded-xl px-3 py-2 text-slate-800 dark:text-white focus:outline-none"
               required
-            >
-              <option value="" className="bg-white dark:bg-[#111827] text-slate-400">-- {t('common.search')} --</option>
-              {clients.map(c => (
-                <option key={c.id} value={c.id} className="bg-white dark:bg-[#111827] text-slate-800 dark:text-gray-200">
-                  {c.full_name}
-                </option>
-              ))}
-            </select>
+            />
+          </div>
+          <div>
+            <label className="block text-slate-500 dark:text-gray-400 mb-1">Mijoz Ism Familiyasi</label>
+            <input 
+              type="text"
+              value={newOrder.client_name || ''}
+              onChange={(e) => setNewOrder({...newOrder, client_name: e.target.value})}
+              placeholder="Masalan: Alisher Qodirov"
+              className="w-full glass-input rounded-xl px-3 py-2 text-slate-800 dark:text-white focus:outline-none"
+              required
+            />
           </div>
           <div>
             <label className="block text-slate-500 dark:text-gray-400 mb-1">{t('orders_page.service_type')}</label>
@@ -54,17 +82,16 @@ const CreateOrderModal = ({ isOpen, onClose, clients, services, workers, newOrde
             </select>
           </div>
           <div>
-            <label className="block text-slate-500 dark:text-gray-400 mb-1">{t('orders_page.worker')}</label>
+            <label className="block text-slate-500 dark:text-gray-400 mb-1">{t('orders_page.worker')} (Ixtiyoriy)</label>
             <select 
-              value={newOrder.worker_id}
+              value={newOrder.worker_id || ''}
               onChange={(e) => setNewOrder({...newOrder, worker_id: e.target.value})}
               className="w-full glass-input rounded-xl px-3 py-2 text-slate-800 dark:text-white focus:outline-none cursor-pointer"
-              required
             >
-              <option value="" className="bg-white dark:bg-[#111827] text-slate-400">-- {t('common.search')} --</option>
+              <option value="" className="bg-white dark:bg-[#111827] text-slate-400">-- Kuryer biriktirilmasin --</option>
               {workers.map(w => (
                 <option key={w.id} value={w.id} className="bg-white dark:bg-[#111827] text-slate-800 dark:text-gray-200">
-                  {w.full_name}
+                  {w.fullName || w.full_name}
                 </option>
               ))}
             </select>

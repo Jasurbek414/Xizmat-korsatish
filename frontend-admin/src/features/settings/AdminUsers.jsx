@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { getDbItem, setDbItem } from '../../store/mockDb';
+import { api } from '../../services/api';
 import { Plus, Trash2, Edit3, ShieldAlert, Lock, ToggleLeft, ToggleRight, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
@@ -11,7 +11,7 @@ const AdminUsers = ({ currentAuthUser }) => {
   
   // Modals & Editing
   const [editingUser, setEditingUser] = useState(null);
-  const [newUser, setNewUser] = useState({ username: '', full_name: '', phone: '', role: 'OPERATOR', password: '', status: 'ACTIVE' });
+  const [newUser, setNewUser] = useState({ username: '', full_name: '', phone: '', role: '', password: '', status: 'ACTIVE' });
   const [showPasswordModal, setShowPasswordModal] = useState(null); // stores user to reset password for
   const [newPassword, setNewPassword] = useState('');
 
@@ -19,89 +19,138 @@ const AdminUsers = ({ currentAuthUser }) => {
     loadUsers();
   }, []);
 
-  const loadUsers = () => {
-    const allUsers = getDbItem('users') || [];
-    const allRoles = getDbItem('roles') || [];
-    setUsers(allUsers);
-    setRoles(allRoles);
-    // Filter out WORKER_DRIVER (meaning dashboard staff)
-    const dashboardStaff = allUsers.filter(u => u.role !== 'WORKER_DRIVER');
-    setAdminsList(dashboardStaff);
-    
-    // Set default role for new user if not set
-    if (allRoles.length > 0) {
+  // Mobil-ilova rollari (haydovchi/ishchi/sex hodimi) alohida "Xodimlar" sahifasida
+  // boshqariladi - bu sahifa faqat web-admin panelga kira oladigan xodimlar uchun.
+  const MOBILE_ONLY_ROLE_KEYS = ['WORKER_DRIVER', 'WORKER', 'WORKER_SEH'];
+
+  const loadUsers = async () => {
+    try {
+      const [allUsers, allRoles] = await Promise.all([
+        api.getEmployees(),
+        api.getRoles()
+      ]);
+
+      const mappedUsers = allUsers.map(u => ({
+        id: u.id,
+        username: u.username,
+        full_name: u.fullName,
+        phone: u.phone || '',
+        role: u.role,
+        status: u.status
+      }));
+      setUsers(mappedUsers);
+
+      const dashboardStaff = mappedUsers.filter(u => !MOBILE_ONLY_ROLE_KEYS.includes(u.role));
+      setAdminsList(dashboardStaff);
+
+      const dashboardRoles = allRoles
+        .filter(r => !MOBILE_ONLY_ROLE_KEYS.includes(r.key))
+        .map(r => ({
+          id: r.key,
+          name_uz: r.nameUz,
+          name_ru: r.nameRu,
+          name_en: r.nameEn
+        }));
+      setRoles(dashboardRoles);
+
       setNewUser(prev => ({
         ...prev,
-        role: prev.role || allRoles[0].id
+        role: prev.role || dashboardRoles[0]?.id || ''
       }));
+    } catch (err) {
+      console.error("Failed to load users:", err);
     }
   };
 
-  const handleAddAdmin = (e) => {
+  const handleAddAdmin = async (e) => {
     e.preventDefault();
     if (!newUser.username || !newUser.full_name || !newUser.password) return;
 
-    // Check if username already exists
     if (users.some(u => u.username.toLowerCase() === newUser.username.toLowerCase())) {
       alert('Ushbu logindagi foydalanuvchi tizimda mavjud!');
       return;
     }
 
-    const created = {
-      ...newUser,
-      id: 'u_' + Date.now().toString()
-    };
-
-    const updated = [...users, created];
-    setDbItem('users', updated);
-    loadUsers();
-    setNewUser({ username: '', full_name: '', phone: '', role: 'OPERATOR', password: '', status: 'ACTIVE' });
+    try {
+      await api.createEmployee({
+        username: newUser.username,
+        password: newUser.password,
+        full_name: newUser.full_name,
+        phone: newUser.phone,
+        role: newUser.role
+      });
+      loadUsers();
+      setNewUser({ username: '', full_name: '', phone: '', role: roles[0]?.id || '', password: '', status: 'ACTIVE' });
+    } catch (err) {
+      console.error("Failed to create admin:", err);
+    }
   };
 
-  const handleUpdateAdmin = (e) => {
+  const handleUpdateAdmin = async (e) => {
     e.preventDefault();
     if (!editingUser.username || !editingUser.full_name) return;
 
-    const updated = users.map(u => u.id === editingUser.id ? editingUser : u);
-    setDbItem('users', updated);
-    loadUsers();
-    setEditingUser(null);
+    try {
+      await api.updateEmployee(editingUser.id, {
+        username: editingUser.username,
+        full_name: editingUser.full_name,
+        phone: editingUser.phone,
+        role: editingUser.role,
+        status: editingUser.status
+      });
+      loadUsers();
+      setEditingUser(null);
+    } catch (err) {
+      console.error("Failed to update admin:", err);
+    }
   };
 
-  const handleDelete = (id) => {
-    // Prevent self-deletion
-    if (currentAuthUser && currentAuthUser.username === users.find(u => u.id === id)?.username) {
+  const handleDelete = async (id) => {
+    const target = users.find(u => u.id === id);
+    if (currentAuthUser && currentAuthUser.username === target?.username) {
       alert('O\'zingizning hisobingizni o\'chira olmaysiz!');
       return;
     }
+    if (!window.confirm("Haqiqatan ham ushbu foydalanuvchini o'chirmoqchimisiz?")) return;
 
-    const updated = users.filter(u => u.id !== id);
-    setDbItem('users', updated);
-    loadUsers();
+    try {
+      await api.deleteEmployee(id);
+      loadUsers();
+    } catch (err) {
+      console.error("Failed to delete admin:", err);
+    }
   };
 
-  const toggleStatus = (user) => {
+  const toggleStatus = async (user) => {
     if (currentAuthUser && currentAuthUser.username === user.username) {
       alert('O\'zingizning hisobingiz holatini o\'zgartira olmaysiz!');
       return;
     }
 
     const updatedStatus = user.status === 'ACTIVE' ? 'BLOCKED' : 'ACTIVE';
-    const updated = users.map(u => u.id === user.id ? { ...u, status: updatedStatus } : u);
-    setDbItem('users', updated);
-    loadUsers();
+    try {
+      await api.updateEmployee(user.id, {
+        status: updatedStatus
+      });
+      loadUsers();
+    } catch (err) {
+      console.error("Failed to toggle admin status:", err);
+    }
   };
 
-  const handleResetPassword = (e) => {
+  const handleResetPassword = async (e) => {
     e.preventDefault();
     if (!newPassword) return;
 
-    const updated = users.map(u => u.id === showPasswordModal.id ? { ...u, password: newPassword } : u);
-    setDbItem('users', updated);
-    loadUsers();
-    setShowPasswordModal(null);
-    setNewPassword('');
-    alert('Parol muvaffaqiyatli o\'zgartirildi!');
+    try {
+      await api.resetEmployeePassword(showPasswordModal.id, newPassword);
+      loadUsers();
+      setShowPasswordModal(null);
+      setNewPassword('');
+      alert('Parol muvaffaqiyatli o\'zgartirildi!');
+    } catch (err) {
+      console.error("Failed to reset password:", err);
+    }
   };
 
   return (
@@ -252,9 +301,9 @@ const AdminUsers = ({ currentAuthUser }) => {
                       {(() => {
                         const roleObj = roles.find(r => r.id === user.role);
                         const roleName = roleObj ? (roleObj[`name_${i18n.language}`] || roleObj.name_uz) : user.role;
-                        const badgeColor = user.role === 'ADMIN' 
+                        const badgeColor = user.role === 'ADMIN'
                           ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/10'
-                          : user.role === 'OPERATOR'
+                          : user.role === 'DISPATCHER'
                           ? 'bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 border-cyan-500/10'
                           : 'bg-indigo-500/10 text-indigo-650 dark:text-indigo-400 border-indigo-500/10';
                         return (

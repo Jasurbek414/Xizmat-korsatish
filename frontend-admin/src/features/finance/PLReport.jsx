@@ -14,10 +14,9 @@ const PLReport = ({ transactions }) => {
   const salaries = actualTx.filter(t => t.type === 'EXPENSE' && t.category === 'SALARY').reduce((sum, t) => sum + t.amount, 0);
   const officeExpenses = actualTx.filter(t => t.type === 'EXPENSE' && t.category === 'OFFICE_EXPENSE').reduce((sum, t) => sum + t.amount, 0);
   const taxesPaid = actualTx.filter(t => t.type === 'EXPENSE' && t.category === 'TAX').reduce((sum, t) => sum + t.amount, 0);
+  const otherExpenses = actualTx.filter(t => t.type === 'EXPENSE' && t.category !== 'SALARY' && t.category !== 'OFFICE_EXPENSE' && t.category !== 'TAX').reduce((sum, t) => sum + t.amount, 0);
   
-  // Dynamic 4% tax estimation for service business if no tax recorded, otherwise use recorded taxes
-  const estimatedTax = taxesPaid > 0 ? taxesPaid : Math.round(revenue * 0.04);
-  const totalExpenses = salaries + officeExpenses + estimatedTax;
+  const totalExpenses = salaries + officeExpenses + taxesPaid + otherExpenses;
   const netProfit = revenue - totalExpenses;
   const margin = revenue > 0 ? (netProfit / revenue) * 100 : 0;
 
@@ -27,14 +26,15 @@ const PLReport = ({ transactions }) => {
     const date = new Date(tx.created_at);
     const monthKey = date.toLocaleString(i18n.language === 'en' ? 'en-US' : i18n.language === 'ru' ? 'ru-RU' : 'uz-UZ', { month: 'long', year: 'numeric' });
     if (!monthlyData[monthKey]) {
-      monthlyData[monthKey] = { revenue: 0, salaries: 0, opex: 0, tax: 0 };
+      monthlyData[monthKey] = { revenue: 0, salaries: 0, opex: 0, tax: 0, other: 0 };
     }
     if (tx.type === 'INCOME') {
       monthlyData[monthKey].revenue += tx.amount;
     } else {
       if (tx.category === 'SALARY') monthlyData[monthKey].salaries += tx.amount;
       else if (tx.category === 'TAX') monthlyData[monthKey].tax += tx.amount;
-      else monthlyData[monthKey].opex += tx.amount;
+      else if (tx.category === 'OFFICE_EXPENSE') monthlyData[monthKey].opex += tx.amount;
+      else monthlyData[monthKey].other += tx.amount;
     }
   });
 
@@ -130,10 +130,16 @@ const PLReport = ({ transactions }) => {
                 <span className="text-rose-600 dark:text-rose-400 font-bold">-{formatCurrency(officeExpenses, i18n.language)}</span>
               </div>
 
-              {/* Estimated taxes */}
+              {/* Soliqlar */}
               <div className="py-2.5 flex justify-between items-center">
-                <span className="text-slate-500 dark:text-gray-400">{t('finance_page.estimated_tax')} (Soliqlar)</span>
-                <span className="text-rose-600 dark:text-rose-400 font-bold">-{formatCurrency(estimatedTax, i18n.language)}</span>
+                <span className="text-slate-500 dark:text-gray-400">Soliqlar (TAX)</span>
+                <span className="text-rose-600 dark:text-rose-400 font-bold">-{formatCurrency(taxesPaid, i18n.language)}</span>
+              </div>
+
+              {/* Boshqa Xarajatlar */}
+              <div className="py-2.5 flex justify-between items-center">
+                <span className="text-slate-500 dark:text-gray-400">Boshqa Xarajatlar (Other Expenses)</span>
+                <span className="text-rose-600 dark:text-rose-400 font-bold">-{formatCurrency(otherExpenses, i18n.language)}</span>
               </div>
 
               {/* Summary expenses */}
@@ -165,7 +171,7 @@ const PLReport = ({ transactions }) => {
             ) : (
               Object.keys(monthlyData).map(month => {
                 const data = monthlyData[month];
-                const totalMExp = data.salaries + data.opex + (data.tax || Math.round(data.revenue * 0.04));
+                const totalMExp = data.salaries + data.opex + data.tax + data.other;
                 const netMProfit = data.revenue - totalMExp;
                 const mMargin = data.revenue > 0 ? (netMProfit / data.revenue) * 100 : 0;
                 

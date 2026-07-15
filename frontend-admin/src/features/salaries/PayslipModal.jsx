@@ -3,7 +3,7 @@ import { X, Printer } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { formatCurrency } from '../../utils/format';
 
-const PayslipModal = ({ isOpen, onClose, salary, orders = [] }) => {
+const PayslipModal = ({ isOpen, onClose, salary, orders = [], completedStatusId = null }) => {
   const { t, i18n } = useTranslation();
 
   if (!isOpen || !salary) return null;
@@ -11,8 +11,8 @@ const PayslipModal = ({ isOpen, onClose, salary, orders = [] }) => {
   // Filter completed orders for this worker in the current pay period
   const workerOrders = orders.filter(o => {
     const isWorker = o.worker_name.toLowerCase() === salary.full_name.toLowerCase();
-    const isCompleted = o.status_id === '4';
-    
+    const isCompleted = completedStatusId !== null && o.status_id === completedStatusId;
+
     // Period matching (e.g. order's created_at year-month matches pay_period)
     const orderPeriod = o.created_at ? o.created_at.slice(0, 7) : ''; // "2026-06"
     return isWorker && isCompleted && orderPeriod === salary.pay_period;

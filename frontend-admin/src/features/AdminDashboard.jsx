@@ -1,88 +1,126 @@
 import React, { useState, useEffect } from 'react';
-import { getDbItem } from '../store/mockDb';
-import { 
-  ShoppingCart, Users, DollarSign, Navigation, Activity, 
-  ArrowUpRight, ArrowDownRight, Calendar, Wallet, Trophy, CheckCircle 
+import { api } from '../services/api';
+import {
+  ShoppingCart, Users, DollarSign, Navigation, Activity,
+  ArrowUpRight, ArrowDownRight, Calendar, Wallet, Trophy, CheckCircle
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 const AdminDashboard = ({ tab }) => {
   const { t } = useTranslation();
   const [timeRange, setTimeRange] = useState('all'); // 'today', '7days', '30days', 'all'
-  
+
   // Dashboard states
   const [stats, setStats] = useState({ orders: 0, clients: 0, income: 0, drivers: 0 });
   const [sparklines, setSparklines] = useState({ orders: '', income: '', clients: '' });
   const [recentOrders, setRecentOrders] = useState([]);
   const [statuses, setStatuses] = useState([]);
-  const [wallets, setWallets] = useState([]);
+  const [financeStats, setFinanceStats] = useState({ totalIncome: 0, totalExpense: 0, balance: 0 });
   const [topDrivers, setTopDrivers] = useState([]);
-  
+
   // Chart and Donut states
   const [chartData, setChartData] = useState({ income: [], expense: [], labels: [] });
   const [donutSegments, setDonutSegments] = useState([]);
 
   useEffect(() => {
-    // Fetch data
-    const orders = getDbItem('orders') || [];
-    const clients = getDbItem('clients') || [];
-    const transactions = getDbItem('transactions') || [];
-    const users = getDbItem('users') || [];
-    const orderStatuses = getDbItem('order_statuses') || [];
-    const dbWallets = getDbItem('wallets') || [];
+    const loadData = async () => {
+      try {
+        const [ordersData, clientsData, transactionsData, usersData, statusesData, financeData] = await Promise.all([
+          api.getOrders(),
+          api.getClients(),
+          api.getTransactions(),
+          api.getEmployees(),
+          api.getOrderStatuses(),
+          api.getFinanceStats()
+        ]);
 
-    setStatuses(orderStatuses);
-    setWallets(dbWallets);
+        const orders = ordersData.map(o => ({
+          id: o.id,
+          client_name: o.client ? o.client.fullName : '',
+          service_name: o.service ? o.service.nameUz : '',
+          worker_name: o.worker ? o.worker.fullName : '',
+          price: o.price,
+          status_id: o.status ? o.status.id : null,
+          created_at: o.createdAt
+        }));
+        const clients = clientsData;
+        const transactions = transactionsData.map(tx => ({
+          type: tx.type,
+          amount: tx.amount,
+          category: tx.category,
+          created_at: tx.createdAt
+        }));
+        const users = usersData.map(u => ({
+          full_name: u.fullName,
+          role: u.role,
+          status: u.status
+        }));
+        const orderStatuses = statusesData.map(s => ({
+          id: s.id,
+          name_uz: s.nameUz,
+          name_ru: s.nameRu,
+          name_en: s.nameEn,
+          color_code: s.colorCode,
+          sort_order: s.sortOrder
+        }));
 
-    // Calculate cut-off date based on timeRange
-    const now = new Date();
-    let cutOffDate = new Date(0); // default to epoch (all time)
+        setStatuses(orderStatuses);
+        setFinanceStats(financeData);
 
-    if (timeRange === 'today') {
-      cutOffDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    } else if (timeRange === '7days') {
-      cutOffDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-    } else if (timeRange === '30days') {
-      cutOffDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-    }
+        // Calculate cut-off date based on timeRange
+        const now = new Date();
+        let cutOffDate = new Date(0); // default to epoch (all time)
 
-    // 1. Filter orders and transactions
-    const filteredOrders = orders.filter(o => new Date(o.created_at || now) >= cutOffDate);
-    const filteredTransactions = transactions.filter(t => new Date(t.created_at || now) >= cutOffDate);
+        if (timeRange === 'today') {
+          cutOffDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        } else if (timeRange === '7days') {
+          cutOffDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+        } else if (timeRange === '30days') {
+          cutOffDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+        }
 
-    // 2. Compute Main Stats
-    const totalIncome = filteredTransactions
-      .filter(t => t.type === 'INCOME' && t.category !== 'TRANSFER')
-      .reduce((sum, item) => sum + item.amount, 0);
+        // 1. Filter orders and transactions
+        const filteredOrders = orders.filter(o => new Date(o.created_at || now) >= cutOffDate);
+        const filteredTransactions = transactions.filter(tx => new Date(tx.created_at || now) >= cutOffDate);
 
-    const activeDriversCount = users.filter(u => u.role === 'WORKER_DRIVER' && u.status === 'ACTIVE').length;
+        // 2. Compute Main Stats
+        const totalIncome = filteredTransactions
+          .filter(tx => tx.type === 'INCOME' && tx.category !== 'TRANSFER')
+          .reduce((sum, item) => sum + item.amount, 0);
 
-    setStats({
-      orders: filteredOrders.length,
-      clients: clients.length, // total registered clients is general
-      income: totalIncome,
-      drivers: activeDriversCount
-    });
+        const activeDriversCount = users.filter(u => u.role === 'WORKER_DRIVER' && u.status === 'ACTIVE').length;
 
-    // 3. Set recent orders list (up to 5)
-    setRecentOrders(filteredOrders.slice(-5).reverse());
+        setStats({
+          orders: filteredOrders.length,
+          clients: clients.length,
+          income: totalIncome,
+          drivers: activeDriversCount
+        });
 
-    // 4. Generate Sparkline paths (mini SVGs)
-    setSparklines({
-      orders: generateSparkline(filteredOrders, timeRange, now, 'count'),
-      income: generateSparkline(filteredTransactions.filter(t => t.type === 'INCOME' && t.category !== 'TRANSFER'), timeRange, now, 'amount'),
-      clients: generateSparkline(clients, timeRange, now, 'count')
-    });
+        // 3. Set recent orders list (up to 5)
+        setRecentOrders(filteredOrders.slice(-5).reverse());
 
-    // 5. Generate dynamic chart data (Income vs Expense)
-    setChartData(generateChartPoints(filteredTransactions, timeRange, now));
+        // 4. Generate Sparkline paths (mini SVGs)
+        setSparklines({
+          orders: generateSparkline(filteredOrders, timeRange, now, 'count'),
+          income: generateSparkline(filteredTransactions.filter(tx => tx.type === 'INCOME' && tx.category !== 'TRANSFER'), timeRange, now, 'amount'),
+          clients: generateSparkline(clients, timeRange, now, 'count')
+        });
 
-    // 6. Generate Donut Chart Segments (Status distribution)
-    setDonutSegments(generateDonutSegments(filteredOrders, orderStatuses));
+        // 5. Generate dynamic chart data (Income vs Expense)
+        setChartData(generateChartPoints(filteredTransactions, timeRange, now));
 
-    // 7. Calculate Top Drivers
-    setTopDrivers(calculateTopDrivers(filteredOrders, users));
+        // 6. Generate Donut Chart Segments (Status distribution)
+        setDonutSegments(generateDonutSegments(filteredOrders, orderStatuses));
 
+        // 7. Calculate Top Drivers
+        setTopDrivers(calculateTopDrivers(filteredOrders, users, orderStatuses));
+      } catch (err) {
+        console.error("Failed to load dashboard data:", err);
+      }
+    };
+
+    loadData();
   }, [tab, timeRange]);
 
   // Helper: generates sparkline SVG points string
@@ -141,15 +179,15 @@ const AdminDashboard = ({ tab }) => {
       }
     }
 
-    txs.forEach(t => {
-      if (t.category === 'TRANSFER') return;
-      const tTime = new Date(t.created_at || now).getTime();
+    txs.forEach(tx => {
+      if (tx.category === 'TRANSFER') return;
+      const tTime = new Date(tx.created_at || now).getTime();
       const diff = now.getTime() - tTime;
       const bucket = Math.min(buckets - 1, Math.max(0, buckets - 1 - Math.floor(diff / intervalMs)));
-      if (t.type === 'INCOME') {
-        income[bucket] += t.amount;
+      if (tx.type === 'INCOME') {
+        income[bucket] += tx.amount;
       } else {
-        expense[bucket] += t.amount;
+        expense[bucket] += tx.amount;
       }
     });
 
@@ -159,7 +197,7 @@ const AdminDashboard = ({ tab }) => {
   // Helper: Generates SVG circle segment values for donut ring
   const generateDonutSegments = (orders, statuses) => {
     if (orders.length === 0) return [];
-    
+
     // Count status occurrences
     const counts = {};
     orders.forEach(o => {
@@ -188,15 +226,15 @@ const AdminDashboard = ({ tab }) => {
   };
 
   // Helper: calculates Top Drivers list
-  const calculateTopDrivers = (orders, users) => {
+  const calculateTopDrivers = (orders, users, orderStatuses) => {
+    const sortedStatuses = [...orderStatuses].sort((a, b) => a.sort_order - b.sort_order);
+    const completedStatusId = sortedStatuses.length > 0 ? sortedStatuses.slice(-1)[0].id : null;
+
     const drivers = users.filter(u => u.role === 'WORKER_DRIVER');
     const driverStats = drivers.map(d => {
-      // Completed orders count
-      const completedCount = orders.filter(o => o.worker_name === d.full_name && o.status_id === '4').length;
-      // 10% commission earnings
-      const kpiEarnings = orders
-        .filter(o => o.worker_name === d.full_name && o.status_id === '4')
-        .reduce((sum, item) => sum + (item.price * 0.1), 0);
+      const completedOrders = orders.filter(o => o.worker_name === d.full_name && o.status_id === completedStatusId);
+      const completedCount = completedOrders.length;
+      const kpiEarnings = completedOrders.reduce((sum, item) => sum + (item.price * 0.1), 0);
 
       return {
         ...d,
@@ -209,8 +247,8 @@ const AdminDashboard = ({ tab }) => {
     return driverStats.sort((a, b) => b.completedCount - a.completedCount).slice(0, 3);
   };
 
-  // Generate chart paths
   const getCoordinates = (points) => {
+    if (!points || points.length < 2) return '';
     const width = 500;
     const height = 150;
     const padding = 20;
@@ -229,7 +267,7 @@ const AdminDashboard = ({ tab }) => {
     const status = statuses.find(s => s.id === statusId);
     if (!status) return null;
     return (
-      <span 
+      <span
         style={{ backgroundColor: status.color_code + '12', color: status.color_code, borderColor: status.color_code + '25' }}
         className="px-2.5 py-0.5 rounded-lg text-[9px] font-bold border tracking-wide uppercase"
       >
@@ -273,33 +311,33 @@ const AdminDashboard = ({ tab }) => {
       {/* Stats Grid with Mini SVG Sparklines */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
         {[
-          { 
-            title: t('dashboard.orders'), 
-            val: `${stats.orders} ta`, 
+          {
+            title: t('dashboard.orders'),
+            val: `${stats.orders} ta`,
             spark: sparklines.orders,
-            icon: ShoppingCart, 
-            bg: 'bg-indigo-500/10 text-indigo-650 dark:text-indigo-400' 
+            icon: ShoppingCart,
+            bg: 'bg-indigo-500/10 text-indigo-650 dark:text-indigo-400'
           },
-          { 
-            title: t('dashboard.revenue'), 
-            val: `${stats.income.toLocaleString()} ${getDbItem('company_settings')?.currency || 'so\'m'}`, 
+          {
+            title: t('dashboard.revenue'),
+            val: `${stats.income.toLocaleString()} so'm`,
             spark: sparklines.income,
-            icon: DollarSign, 
-            bg: 'bg-emerald-500/10 text-emerald-650 dark:text-emerald-400' 
+            icon: DollarSign,
+            bg: 'bg-emerald-500/10 text-emerald-650 dark:text-emerald-400'
           },
-          { 
-            title: t('dashboard.clients'), 
-            val: `${stats.clients} ta`, 
+          {
+            title: t('dashboard.clients'),
+            val: `${stats.clients} ta`,
             spark: sparklines.clients,
-            icon: Users, 
-            bg: 'bg-sky-500/10 text-sky-650 dark:text-sky-400' 
+            icon: Users,
+            bg: 'bg-sky-500/10 text-sky-650 dark:text-sky-400'
           },
-          { 
-            title: t('dashboard.active_drivers'), 
-            val: `${stats.drivers} ta`, 
+          {
+            title: t('dashboard.active_drivers'),
+            val: `${stats.drivers} ta`,
             spark: null, // Driver stats don't need sparklines
-            icon: Navigation, 
-            bg: 'bg-amber-500/10 text-amber-650 dark:text-amber-400' 
+            icon: Navigation,
+            bg: 'bg-amber-500/10 text-amber-650 dark:text-amber-400'
           }
         ].map((s, idx) => {
           const Icon = s.icon;
@@ -336,7 +374,7 @@ const AdminDashboard = ({ tab }) => {
 
       {/* Main Row: Income/Expense Graph & Status Distribution */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        
+
         {/* Left: Monthly/Hourly P&L Area Chart (spans 2 columns) */}
         <div className="lg:col-span-2 glass-card p-6 rounded-2xl border border-slate-200 dark:border-white/5 bg-white dark:bg-transparent shadow-sm space-y-4">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
@@ -375,12 +413,12 @@ const AdminDashboard = ({ tab }) => {
               <line x1="20" y1="130" x2="480" y2="130" stroke="currentColor" className="text-slate-150 dark:text-white/5" />
 
               {/* Area Fills */}
-              <path d={`M20,130 L${incomePath} L480,130 Z`} fill="url(#incomeGrad)" />
-              <path d={`M20,130 L${expensePath} L480,130 Z`} fill="url(#expenseGrad)" />
+              {incomePath && <path d={`M20,130 L${incomePath} L480,130 Z`} fill="url(#incomeGrad)" />}
+              {expensePath && <path d={`M20,130 L${expensePath} L480,130 Z`} fill="url(#expenseGrad)" />}
 
               {/* Paths */}
-              <polyline fill="none" stroke="#6366f1" strokeWidth="2.5" points={incomePath} strokeLinecap="round" strokeLinejoin="round" />
-              <polyline fill="none" stroke="#f43f5e" strokeWidth="2.5" points={expensePath} strokeLinecap="round" strokeLinejoin="round" />
+              {incomePath && <polyline fill="none" stroke="#6366f1" strokeWidth="2.5" points={incomePath} strokeLinecap="round" strokeLinejoin="round" />}
+              {expensePath && <polyline fill="none" stroke="#f43f5e" strokeWidth="2.5" points={expensePath} strokeLinecap="round" strokeLinejoin="round" />}
 
               {/* Dots */}
               {chartData.income.map((p, i) => {
@@ -460,7 +498,7 @@ const AdminDashboard = ({ tab }) => {
 
       </div>
 
-      {/* Bottom Row: Top Drivers & Kassa Balances & Recent Orders */}
+      {/* Bottom Row: Top Drivers & Finance Summary & Recent Orders */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
         {/* 1. Top Performing Drivers */}
@@ -469,10 +507,10 @@ const AdminDashboard = ({ tab }) => {
             <Trophy className="w-4 h-4 text-amber-500 animate-bounce" />
             {t('dashboard.top_drivers')}
           </h4>
-          
+
           <div className="space-y-3.5">
             {topDrivers.map((driver, idx) => (
-              <div key={driver.id} className="flex items-center justify-between gap-2 text-xs">
+              <div key={driver.id || idx} className="flex items-center justify-between gap-2 text-xs">
                 <div className="flex items-center gap-2.5">
                   <div className="w-7 h-7 rounded-lg bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 flex items-center justify-center font-bold text-xs">
                     {driver.full_name.charAt(0)}
@@ -494,30 +532,32 @@ const AdminDashboard = ({ tab }) => {
           </div>
         </div>
 
-        {/* 2. Kassa Wallets Balances (linked dynamically to Finance) */}
+        {/* 2. Finance Summary (real balance from backend) */}
         <div className="glass-card p-6 rounded-2xl border border-slate-200 dark:border-white/5 bg-white dark:bg-transparent shadow-sm space-y-4">
           <h4 className="font-bold text-slate-800 dark:text-white text-sm font-['Outfit'] flex items-center gap-2">
             <Wallet className="w-4 h-4 text-indigo-500" />
             {t('settings_page.wallet_balances')}
           </h4>
-          
+
           <div className="space-y-3">
-            {wallets.map(wallet => (
-              <div key={wallet.id} className="p-3 bg-slate-50 dark:bg-white/2 border border-slate-150 dark:border-white/5 rounded-xl flex items-center justify-between">
-                <div>
-                  <span className="block text-[10px] font-bold text-slate-700 dark:text-white">
-                    {t('common.language') === 'ru' ? wallet.name_ru : t('common.language') === 'en' ? wallet.name_en : wallet.name_uz}
-                  </span>
-                  <span className="text-[8px] text-slate-400 dark:text-gray-500 uppercase tracking-wider font-bold">{wallet.id} wallet</span>
-                </div>
-                <span className="font-bold text-indigo-650 dark:text-indigo-400 font-['Outfit'] text-xs">
-                  {wallet.balance.toLocaleString()} {getDbItem('company_settings')?.currency || 'so\'m'}
-                </span>
-              </div>
-            ))}
-            {wallets.length === 0 && (
-              <div className="text-center py-6 text-slate-400 dark:text-gray-500 font-semibold">{t('dashboard.no_data')}</div>
-            )}
+            <div className="p-3 bg-slate-50 dark:bg-white/2 border border-slate-150 dark:border-white/5 rounded-xl flex items-center justify-between">
+              <span className="text-[10px] font-bold text-slate-700 dark:text-white">Joriy balans</span>
+              <span className="font-bold text-indigo-650 dark:text-indigo-400 font-['Outfit'] text-xs">
+                {(financeStats.balance || 0).toLocaleString()} so'm
+              </span>
+            </div>
+            <div className="p-3 bg-slate-50 dark:bg-white/2 border border-slate-150 dark:border-white/5 rounded-xl flex items-center justify-between">
+              <span className="text-[10px] font-bold text-slate-700 dark:text-white">Jami tushum</span>
+              <span className="font-bold text-emerald-600 dark:text-emerald-400 font-['Outfit'] text-xs">
+                {(financeStats.totalIncome || 0).toLocaleString()} so'm
+              </span>
+            </div>
+            <div className="p-3 bg-slate-50 dark:bg-white/2 border border-slate-150 dark:border-white/5 rounded-xl flex items-center justify-between">
+              <span className="text-[10px] font-bold text-slate-700 dark:text-white">Jami chiqim</span>
+              <span className="font-bold text-rose-600 dark:text-rose-400 font-['Outfit'] text-xs">
+                {(financeStats.totalExpense || 0).toLocaleString()} so'm
+              </span>
+            </div>
           </div>
         </div>
 
@@ -527,7 +567,7 @@ const AdminDashboard = ({ tab }) => {
             <CheckCircle className="w-4 h-4 text-indigo-500" />
             {t('dashboard.recent_orders')}
           </h4>
-          
+
           <div className="space-y-3.5">
             {recentOrders.slice(0, 3).map((o) => (
               <div key={o.id} className="flex justify-between items-start gap-2 text-xs">

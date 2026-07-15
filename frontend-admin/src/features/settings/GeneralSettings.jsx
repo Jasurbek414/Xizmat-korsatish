@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { getDbItem, setDbItem } from '../../store/mockDb';
+import { api } from '../../services/api';
 import { Check, Info } from 'lucide-react';
 
 const GeneralSettings = () => {
@@ -21,20 +21,46 @@ const GeneralSettings = () => {
   const [newUnit, setNewUnit] = useState('');
 
   useEffect(() => {
-    const stored = getDbItem('company_settings');
-    if (stored) {
-      if (!stored.measurement_units) {
-        stored.measurement_units = ['dona', 'kv. metr', 'kg', 'litr', 'metr'];
+    const loadSettings = async () => {
+      try {
+        const data = await api.getCompanySettings();
+        setSettings({
+          company_name: data.name || '',
+          company_phone: data.phone || '',
+          company_address: data.address || '',
+          company_email: data.email || '',
+          currency: 'so\'m',
+          min_order_price: data.minOrderPrice || 15000,
+          driver_kpi_percent: data.driverKpiPercent || 10,
+          work_start_time: data.workStartTime || '08:00',
+          work_end_time: data.workEndTime || '22:00',
+          measurement_units: ['dona', 'kv. metr', 'kg', 'litr', 'metr']
+        });
+      } catch (err) {
+        console.error("Failed to load company settings:", err);
       }
-      setSettings(stored);
-    }
+    };
+    loadSettings();
   }, []);
 
-  const handleSave = (e) => {
+  const handleSave = async (e) => {
     e.preventDefault();
-    setDbItem('company_settings', settings);
-    setSaved(true);
-    setTimeout(() => setSaved(false), 3000);
+    try {
+      await api.updateCompanySettings({
+        name: settings.company_name,
+        phone: settings.company_phone,
+        address: settings.company_address,
+        email: settings.company_email,
+        minOrderPrice: settings.min_order_price,
+        driverKpiPercent: settings.driver_kpi_percent,
+        workStartTime: settings.work_start_time,
+        workEndTime: settings.work_end_time
+      });
+      setSaved(true);
+      setTimeout(() => setSaved(false), 3000);
+    } catch (err) {
+      console.error("Failed to update company settings:", err);
+    }
   };
 
   return (

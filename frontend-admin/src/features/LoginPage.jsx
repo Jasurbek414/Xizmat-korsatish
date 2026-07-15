@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Lock, User, AlertCircle } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+import { api } from '../services/api';
 
 const LoginPage = ({ setAuth }) => {
   const { t } = useTranslation();
@@ -10,7 +11,14 @@ const LoginPage = ({ setAuth }) => {
   const [error, setError] = useState('');
   const navigate = useNavigate();
 
-  const handleLogin = (e) => {
+  useEffect(() => {
+    // Automatically check and resolve tenant subdomain configuration on load
+    api.checkSubdomain().catch(err => {
+      console.warn("Subdomain auto-resolution failed:", err.message);
+    });
+  }, []);
+
+  const handleLogin = async (e) => {
     e.preventDefault();
     setError('');
 
@@ -20,24 +28,18 @@ const LoginPage = ({ setAuth }) => {
       setAuth(user);
       navigate('/spd');
     } else {
-      const dbUsers = JSON.parse(localStorage.getItem('users')) || [];
-      const foundUser = dbUsers.find(u => u.username === username && u.password === password);
-      
-      if (foundUser) {
-        if (foundUser.status === 'BLOCKED') {
-          setError('Hisobingiz bloklangan! Tizim ma\'muri bilan bog\'laning.');
-          return;
-        }
-        if (foundUser.role !== 'WORKER_DRIVER') {
-          const user = { username: foundUser.username, role: foundUser.role, full_name: foundUser.full_name };
-          localStorage.setItem('auth_user', JSON.stringify(user));
+      try {
+        const data = await api.login(username, password);
+        const user = data.user;
+        
+        if (user.role !== 'WORKER_DRIVER') {
           setAuth(user);
           navigate('/');
         } else {
           setError('Kuryerlar uchun mobil ilova orqali kirish tavsiya etiladi.');
         }
-      } else {
-        setError('Foydalanuvchi nomi yoki parol xato!');
+      } catch (err) {
+        setError(err.message || 'Foydalanuvchi nomi yoki parol xato!');
       }
     }
   };

@@ -13,8 +13,15 @@ import Salaries from './features/Salaries';
 import Settings from './features/Settings';
 import LeafletMap from './features/LeafletMap';
 import LoginPage from './features/LoginPage';
+import Telephony from './features/Telephony';
 import { initMockDb, addNotification } from './store/mockDb';
 import NotificationCenter from './components/NotificationCenter';
+import { api } from './services/api';
+
+const DEFAULT_PERMS = {
+  clients: true, employees: true, orders: true, finance: true,
+  salaries: true, settings: true, map: true, telephony: true
+};
 
 const App = () => {
   const [auth, setAuth] = useState(null);
@@ -28,53 +35,6 @@ const App = () => {
       setAuth(JSON.parse(storedUser));
     }
     setLoading(false);
-
-    // Setup periodic real-time notification simulation
-    const interval = setInterval(() => {
-      const events = [
-        {
-          title_uz: 'Kuryer yo\'lda',
-          title_ru: 'Курьер в пути',
-          title_en: 'Courier En Route',
-          message_uz: 'Alisher Qodirov buyurtma #1021 ni yetkazish uchun yo\'lga chiqdi.',
-          message_ru: 'Алишер Кодиров отправился на доставку заказа #1021.',
-          message_en: 'Alisher Qodirov is en route to deliver order #1021.',
-          type: 'INFO'
-        },
-        {
-          title_uz: 'Yangi buyurtma qabul qilindi',
-          title_ru: 'Получен новый заказ',
-          title_en: 'New Order Received',
-          message_uz: 'Mijoz Zilola Karimova yangi xizmat so\'rovi qoldirdi.',
-          message_ru: 'Клиент Зилола Каримова оставила новый запрос на обслуживание.',
-          message_en: 'Client Zilola Karimova submitted a new service request.',
-          type: 'SUCCESS'
-        },
-        {
-          title_uz: 'Kassa balansi yangilandi',
-          title_ru: 'Баланс кассы обновлен',
-          title_en: 'Wallet Balance Updated',
-          message_uz: 'Bank hisob raqamidan Click hisobiga 500,000 UZS o\'tkazildi.',
-          message_ru: 'С банковского счета на счет Click переведено 500 000 UZS.',
-          message_en: '500,000 UZS was transferred from the bank account to Click.',
-          type: 'SUCCESS'
-        },
-        {
-          title_uz: 'Tizim zaxirasi',
-          title_ru: 'Резервная копия',
-          title_en: 'System Backup Complete',
-          message_uz: 'Barcha ma\'lumotlar muvaffaqiyatli zaxiralandi.',
-          message_ru: 'Все данные были успешно зарезервированы.',
-          message_en: 'All system data was successfully backed up.',
-          type: 'INFO'
-        }
-      ];
-
-      const ev = events[Math.floor(Math.random() * events.length)];
-      addNotification(ev.title_uz, ev.title_ru, ev.title_en, ev.message_uz, ev.message_ru, ev.message_en, ev.type);
-    }, 45000); // simulation fires every 45s
-
-    return () => clearInterval(interval);
   }, []);
 
   useEffect(() => {
@@ -125,11 +85,11 @@ const App = () => {
           } 
         />
 
-        {/* Company Admin Route */}
-        <Route 
-          path="/*" 
+        {/* Company Admin Route - mobile-only roles (driver/worker/workshop) have no web dashboard access */}
+        <Route
+          path="/*"
           element={
-            auth && auth.role !== 'SUPERADMIN' && auth.role !== 'WORKER_DRIVER' ? (
+            auth && !['SUPERADMIN', 'WORKER_DRIVER', 'WORKER', 'WORKER_SEH'].includes(auth.role) ? (
               <AdminPortal auth={auth} setAuth={setAuth} theme={theme} toggleTheme={toggleTheme} />
             ) : (
               <Navigate to="/login" replace />
@@ -200,6 +160,7 @@ const SuperadminPortal = ({ auth, setAuth, theme, toggleTheme }) => {
 
   const handleLogout = () => {
     localStorage.removeItem('auth_user');
+    localStorage.removeItem('auth_token');
     setAuth(null);
     navigate('/login');
   };
@@ -245,22 +206,28 @@ const SuperadminPortal = ({ auth, setAuth, theme, toggleTheme }) => {
 
 // Portal Layout for Company Admin
 const AdminPortal = ({ auth, setAuth, theme, toggleTheme }) => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [currentTab, setCurrentTab] = useState('dashboard');
+  const [roles, setRoles] = useState([]);
   const navigate = useNavigate();
 
-  // Dynamic permissions check
-  const rolesList = JSON.parse(localStorage.getItem('roles')) || [];
-  const roleObj = rolesList.find(r => r.id === auth.role);
-  const perms = roleObj ? roleObj.permissions : {
-    clients: true,
-    employees: true,
-    orders: true,
-    finance: true,
-    salaries: true,
-    settings: true,
-    map: true
-  };
+  useEffect(() => {
+    api.getRoles()
+      .then(setRoles)
+      .catch(err => console.error('Failed to load roles:', err));
+  }, []);
+
+  // Dynamic permissions check - driven by the real backend Role/Permission model,
+  // so an admin renaming a role or toggling a module takes effect without a code change.
+  const roleObj = roles.find(r => r.key === auth.role);
+  const perms = roleObj ? {
+    ...DEFAULT_PERMS,
+    ...roleObj.permissions,
+    telephony: roleObj.permissions.telephony !== false
+  } : DEFAULT_PERMS;
+  const roleLabel = roleObj
+    ? (roleObj[`name${i18n.language.charAt(0).toUpperCase()}${i18n.language.slice(1)}`] || roleObj.nameUz)
+    : auth.role;
 
   // Route / state guard to prevent unauthorized sub-tab access
   useEffect(() => {
@@ -271,6 +238,7 @@ const AdminPortal = ({ auth, setAuth, theme, toggleTheme }) => {
 
   const handleLogout = () => {
     localStorage.removeItem('auth_user');
+    localStorage.removeItem('auth_token');
     setAuth(null);
     navigate('/login');
   };
@@ -293,6 +261,8 @@ const AdminPortal = ({ auth, setAuth, theme, toggleTheme }) => {
         return <Settings tab="settings" auth={auth} />;
       case 'map':
         return <LeafletMap tab="map" />;
+      case 'telephony':
+        return <Telephony auth={auth} />;
       default:
         return <AdminDashboard tab="dashboard" />;
     }
@@ -300,11 +270,13 @@ const AdminPortal = ({ auth, setAuth, theme, toggleTheme }) => {
 
   return (
     <div className="flex bg-[#f1f5f9] dark:bg-[#030712] min-h-screen text-slate-800 dark:text-gray-100 font-sans w-full transition-colors duration-200">
-      <Sidebar 
-        currentTab={currentTab} 
-        setCurrentTab={setCurrentTab} 
-        role={auth.role} 
-        handleLogout={handleLogout} 
+      <Sidebar
+        currentTab={currentTab}
+        setCurrentTab={setCurrentTab}
+        role={auth.role}
+        roleLabel={roleLabel}
+        perms={perms}
+        handleLogout={handleLogout}
       />
       <div className="flex-1 flex flex-col h-screen overflow-hidden">
         <header className="h-16 shrink-0 border-b border-slate-200 dark:border-white/5 bg-white/95 dark:bg-[#111827]/80 backdrop-blur-md px-8 flex items-center justify-between z-30 transition-colors duration-200">

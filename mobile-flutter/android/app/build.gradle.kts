@@ -7,12 +7,16 @@ plugins {
 
 android {
     namespace = "com.service.core.mobile_flutter"
-    compileSdk = flutter.compileSdkVersion
-    ndkVersion = flutter.ndkVersion
+    // mobile_scanner (androidx.camera 1.5.0) compileSdk >=35 talab qiladi -
+    // flutter.compileSdkVersion() bilan kelgan standart qiymatdan yuqoriroq.
+    compileSdk = 36
+    ndkVersion = "27.0.12077973"
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
+        // flutter_local_notifications talab qiladi (push bildirishnoma uchun).
+        isCoreLibraryDesugaringEnabled = true
     }
 
     kotlinOptions {
@@ -24,10 +28,11 @@ android {
         applicationId = "com.service.core.mobile_flutter"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
-        minSdk = flutter.minSdkVersion
+        // mobile_scanner (androidx.camera) kamida minSdk 23 talab qiladi.
+        minSdk = 23
         targetSdk = flutter.targetSdkVersion
-        versionCode = flutter.versionCode
-        versionName = flutter.versionName
+        versionCode = flutter.versionCode()
+        versionName = flutter.versionName()
     }
 
     buildTypes {
@@ -41,4 +46,17 @@ android {
 
 flutter {
     source = "../.."
+}
+
+dependencies {
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
+}
+
+// Push bildirishnoma (Firebase) faqat google-services.json fayli mavjud bo'lsa yoqiladi -
+// fayl bo'lmasa ilova Firebase'siz ham to'liq build bo'lishda davom etadi.
+// O'rnatish: Firebase Console'da loyiha yarating, Android ilovasini qo'shing
+// (applicationId: com.service.core.mobile_flutter) va google-services.json'ni
+// shu papkaga (android/app/) joylashtiring.
+if (file("google-services.json").exists()) {
+    apply(plugin = "com.google.gms.google-services")
 }

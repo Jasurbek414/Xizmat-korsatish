@@ -76,7 +76,7 @@ const FinanceFilters = ({
         </div>
       )}
       
-      {/* Bottom Filter Group: Type, Category, Wallet pills */}
+      {/* Bottom Filter Group: Type pills */}
       <div className="flex flex-wrap gap-4 items-center">
         
         {/* Type Filter */}
@@ -94,56 +94,6 @@ const FinanceFilters = ({
                 }`}
               >
                 {type === 'ALL' ? 'Barchasi' : type === 'INCOME' ? 'Kirim' : 'Chiqim'}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Wallet Filter */}
-        <div className="space-y-1">
-          <span className="text-[10px] text-slate-400 uppercase tracking-wider block font-bold">Hisob</span>
-          <div className="flex items-center bg-slate-100/80 dark:bg-white/5 p-1 rounded-xl border border-slate-200/50 dark:border-white/5 text-[10px] font-bold">
-            <button
-              onClick={() => setFilterWallet('ALL')}
-              className={`px-3 py-1 rounded-lg cursor-pointer transition ${
-                filterWallet === 'ALL' 
-                  ? 'bg-white dark:bg-indigo-600/10 text-indigo-600 dark:text-indigo-400 shadow-xs' 
-                  : 'text-slate-500 dark:text-gray-400 hover:text-slate-800'
-              }`}
-            >
-              Barcha hisoblar
-            </button>
-            {wallets.map(w => (
-              <button
-                key={w.id}
-                onClick={() => setFilterWallet(w.id)}
-                className={`px-3 py-1 rounded-lg cursor-pointer transition ${
-                  filterWallet === w.id 
-                    ? 'bg-white dark:bg-indigo-600/10 text-indigo-600 dark:text-indigo-400 shadow-xs' 
-                    : 'text-slate-500 dark:text-gray-400 hover:text-slate-800'
-                }`}
-              >
-                {w.name_uz.split(' ')[0]}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Category Selector */}
-        <div className="space-y-1">
-          <span className="text-[10px] text-slate-400 uppercase tracking-wider block font-bold">Kategoriya</span>
-          <div className="flex items-center bg-slate-100/80 dark:bg-white/5 p-1 rounded-xl border border-slate-200/50 dark:border-white/5 text-[10px] font-bold">
-            {categories.map(cat => (
-              <button
-                key={cat}
-                onClick={() => setFilterCategory(cat)}
-                className={`px-3 py-1 rounded-lg cursor-pointer transition ${
-                  filterCategory === cat 
-                    ? 'bg-white dark:bg-indigo-600/10 text-indigo-600 dark:text-indigo-400 shadow-xs' 
-                    : 'text-slate-500 dark:text-gray-400 hover:text-slate-800'
-                }`}
-              >
-                {cat === 'ALL' ? 'Barchasi' : cat}
               </button>
             ))}
           </div>

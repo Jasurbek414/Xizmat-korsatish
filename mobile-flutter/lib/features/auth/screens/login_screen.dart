@@ -94,7 +94,8 @@ class _LoginScreenState extends State<LoginScreen> {
                   // Dynamic Forms depending on Auth State
                   if (state is AuthInitial ||
                       state is SubdomainChecking ||
-                      state is SubdomainInvalid)
+                      state is SubdomainInvalid ||
+                      state is Unauthenticated)
                     _buildSubdomainForm(context, state)
                   else
                     _buildCredentialForm(context, state),

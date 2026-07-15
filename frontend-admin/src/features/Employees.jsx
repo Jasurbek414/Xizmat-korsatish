@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { getDbItem, setDbItem, addNotification } from '../store/mockDb';
+import { addNotification } from '../store/mockDb';
 import { Plus } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+import { api } from '../services/api';
 
 // Import modular sub-components
 import EmployeesStats from './employees/EmployeesStats';
@@ -16,6 +17,7 @@ const Employees = ({ tab }) => {
   // DB States
   const [users, setUsers] = useState([]);
   const [orders, setOrders] = useState([]);
+  const [completedStatusId, setCompletedStatusId] = useState(null);
 
   // Filter States
   const [search, setSearch] = useState('');
@@ -29,125 +31,173 @@ const Employees = ({ tab }) => {
 
   // Load database items on mount
   useEffect(() => {
-    setUsers(getDbItem('users') || []);
-    setOrders(getDbItem('orders') || []);
+    const loadData = async () => {
+      try {
+        const [employeesData, ordersData, statusesData] = await Promise.all([
+          api.getEmployees(),
+          api.getOrders(),
+          api.getOrderStatuses()
+        ]);
+
+        const mappedUsers = employeesData.map(u => ({
+          id: u.id,
+          username: u.username,
+          full_name: u.fullName,
+          role: u.role,
+          phone: u.phone || '',
+          status: u.status,
+          password: u.password,
+          salary: u.salary || '',
+          salary_type: u.salaryType || ''
+        }));
+
+        const mappedOrders = ordersData.map(o => ({
+          id: o.id,
+          client_name: o.client ? o.client.fullName : '',
+          service_name: o.service ? o.service.nameUz : '',
+          worker_name: o.worker ? o.worker.fullName : '',
+          price: o.price,
+          status_id: o.status ? o.status.id : null
+        }));
+
+        // "Yakunlangan" - ro'yxatdagi eng oxirgi bosqich (sort_order bo'yicha).
+        const sortedStatuses = [...statusesData].sort((a, b) => a.sortOrder - b.sortOrder);
+        const lastStatusId = sortedStatuses.length > 0 ? sortedStatuses.slice(-1)[0].id : null;
+
+        setUsers(mappedUsers);
+        setOrders(mappedOrders);
+        setCompletedStatusId(lastStatusId);
+      } catch (err) {
+        console.error("Failed to load employees:", err);
+      }
+    };
+    loadData();
   }, [tab]);
 
   // Toggle Employee Status (Faol / Bloklangan)
-  const handleToggleStatus = (userId) => {
-    const updated = users.map(u => {
-      if (u.id === userId) {
-        const nextStatus = u.status === 'ACTIVE' ? 'BLOCKED' : 'ACTIVE';
-        
-        // Trigger notification
-        addNotification(
-          `Xodim statusi o'zgardi`,
-          `Статус сотрудника изменен`,
-          `Employee status changed`,
-          `${u.full_name} statusi ${nextStatus === 'ACTIVE' ? 'Faol' : 'Bloklangan'} holatiga o'tkazildi.`,
-          `Статус сотрудника ${u.full_name} изменен на ${nextStatus === 'ACTIVE' ? 'Активен' : 'Заблокирован'}.`,
-          `Status of ${u.full_name} was changed to ${nextStatus}.`,
-          nextStatus === 'ACTIVE' ? 'SUCCESS' : 'WARNING'
-        );
-        
-        return { ...u, status: nextStatus };
-      }
-      return u;
-    });
+  const handleToggleStatus = async (userId) => {
+    const target = users.find(u => u.id === userId);
+    if (!target) return;
+    const nextStatus = target.status === 'ACTIVE' ? 'BLOCKED' : 'ACTIVE';
 
-    setUsers(updated);
-    setDbItem('users', updated);
+    try {
+      await api.updateEmployee(userId, { status: nextStatus });
+
+      setUsers(prev => prev.map(u => u.id === userId ? { ...u, status: nextStatus } : u));
+
+      addNotification(
+        `Xodim statusi o'zgardi`,
+        `Статус сотрудника изменен`,
+        `Employee status changed`,
+        `${target.full_name} statusi ${nextStatus === 'ACTIVE' ? 'Faol' : 'Bloklangan'} holatiga o'tkazildi.`,
+        `Статус сотрудника ${target.full_name} изменен на ${nextStatus === 'ACTIVE' ? 'Активен' : 'Заблокирован'}.`,
+        `Status of ${target.full_name} was changed to ${nextStatus}.`,
+        nextStatus === 'ACTIVE' ? 'SUCCESS' : 'WARNING'
+      );
+    } catch (err) {
+      console.error("Failed to toggle employee status:", err);
+    }
   };
 
   // Add or Edit Employee
-  const handleSaveEmployee = (payload) => {
+  const handleSaveEmployee = async (payload) => {
     const isEdit = users.some(u => u.id === payload.id);
-    let updatedUsers = [];
 
     if (isEdit) {
-      // Edit mode
-      updatedUsers = users.map(u => u.id === payload.id ? payload : u);
-      
-      // Update name in Salaries table as well for consistency
-      const salaries = getDbItem('salaries') || [];
-      const updatedSalaries = salaries.map(s => {
-        if (s.user_id === payload.id) {
-          return { ...s, full_name: payload.full_name };
-        }
-        return s;
-      });
-      setDbItem('salaries', updatedSalaries);
+      try {
+        const saved = await api.updateEmployee(payload.id, {
+          username: payload.username,
+          full_name: payload.full_name,
+          phone: payload.phone,
+          role: payload.role,
+          status: payload.status,
+          salary: payload.salary,
+          salary_type: payload.salary_type
+        });
 
-      // Trigger notification
-      addNotification(
-        `Xodim ma'lumotlari tahrirlandi`,
-        `Данные сотрудника изменены`,
-        `Employee details edited`,
-        `${payload.full_name} ma'lumotlari muvaffaqiyatli yangilandi.`,
-        `Данные сотрудника ${payload.full_name} успешно обновлены.`,
-        `Details of employee ${payload.full_name} were successfully updated.`,
-        'INFO'
-      );
+        const updatedUsers = users.map(u => u.id === payload.id ? {
+          id: saved.id,
+          username: saved.username,
+          full_name: saved.fullName,
+          role: saved.role,
+          phone: saved.phone || '',
+          status: saved.status,
+          password: saved.password,
+          salary: saved.salary || '',
+          salary_type: saved.salaryType || ''
+        } : u);
+
+        setUsers(updatedUsers);
+        setSelectedUserForEdit(null);
+      } catch (err) {
+        console.error("Failed to update employee:", err);
+      }
     } else {
-      // Create mode
-      updatedUsers = [...users, payload];
+      try {
+        const saved = await api.createEmployee({
+          username: payload.username,
+          password: payload.password || 'admin',
+          full_name: payload.full_name,
+          phone: payload.phone,
+          role: payload.role,
+          salary: payload.salary,
+          salary_type: payload.salary_type
+        });
 
-      // Automatically register the new employee in the Salaries (Payroll) database
-      const salaries = getDbItem('salaries') || [];
-      const newSalary = {
-        id: 's' + Date.now(),
-        user_id: payload.id,
-        full_name: payload.full_name,
-        base_salary: 3000000, // Default base salary 3,000,000 UZS
-        bonus: 0,
-        deductions: 0,
-        status: 'UNPAID',
-        pay_period: new Date().toISOString().slice(0, 7) // e.g. "2026-06"
-      };
-      setDbItem('salaries', [...salaries, newSalary]);
+        const newEmployee = {
+          id: saved.id,
+          username: saved.username,
+          full_name: saved.fullName,
+          role: saved.role,
+          phone: saved.phone || '',
+          status: saved.status,
+          password: saved.password,
+          salary: saved.salary || '',
+          salary_type: saved.salaryType || ''
+        };
 
-      // Trigger notification
-      addNotification(
-        `Yangi xodim qo'shildi`,
-        `Добавлен новый сотрудник`,
-        `New employee added`,
-        `Tizimga yeni xodim ${payload.full_name} (${payload.role}) qo'shildi.`,
-        `Новый сотрудник ${payload.full_name} (${payload.role}) добавлен в систему.`,
-        `New employee ${payload.full_name} (${payload.role}) was added to the system.`,
-        'SUCCESS'
-      );
+        setUsers(prev => [...prev, newEmployee]);
+        setSelectedUserForEdit(null);
+
+        // Trigger notification
+        addNotification(
+          `Yangi xodim qo'shildi`,
+          `Добавлен новый сотрудник`,
+          `New employee added`,
+          `Tizimga yangi xodim ${newEmployee.full_name} (${newEmployee.role}) qo'shildi.`,
+          `Новый сотрудник ${newEmployee.full_name} (${newEmployee.role}) добавлен в систему.`,
+          `New employee ${newEmployee.full_name} (${newEmployee.role}) was added to the system.`,
+          'SUCCESS'
+        );
+      } catch (err) {
+        console.error("Failed to save employee:", err);
+      }
     }
-
-    setUsers(updatedUsers);
-    setDbItem('users', updatedUsers);
-    setSelectedUserForEdit(null);
   };
 
   // Delete Employee
-  const handleDeleteEmployee = (userId) => {
+  const handleDeleteEmployee = async (userId) => {
     const targetUser = users.find(u => u.id === userId);
     if (!targetUser) return;
     if (!window.confirm("Haqiqatan ham ushbu xodimni o'chirib yubormoqchimisiz? Barcha ish haqi va maosh tarixi ham tozalanadi.")) return;
 
-    const updated = users.filter(u => u.id !== userId);
-    setUsers(updated);
-    setDbItem('users', updated);
+    try {
+      await api.deleteEmployee(userId);
 
-    // Clean up Salaries database for deleted employee
-    const salaries = getDbItem('salaries') || [];
-    const updatedSalaries = salaries.filter(s => s.user_id !== userId);
-    setDbItem('salaries', updatedSalaries);
+      setUsers(prev => prev.filter(u => u.id !== userId));
 
-    // Trigger notification
-    addNotification(
-      `Xodim o'chirildi`,
-      `Сотрудник удален`,
-      `Employee deleted`,
-      `${targetUser.full_name} tizimdan butunlay o'chirib yuborildi.`,
-      `Сотрудник ${targetUser.full_name} был полностью удален из системы.`,
-      `Employee ${targetUser.full_name} was completely deleted from the system.`,
-      'ERROR'
-    );
+      addNotification(
+        `Xodim o'chirildi`,
+        `Сотрудник удален`,
+        `Employee deleted`,
+        `${targetUser.full_name} tizimdan butunlay o'chirib yuborildi.`,
+        `Сотрудник ${targetUser.full_name} был полностью удален из системы.`,
+        `Employee ${targetUser.full_name} was completely deleted from the system.`,
+        'ERROR'
+      );
+    } catch (err) {
+      console.error("Failed to delete employee:", err);
+    }
   };
 
   // Apply filters on the users list
@@ -204,11 +254,12 @@ const Employees = ({ tab }) => {
       />
 
       {/* Employee Details / OSM track modal */}
-      <EmployeeDetailsModal 
+      <EmployeeDetailsModal
         isOpen={!!selectedUserForDetails}
         onClose={() => setSelectedUserForDetails(null)}
         user={selectedUserForDetails}
         orders={orders}
+        completedStatusId={completedStatusId}
       />
 
       {/* Add / Edit Employee modal form */}

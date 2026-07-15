@@ -1,12 +1,30 @@
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { getDbItem, setDbItem, addNotification } from '../../store/mockDb';
+import { addNotification } from '../../store/mockDb';
+import { api } from '../../services/api';
 import { Plus, Trash2, Edit3, ShieldAlert, Check, X, Shield, Lock } from 'lucide-react';
+
+const EMPTY_PERMISSIONS = {
+  clients: false,
+  employees: false,
+  orders: false,
+  finance: false,
+  salaries: false,
+  settings: false,
+  map: false,
+  mobile_orders: false,
+  mobile_gps: false,
+  mobile_finance_view: false,
+  mobile_team_view: false,
+  mobile_chat: false,
+  mobile_salary_view: false
+};
 
 const RolesPermissions = () => {
   const { t, i18n } = useTranslation();
   const [roles, setRoles] = useState([]);
   const [users, setUsers] = useState([]);
+  const [permissionKeyList, setPermissionKeyList] = useState(Object.keys(EMPTY_PERMISSIONS));
   const [editingRole, setEditingRole] = useState(null);
 
   // Form state
@@ -14,15 +32,7 @@ const RolesPermissions = () => {
     name_uz: '',
     name_ru: '',
     name_en: '',
-    permissions: {
-      clients: false,
-      employees: false,
-      orders: false,
-      finance: false,
-      salaries: false,
-      settings: false,
-      map: false
-    }
+    permissions: { ...EMPTY_PERMISSIONS }
   });
 
   const [error, setError] = useState('');
@@ -31,11 +41,21 @@ const RolesPermissions = () => {
     loadData();
   }, []);
 
-  const loadData = () => {
-    const allRoles = getDbItem('roles') || [];
-    const allUsers = getDbItem('users') || [];
-    setRoles(allRoles);
-    setUsers(allUsers);
+  const loadData = async () => {
+    try {
+      const [allRoles, allUsers, keys] = await Promise.all([
+        api.getRoles(),
+        api.getEmployees(),
+        api.getPermissionKeys()
+      ]);
+      setRoles(allRoles);
+      setUsers(allUsers);
+      if (keys && keys.length) {
+        setPermissionKeyList(keys);
+      }
+    } catch (err) {
+      setError(err.message || "Ma'lumotlarni yuklashda xatolik yuz berdi");
+    }
   };
 
   const handlePermissionToggle = (key) => {
@@ -53,21 +73,13 @@ const RolesPermissions = () => {
       name_uz: '',
       name_ru: '',
       name_en: '',
-      permissions: {
-        clients: false,
-        employees: false,
-        orders: false,
-        finance: false,
-        salaries: false,
-        settings: false,
-        map: false
-      }
+      permissions: Object.fromEntries(permissionKeyList.map(k => [k, false]))
     });
     setEditingRole(null);
     setError('');
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
 
@@ -76,89 +88,70 @@ const RolesPermissions = () => {
       return;
     }
 
-    const rolesList = getDbItem('roles') || [];
+    try {
+      if (editingRole) {
+        await api.updateRole(editingRole.id, {
+          name_uz: roleForm.name_uz,
+          name_ru: roleForm.name_ru,
+          name_en: roleForm.name_en,
+          permissions: roleForm.permissions
+        });
+        addNotification(
+          `Rol ma'lumotlari yangilandi`,
+          `Роль обновлена`,
+          `Role updated`,
+          `"${roleForm.name_uz}" roli va ruxsatnomalari yangilandi.`,
+          `Права и название роли "${roleForm.name_ru}" были обновлены.`,
+          `Permissions and details of role "${roleForm.name_en}" were updated.`,
+          'INFO'
+        );
+      } else {
+        await api.createRole({
+          name_uz: roleForm.name_uz,
+          name_ru: roleForm.name_ru,
+          name_en: roleForm.name_en,
+          permissions: roleForm.permissions
+        });
+        addNotification(
+          `Yangi rol yaratildi`,
+          `Создана новая роль`,
+          `New role created`,
+          `Tizimga yangi "${roleForm.name_uz}" roli muvaffaqiyatli qo'shildi.`,
+          `В систему успешно добавлена новая роль "${roleForm.name_ru}".`,
+          `New role "${roleForm.name_en}" was successfully created in the system.`,
+          'SUCCESS'
+        );
+      }
 
-    if (editingRole) {
-      // Update role
-      const updated = rolesList.map(r => {
-        if (r.id === editingRole.id) {
-          return {
-            ...r,
-            name_uz: roleForm.name_uz,
-            name_ru: roleForm.name_ru,
-            name_en: roleForm.name_en,
-            permissions: roleForm.permissions
-          };
-        }
-        return r;
-      });
-      setDbItem('roles', updated);
-
-      // Trigger notification
-      addNotification(
-        `Rol ma'lumotlari yangilandi`,
-        `Роль обновлена`,
-        `Role updated`,
-        `"${roleForm.name_uz}" roli va ruxsatnomalari yangilandi.`,
-        `Права и название роли "${roleForm.name_ru}" были обновлены.`,
-        `Permissions and details of role "${roleForm.name_en}" were updated.`,
-        'INFO'
-      );
-    } else {
-      // Create new custom role
-      const newRoleId = 'role_' + Date.now();
-      const newRole = {
-        id: newRoleId,
-        name_uz: roleForm.name_uz,
-        name_ru: roleForm.name_ru,
-        name_en: roleForm.name_en,
-        is_system: false,
-        permissions: roleForm.permissions
-      };
-      
-      setDbItem('roles', [...rolesList, newRole]);
-
-      // Trigger notification
-      addNotification(
-        `Yangi rol yaratildi`,
-        `Создана новая роль`,
-        `New role created`,
-        `Tizimga yangi "${roleForm.name_uz}" roli muvaffaqiyatli qo'shildi.`,
-        `В систему успешно добавлена новая роль "${roleForm.name_ru}".`,
-        `New role "${roleForm.name_en}" was successfully created in the system.`,
-        'SUCCESS'
-      );
+      await loadData();
+      resetForm();
+    } catch (err) {
+      setError(err.message || 'Rolni saqlashda xatolik yuz berdi');
     }
-
-    loadData();
-    resetForm();
   };
 
   const handleEditClick = (role) => {
-    if (role.is_system) {
+    if (role.system) {
       alert(t('settings_page.system_role_warning'));
       return;
     }
     setEditingRole(role);
     setRoleForm({
-      name_uz: role.name_uz,
-      name_ru: role.name_ru,
-      name_en: role.name_en,
-      permissions: { ...role.permissions }
+      name_uz: role.nameUz,
+      name_ru: role.nameRu,
+      name_en: role.nameEn,
+      permissions: { ...Object.fromEntries(permissionKeyList.map(k => [k, false])), ...role.permissions }
     });
   };
 
-  const handleDeleteClick = (roleId) => {
-    const role = roles.find(r => r.id === roleId);
-    if (!role) return;
-
-    if (role.is_system) {
+  const handleDeleteClick = async (role) => {
+    if (role.system) {
       alert(t('settings_page.system_role_warning'));
       return;
     }
 
     // Check if role is currently assigned to any users
-    const isAssigned = users.some(u => u.role === roleId);
+    const isAssigned = users.some(u => u.role === role.key);
     if (isAssigned) {
       alert(t('settings_page.role_delete_has_users'));
       return;
@@ -168,36 +161,33 @@ const RolesPermissions = () => {
       return;
     }
 
-    const updated = roles.filter(r => r.id !== roleId);
-    setDbItem('roles', updated);
-    loadData();
+    try {
+      await api.deleteRole(role.id);
+      await loadData();
 
-    // Trigger notification
-    addNotification(
-      `Rol o'chirib yuborildi`,
-      `Роль удалена`,
-      `Role deleted`,
-      `"${role.name_uz}" roli tizimdan o'chirildi.`,
-      `Роль "${role.name_ru}" была удалена из системы.`,
-      `Role "${role.name_en}" was deleted from the system.`,
-      'ERROR'
-    );
+      addNotification(
+        `Rol o'chirib yuborildi`,
+        `Роль удалена`,
+        `Role deleted`,
+        `"${role.nameUz}" roli tizimdan o'chirildi.`,
+        `Роль "${role.nameRu}" была удалена из системы.`,
+        `Role "${role.nameEn}" was deleted from the system.`,
+        'ERROR'
+      );
+    } catch (err) {
+      alert(err.message || "Rolni o'chirishda xatolik yuz berdi");
+    }
   };
 
   // Helper to count how many users have this role
-  const getUserCountForRole = (roleId) => {
-    return users.filter(u => u.role === roleId).length;
+  const getUserCountForRole = (roleKey) => {
+    return users.filter(u => u.role === roleKey).length;
   };
 
-  const permissionKeys = [
-    { key: 'clients', label: t('settings_page.perm_clients') },
-    { key: 'employees', label: t('settings_page.perm_employees') },
-    { key: 'orders', label: t('settings_page.perm_orders') },
-    { key: 'finance', label: t('settings_page.perm_finance') },
-    { key: 'salaries', label: t('settings_page.perm_salaries') },
-    { key: 'settings', label: t('settings_page.perm_settings') },
-    { key: 'map', label: t('settings_page.perm_map') }
-  ];
+  const permissionKeys = permissionKeyList.map(key => ({
+    key,
+    label: t(`settings_page.perm_${key}`)
+  }));
 
   return (
     <div className="space-y-6">
@@ -324,8 +314,8 @@ const RolesPermissions = () => {
               {roles.map(role => {
                 const activePermsCount = Object.values(role.permissions).filter(Boolean).length;
                 const totalPermsCount = Object.keys(role.permissions).length;
-                const userCount = getUserCountForRole(role.id);
-                const roleName = role[`name_${i18n.language}`] || role.name_uz;
+                const userCount = getUserCountForRole(role.key);
+                const roleName = role[`name${i18n.language.charAt(0).toUpperCase()}${i18n.language.slice(1)}`] || role.nameUz;
 
                 return (
                   <div 
@@ -340,10 +330,10 @@ const RolesPermissions = () => {
                             {roleName}
                           </h5>
                           <span className="text-[9px] font-semibold text-slate-400 dark:text-gray-500 uppercase tracking-wider block mt-1">
-                            {role.id}
+                            {role.key}
                           </span>
                         </div>
-                        {role.is_system ? (
+                        {role.system ? (
                           <span className="flex items-center gap-1 px-2 py-0.5 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/10 text-[9px] font-bold">
                             <Lock className="w-2.5 h-2.5" /> SYSTEM
                           </span>
@@ -388,7 +378,7 @@ const RolesPermissions = () => {
                         <strong className="text-slate-700 dark:text-gray-300 font-bold">{userCount}</strong> {t('settings_page.role_users_count')}
                       </span>
 
-                      {!role.is_system && (
+                      {!role.system && (
                         <div className="flex gap-1">
                           <button
                             onClick={() => handleEditClick(role)}
@@ -398,7 +388,7 @@ const RolesPermissions = () => {
                             <Edit3 className="w-3.5 h-3.5" />
                           </button>
                           <button
-                            onClick={() => handleDeleteClick(role.id)}
+                            onClick={() => handleDeleteClick(role)}
                             className="p-1.5 rounded-lg bg-rose-500/5 border border-rose-500/10 text-rose-600 dark:text-rose-450 hover:bg-rose-500/10 transition cursor-pointer"
                             title="O'chirish"
                           >

@@ -68,25 +68,6 @@ const CreateTxModal = ({ isOpen, onClose, newTx, setNewTx, onSubmit, wallets }) 
             </div>
           </div>
 
-          {/* Wallet Selector */}
-          <div>
-            <label className="block text-slate-500 dark:text-gray-400 mb-1">To'lov Hisobi (Wallet)</label>
-            <select 
-              value={newTx.wallet_id || ''} 
-              onChange={(e) => setNewTx({...newTx, wallet_id: e.target.value})}
-              className="w-full glass-input rounded-xl px-3 py-2 text-slate-800 dark:text-white focus:outline-none cursor-pointer"
-            >
-              {wallets.map(w => {
-                const wName = i18n.language === 'uz' ? w.name_uz : i18n.language === 'ru' ? w.name_ru : w.name_en;
-                return (
-                  <option key={w.id} value={w.id} className="bg-white dark:bg-[#111827]">
-                    {wName} ({formatCurrency(w.balance, i18n.language)})
-                  </option>
-                );
-              })}
-            </select>
-          </div>
-
           {/* Amount */}
           <div>
             <label className="block text-slate-500 dark:text-gray-400 mb-1">{t('finance_page.amount')} (UZS)</label>
@@ -94,35 +75,10 @@ const CreateTxModal = ({ isOpen, onClose, newTx, setNewTx, onSubmit, wallets }) 
               type="number" 
               value={newTx.amount} 
               onChange={(e) => setNewTx({...newTx, amount: e.target.value})}
-              className="w-full glass-input rounded-xl px-3 py-2 text-slate-800 dark:text-white focus:outline-none"
+              className="w-full glass-input rounded-xl px-3 py-2 text-slate-800 dark:text-white focus:outline-none text-xs font-semibold"
+              placeholder="Summani kiriting..."
               required
             />
-          </div>
-
-          {/* Category */}
-          <div>
-            <label className="block text-slate-500 dark:text-gray-400 mb-1">{t('finance_page.category')}</label>
-            <select 
-              value={newTx.category} 
-              onChange={(e) => setNewTx({...newTx, category: e.target.value})}
-              className="w-full glass-input rounded-xl px-3 py-2 text-slate-800 dark:text-white focus:outline-none cursor-pointer"
-            >
-              {newTx.type === 'INCOME' ? (
-                <>
-                  <option value="ORDER_PAYMENT" className="bg-white dark:bg-[#111827]">Buyurtma To'lovi</option>
-                  <option value="DEBT_PAYMENT" className="bg-white dark:bg-[#111827]">Mijoz qarzi to'lanishi</option>
-                  <option value="OTHER_INCOME" className="bg-white dark:bg-[#111827]">Boshqa Kirimlar</option>
-                </>
-              ) : (
-                <>
-                  <option value="SALARY" className="bg-white dark:bg-[#111827]">Ish haqi to'lovi</option>
-                  <option value="OFFICE_EXPENSE" className="bg-white dark:bg-[#111827]">Ofis xarajatlari</option>
-                  <option value="TAX" className="bg-white dark:bg-[#111827]">Soliq to'lovlari</option>
-                  <option value="SUPPLIER_DEBT_PAYMENT" className="bg-white dark:bg-[#111827]">Ta'minotchi qarzini to'lash</option>
-                  <option value="OTHER_EXPENSE" className="bg-white dark:bg-[#111827]">Boshqa Chiqimlar</option>
-                </>
-              )}
-            </select>
           </div>
 
           {/* Description */}

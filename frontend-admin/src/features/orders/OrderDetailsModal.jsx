@@ -12,7 +12,11 @@ const OrderDetailsModal = ({ order, isOpen, onClose, statuses, clients }) => {
   const currentStatus = statuses[currentStatusIndex] || statuses[0];
 
   // Look up client phone
-  const clientObj = clients.find(c => c.full_name.toLowerCase() === order.client_name.toLowerCase());
+  const clientObj = clients.find(c => {
+    const cName = (c.fullName || c.full_name || '').toLowerCase();
+    const oName = (order.client_name || '').toLowerCase();
+    return cName && cName === oName;
+  });
   const clientPhone = clientObj ? clientObj.phone : '+998 90 123 45 67';
 
   // Generate dynamic tracker steps

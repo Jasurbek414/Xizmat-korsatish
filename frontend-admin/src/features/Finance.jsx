@@ -1,30 +1,30 @@
 import React, { useState, useEffect } from 'react';
-import { getDbItem, setDbItem } from '../store/mockDb';
-import { Plus, Download, Activity, ArrowRightLeft, Landmark, Wallet, Percent, ShieldCheck } from 'lucide-react';
+import { Plus, Download, Calendar } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+import { api } from '../services/api';
 
 // Import modular components
 import FinanceStats from './finance/FinanceStats';
 import FinanceFilters from './finance/FinanceFilters';
 import FinanceTable from './finance/FinanceTable';
-import CategoryBreakdown from './finance/CategoryBreakdown';
 import CreateTxModal from './finance/CreateTxModal';
-import TransferModal from './finance/TransferModal';
 import PLReport from './finance/PLReport';
-import BudgetManager from './finance/BudgetManager';
-import DebtManager from './finance/DebtManager';
 
 const Finance = ({ tab }) => {
   const { t } = useTranslation();
   
-  // Tabs: 'TRANSACTIONS' | 'PL' | 'BUDGETS' | 'DEBTS'
+  // Tabs: 'TRANSACTIONS' | 'PL'
   const [activeTab, setActiveTab] = useState('TRANSACTIONS');
 
   // DB States
   const [transactions, setTransactions] = useState([]);
-  const [wallets, setWallets] = useState([]);
-  const [budgets, setBudgets] = useState([]);
-  const [debts, setDebts] = useState([]);
+  const [ordersList, setOrdersList] = useState([]);
+  const [wallets, setWallets] = useState([
+    { id: 'cash', name_uz: 'Naqd pul', name_ru: 'Наличные', name_en: 'Cash', balance: 0 }
+  ]);
+  const [expectedFunds, setExpectedFunds] = useState(0);
+  const [dailyExpenses, setDailyExpenses] = useState(0);
+  const [selectedDate, setSelectedDate] = useState('');
 
   // Modals
   const [showTxModal, setShowTxModal] = useState(false);
@@ -46,246 +46,142 @@ const Finance = ({ tab }) => {
 
   // Loading database items on mount or tab change
   useEffect(() => {
-    const txList = getDbItem('transactions') || [];
-    const walletList = getDbItem('wallets') || [];
-    const budgetList = getDbItem('budgets') || [];
-    const debtList = getDbItem('debts') || [];
+    const loadData = async () => {
+      try {
+        const [txsData, statsData, ordersData] = await Promise.all([
+          api.getTransactions(),
+          api.getFinanceStats(),
+          api.getOrders()
+        ]);
 
-    setTransactions(txList);
-    setWallets(walletList);
-    setBudgets(budgetList);
-    setDebts(debtList);
+        const mappedTxs = txsData.map(t => ({
+          id: t.id,
+          type: t.type,
+          amount: t.amount,
+          category: t.category,
+          description: t.description || '',
+          created_at: t.createdAt || t.created_at,
+          wallet_id: 'cash'
+        }));
 
-    // Compute Totals (Excluding internal wallet transfers from actual income/expense totals)
-    const income = txList
-      .filter(t => t.type === 'INCOME' && t.category !== 'TRANSFER')
-      .reduce((sum, t) => sum + t.amount, 0);
-    const expense = txList
-      .filter(t => t.type === 'EXPENSE' && t.category !== 'TRANSFER')
-      .reduce((sum, t) => sum + t.amount, 0);
+        setTransactions(mappedTxs);
+        setOrdersList(ordersData);
+        setTotals({
+          income: statsData.totalIncome,
+          expense: statsData.totalExpense,
+          balance: statsData.balance
+        });
+
+        setWallets([
+          { id: 'cash', name_uz: 'Asosiy Kassa (Naqd/Karta)', name_ru: 'Основная касса', name_en: 'Main Cash', balance: statsData.balance }
+        ]);
+
+        // Calculate Daily Expenses
+        const todayStr = new Date().toISOString().slice(0, 10);
+        const todayExp = mappedTxs
+          .filter(t => t.type === 'EXPENSE' && t.created_at && t.created_at.slice(0, 10) === todayStr)
+          .reduce((sum, t) => sum + t.amount, 0);
+        setDailyExpenses(todayExp);
+
+        // Calculate Expected Funds (from non-completed orders)
+        const pendingOrders = ordersData.filter(o => {
+          const statusId = o.status ? o.status.id : '';
+          return statusId !== 'b4444444-4444-4444-4444-444444444444';
+        });
+        const pendingSum = pendingOrders.reduce((sum, o) => sum + (o.price || 0), 0);
+        setExpectedFunds(pendingSum);
+
+      } catch (err) {
+        console.error("Failed to load finance data:", err);
+      }
+    };
     
-    setTotals({
-      income,
-      expense,
-      balance: income - expense
-    });
+    loadData();
   }, [tab]);
 
   // Add Transaction
-  const handleAddTx = (e) => {
+  const handleAddTx = async (e) => {
     e.preventDefault();
-    if (!newTx.amount || !newTx.description || !newTx.wallet_id) return;
+    if (!newTx.amount || !newTx.description) return;
 
-    const amountNum = parseFloat(newTx.amount);
-    const targetWallet = wallets.find(w => w.id === newTx.wallet_id);
+    try {
+      const saved = await api.createTransaction({
+        type: newTx.type,
+        amount: parseFloat(newTx.amount),
+        category: newTx.category,
+        description: newTx.description
+      });
 
-    // If expense, check wallet balance
-    if (newTx.type === 'EXPENSE' && targetWallet && targetWallet.balance < amountNum) {
-      alert("Hisobda yetarli mablag' mavjud emas!");
-      return;
+      const tx = {
+        id: saved.id,
+        type: saved.type,
+        amount: saved.amount,
+        category: saved.category,
+        description: saved.description || '',
+        created_at: saved.createdAt,
+        wallet_id: 'cash'
+      };
+
+      setTransactions(prev => [tx, ...prev]);
+      setShowTxModal(false);
+      setNewTx({ type: 'INCOME', amount: '', category: 'ORDER_PAYMENT', description: '', wallet_id: 'cash' });
+
+      // Refresh stats
+      const statsData = await api.getFinanceStats();
+      setTotals({
+        income: statsData.totalIncome,
+        expense: statsData.totalExpense,
+        balance: statsData.balance
+      });
+    } catch (err) {
+      console.error("Failed to add transaction:", err);
     }
+  };
 
-    const tx = {
-      ...newTx,
-      id: 't' + (transactions.length + 1),
-      amount: amountNum,
-      created_at: new Date().toISOString()
+  // Dynamic stats based on selected date
+  const statsForSelectedDate = React.useMemo(() => {
+    const targetDateStr = selectedDate;
+
+    // Filter transactions on or before target date for balance
+    const balanceBeforeTarget = transactions
+      .filter(t => !targetDateStr || (t.created_at && t.created_at.slice(0, 10) <= targetDateStr))
+      .reduce((sum, t) => {
+        if (t.type === 'INCOME') return sum + t.amount;
+        return sum - t.amount;
+      }, 0);
+
+    // Daily expenses on target date
+    const targetDateForDaily = targetDateStr || new Date().toISOString().slice(0, 10);
+    const targetDailyExpenses = transactions
+      .filter(t => t.type === 'EXPENSE' && t.created_at && t.created_at.slice(0, 10) === targetDateForDaily)
+      .reduce((sum, t) => sum + t.amount, 0);
+
+    return {
+      balance: balanceBeforeTarget,
+      dailyExpenses: targetDailyExpenses
     };
+  }, [transactions, selectedDate]);
 
-    // Update wallet balance
-    const updatedWallets = wallets.map(w => {
-      if (w.id === newTx.wallet_id) {
-        return {
-          ...w,
-          balance: newTx.type === 'INCOME' ? w.balance + amountNum : w.balance - amountNum
-        };
+  // Expected funds based on target date
+  const expectedFundsForSelectedDate = React.useMemo(() => {
+    const targetDateStr = selectedDate;
+
+    const pendingOrders = ordersList.filter(o => {
+      const orderDate = o.created_at || o.createdAt;
+      const orderDateStr = orderDate ? orderDate.slice(0, 10) : '';
+      
+      // If targetDate is set, only consider orders created up to that date
+      if (targetDateStr && orderDateStr > targetDateStr) {
+        return false;
       }
-      return w;
+
+      // Check if not completed
+      const statusId = o.status ? o.status.id : '';
+      return statusId !== 'b4444444-4444-4444-4444-444444444444';
     });
 
-    const updatedTx = [...transactions, tx];
-
-    setTransactions(updatedTx);
-    setDbItem('transactions', updatedTx);
-
-    setWallets(updatedWallets);
-    setDbItem('wallets', updatedWallets);
-
-    setShowTxModal(false);
-    
-    // Recalculate totals
-    const income = updatedTx
-      .filter(t => t.type === 'INCOME' && t.category !== 'TRANSFER')
-      .reduce((sum, t) => sum + t.amount, 0);
-    const expense = updatedTx
-      .filter(t => t.type === 'EXPENSE' && t.category !== 'TRANSFER')
-      .reduce((sum, t) => sum + t.amount, 0);
-    setTotals({ income, expense, balance: income - expense });
-
-    // Reset Form
-    setNewTx({ type: 'INCOME', amount: '', category: 'ORDER_PAYMENT', description: '', wallet_id: wallets[0]?.id || 'cash' });
-  };
-
-  // Delete/Revert Transaction
-  const handleDeleteTx = (txId) => {
-    if (!window.confirm("Haqiqatan ham ushbu tranzaksiyani o'chirmoqchimisiz? Hisob balansi qayta tiklanadi.")) return;
-
-    const txToDelete = transactions.find(t => t.id === txId);
-    if (!txToDelete) return;
-
-    // Revert wallet balance
-    const updatedWallets = wallets.map(w => {
-      if (w.id === txToDelete.wallet_id) {
-        return {
-          ...w,
-          balance: txToDelete.type === 'INCOME' ? w.balance - txToDelete.amount : w.balance + txToDelete.amount
-        };
-      }
-      return w;
-    });
-
-    const updatedTx = transactions.filter(t => t.id !== txId);
-
-    setTransactions(updatedTx);
-    setDbItem('transactions', updatedTx);
-
-    setWallets(updatedWallets);
-    setDbItem('wallets', updatedWallets);
-
-    // Recalculate totals
-    const income = updatedTx
-      .filter(t => t.type === 'INCOME' && t.category !== 'TRANSFER')
-      .reduce((sum, t) => sum + t.amount, 0);
-    const expense = updatedTx
-      .filter(t => t.type === 'EXPENSE' && t.category !== 'TRANSFER')
-      .reduce((sum, t) => sum + t.amount, 0);
-    setTotals({ income, expense, balance: income - expense });
-  };
-
-  // Handle Transfer between Wallets
-  const handleTransfer = (fromId, toId, amountNum) => {
-    const fromWallet = wallets.find(w => w.id === fromId);
-    const toWallet = wallets.find(w => w.id === toId);
-
-    if (!fromWallet || !toWallet) return;
-
-    // Create dual transactions for clear cash flow tracking
-    const txExpense = {
-      id: 't' + (transactions.length + 1),
-      type: 'EXPENSE',
-      amount: amountNum,
-      category: 'TRANSFER',
-      description: `O'tkazma: ${toWallet.name_uz || toWallet.name_en} hisobiga`,
-      wallet_id: fromId,
-      created_at: new Date().toISOString()
-    };
-
-    const txIncome = {
-      id: 't' + (transactions.length + 2),
-      type: 'INCOME',
-      amount: amountNum,
-      category: 'TRANSFER',
-      description: `O'tkazma: ${fromWallet.name_uz || fromWallet.name_en} hisobidan`,
-      wallet_id: toId,
-      created_at: new Date().toISOString()
-    };
-
-    // Update wallet balances
-    const updatedWallets = wallets.map(w => {
-      if (w.id === fromId) return { ...w, balance: w.balance - amountNum };
-      if (w.id === toId) return { ...w, balance: w.balance + amountNum };
-      return w;
-    });
-
-    const updatedTx = [...transactions, txExpense, txIncome];
-
-    setTransactions(updatedTx);
-    setDbItem('transactions', updatedTx);
-
-    setWallets(updatedWallets);
-    setDbItem('wallets', updatedWallets);
-  };
-
-  // Handle Pay Debt
-  const handlePayDebt = (debtId, walletId) => {
-    const debt = debts.find(d => d.id === debtId);
-    const wallet = wallets.find(w => w.id === walletId);
-
-    if (!debt || !wallet) return;
-
-    // If payable, check balance
-    if (debt.type === 'PAYABLE' && wallet.balance < debt.amount) {
-      alert("Hisobda yetarli mablag' mavjud emas!");
-      return;
-    }
-
-    // Register transaction
-    const tx = {
-      id: 't' + (transactions.length + 1),
-      type: debt.type === 'RECEIVABLE' ? 'INCOME' : 'EXPENSE',
-      amount: debt.amount,
-      category: debt.type === 'RECEIVABLE' ? 'DEBT_PAYMENT' : 'SUPPLIER_DEBT_PAYMENT',
-      description: debt.type === 'RECEIVABLE' 
-        ? `Mijoz ${debt.person} qarzi so'ndirildi: ${debt.description}`
-        : `Hamkor ${debt.person} oldidagi qarz to'landi: ${debt.description}`,
-      wallet_id: walletId,
-      created_at: new Date().toISOString()
-    };
-
-    // Update wallet balance
-    const updatedWallets = wallets.map(w => {
-      if (w.id === walletId) {
-        return {
-          ...w,
-          balance: debt.type === 'RECEIVABLE' ? w.balance + debt.amount : w.balance - debt.amount
-        };
-      }
-      return w;
-    });
-
-    // Mark debt as Paid
-    const updatedDebts = debts.map(d => d.id === debtId ? { ...d, status: 'PAID' } : d);
-
-    const updatedTx = [...transactions, tx];
-
-    setTransactions(updatedTx);
-    setDbItem('transactions', updatedTx);
-
-    setWallets(updatedWallets);
-    setDbItem('wallets', updatedWallets);
-
-    setDebts(updatedDebts);
-    setDbItem('debts', updatedDebts);
-
-    // Recalculate totals
-    const income = updatedTx
-      .filter(t => t.type === 'INCOME' && t.category !== 'TRANSFER')
-      .reduce((sum, t) => sum + t.amount, 0);
-    const expense = updatedTx
-      .filter(t => t.type === 'EXPENSE' && t.category !== 'TRANSFER')
-      .reduce((sum, t) => sum + t.amount, 0);
-    setTotals({ income, expense, balance: income - expense });
-  };
-
-  // Handle Create Debt
-  const handleCreateDebt = (newDebt) => {
-    const updatedDebts = [...debts, newDebt];
-    setDebts(updatedDebts);
-    setDbItem('debts', updatedDebts);
-  };
-
-  // Handle Update Budget Limit
-  const handleUpdateBudget = (category, limit) => {
-    const updatedBudgets = budgets.map(b => b.category === category ? { ...b, limit } : b);
-    
-    // If category didn't exist in budgets, add it
-    if (!budgets.some(b => b.category === category)) {
-      updatedBudgets.push({ category, limit });
-    }
-
-    setBudgets(updatedBudgets);
-    setDbItem('budgets', updatedBudgets);
-  };
+    return pendingOrders.reduce((sum, o) => sum + (o.price || 0), 0);
+  }, [ordersList, selectedDate]);
 
   const categories = ['ALL', 'ORDER_PAYMENT', 'SALARY', 'OFFICE_EXPENSE', 'TAX', 'DEBT_PAYMENT', 'TRANSFER'];
 
@@ -308,7 +204,9 @@ const Finance = ({ tab }) => {
     const txDate = new Date(t.created_at);
     const now = new Date();
 
-    if (dateRange === 'TODAY') {
+    if (selectedDate) {
+      matchesDate = t.created_at && t.created_at.slice(0, 10) === selectedDate;
+    } else if (dateRange === 'TODAY') {
       const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
       matchesDate = txDate >= today;
     } else if (dateRange === 'YESTERDAY') {
@@ -411,8 +309,26 @@ const Finance = ({ tab }) => {
           <p className="text-xs text-slate-500 dark:text-gray-400 font-medium">{t('finance_page.desc')}</p>
         </div>
 
-        <div className="flex items-center gap-2">
-          {/* Export & Add Tx toolbar */}
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Kalendar Tanlagich */}
+          <div className="flex items-center gap-2 bg-white dark:bg-white/5 border border-slate-200 dark:border-white/5 px-3 py-1.5 rounded-xl text-[10px] font-bold text-slate-700 dark:text-gray-300 shadow-xs">
+            <Calendar className="w-3.5 h-3.5 text-indigo-500" />
+            <input 
+              type="date"
+              value={selectedDate}
+              onChange={(e) => setSelectedDate(e.target.value)}
+              className="bg-transparent text-slate-800 dark:text-white focus:outline-none cursor-pointer"
+            />
+            {selectedDate && (
+              <button 
+                onClick={() => setSelectedDate('')}
+                className="text-[9px] text-rose-500 hover:underline ml-1 font-extrabold cursor-pointer"
+              >
+                Tozalash
+              </button>
+            )}
+          </div>
+
           <button 
             onClick={exportToCSV}
             className="flex items-center gap-1.5 bg-white dark:bg-white/5 border border-slate-300 dark:border-white/5 text-slate-700 dark:text-gray-300 hover:bg-slate-50 dark:hover:bg-white/10 px-4 py-2 rounded-xl text-xs font-bold transition cursor-pointer shadow-xs"
@@ -440,134 +356,45 @@ const Finance = ({ tab }) => {
           onClick={() => setActiveTab('PL')}
           className={`flex-1 sm:flex-initial px-5 py-2 rounded-lg cursor-pointer transition ${activeTab === 'PL' ? 'bg-white dark:bg-indigo-600/15 text-indigo-600 dark:text-indigo-400 shadow-sm' : 'text-slate-600 dark:text-gray-400 hover:text-slate-900'}`}
         >
-          {t('finance_page.reports')} (P&L)
-        </button>
-        <button 
-          onClick={() => setActiveTab('BUDGETS')}
-          className={`flex-1 sm:flex-initial px-5 py-2 rounded-lg cursor-pointer transition ${activeTab === 'BUDGETS' ? 'bg-white dark:bg-indigo-600/15 text-indigo-600 dark:text-indigo-400 shadow-sm' : 'text-slate-600 dark:text-gray-400 hover:text-slate-900'}`}
-        >
-          {t('finance_page.budget')}
-        </button>
-        <button 
-          onClick={() => setActiveTab('DEBTS')}
-          className={`flex-1 sm:flex-initial px-5 py-2 rounded-lg cursor-pointer transition ${activeTab === 'DEBTS' ? 'bg-white dark:bg-indigo-600/15 text-indigo-600 dark:text-indigo-400 shadow-sm' : 'text-slate-600 dark:text-gray-400 hover:text-slate-900'}`}
-        >
-          {t('finance_page.debts')}
+          {t('finance_page.reports')} (P&L Hisoboti)
         </button>
       </div>
 
       {/* Render Active Tab content */}
       {activeTab === 'TRANSACTIONS' && (
         <div className="space-y-6 animate-fade-in">
-          {/* Wallets & Stats Cards */}
-          <FinanceStats totals={totals} wallets={wallets} onOpenTransfer={() => setShowTransferModal(true)} />
+          {/* Stats Cards */}
+          <FinanceStats 
+            balance={statsForSelectedDate.balance} 
+            dailyExpenses={statsForSelectedDate.dailyExpenses} 
+            expectedFunds={expectedFundsForSelectedDate} 
+          />
 
-          {/* SVG Cash Flow cumulative trend charts (Income vs Expense) */}
-          <div className="glass-card p-5 rounded-2xl bg-white dark:bg-transparent shadow-sm">
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <h4 className="font-bold text-slate-800 dark:text-white text-xs font-['Outfit'] uppercase tracking-wider">Moliyaviy Oqim Trendi (Income vs Expense Flow)</h4>
-                <p className="text-[10px] text-slate-400 dark:text-gray-500 font-medium">Kirim va Chiqimlarning jami kumulyativ o'zgarishi</p>
-              </div>
-              <div className="flex items-center gap-4 text-[9px] font-bold">
-                <span className="flex items-center gap-1 text-emerald-600"><span className="w-2 h-2 rounded-full bg-emerald-500 block"></span> Kirim Oqimi</span>
-                <span className="flex items-center gap-1 text-rose-500"><span className="w-2 h-2 rounded-full bg-rose-500 block"></span> Chiqim Oqimi</span>
-              </div>
-            </div>
-
-            {/* SVG Double Area Chart */}
-            <div className="relative w-full h-[120px]">
-              <svg className="w-full h-full overflow-visible" viewBox="0 0 500 100" preserveAspectRatio="none">
-                <defs>
-                  <linearGradient id="incGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#10b981" stopOpacity="0.15"/>
-                    <stop offset="100%" stopColor="#10b981" stopOpacity="0"/>
-                  </linearGradient>
-                  <linearGradient id="expGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#ef4444" stopOpacity="0.1"/>
-                    <stop offset="100%" stopColor="#ef4444" stopOpacity="0"/>
-                  </linearGradient>
-                </defs>
-                
-                {/* Reference Grid lines */}
-                <line x1="15" y1="50" x2="485" y2="50" stroke="currentColor" className="text-slate-100 dark:text-white/3" strokeDasharray="3 3" />
-                <line x1="15" y1="85" x2="485" y2="85" stroke="currentColor" className="text-slate-100 dark:text-white/5" />
-                
-                {/* Area fills */}
-                {transactions.length > 1 && (
-                  <>
-                    <path d={`M15,85 L${chartPaths.income} L485,85 Z`} fill="url(#incGrad)" />
-                    <path d={`M15,85 L${chartPaths.expense} L485,85 Z`} fill="url(#expGrad)" />
-                  </>
-                )}
-                
-                {/* Paths */}
-                <polyline fill="none" stroke="#10b981" strokeWidth="2" points={chartPaths.income} strokeLinecap="round" strokeLinejoin="round" />
-                <polyline fill="none" stroke="#ef4444" strokeWidth="2" points={chartPaths.expense} strokeLinecap="round" strokeLinejoin="round" />
-                
-                {/* Dots for last point */}
-                {chartPaths.income.split(' ').length > 0 && (
-                  <>
-                    {(() => {
-                      const incPts = chartPaths.income.split(' ');
-                      const expPts = chartPaths.expense.split(' ');
-                      const lastInc = incPts[incPts.length - 1]?.split(',');
-                      const lastExp = expPts[expPts.length - 1]?.split(',');
-                      
-                      return (
-                        <>
-                          {lastInc && lastInc.length === 2 && (
-                            <circle cx={lastInc[0]} cy={lastInc[1]} r="4" fill="#10b981" className="stroke-white dark:stroke-[#111827] stroke-2" />
-                          )}
-                          {lastExp && lastExp.length === 2 && (
-                            <circle cx={lastExp[0]} cy={lastExp[1]} r="4" fill="#ef4444" className="stroke-white dark:stroke-[#111827] stroke-2" />
-                          )}
-                        </>
-                      );
-                    })()}
-                  </>
-                )}
-              </svg>
-            </div>
-          </div>
-
-          {/* Grid Layout: Filters & Table + Category Breakdown */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <div className="lg:col-span-2 space-y-4">
-              <FinanceFilters 
-                search={search} 
-                setSearch={setSearch} 
-                filterType={filterType} 
-                setFilterType={setFilterType} 
-                filterCategory={filterCategory} 
-                setFilterCategory={setFilterCategory} 
-                filterWallet={filterWallet}
-                setFilterWallet={setFilterWallet}
-                dateRange={dateRange}
-                setDateRange={setDateRange}
-                customDates={customDates}
-                setCustomDates={setCustomDates}
-                categories={categories} 
-                wallets={wallets}
-              />
-              <FinanceTable filteredTx={filteredTx} wallets={wallets} onDeleteTx={handleDeleteTx} />
-            </div>
-            
-            <CategoryBreakdown transactions={transactions} />
+          {/* Filters & Table Layout (Full Width) */}
+          <div className="space-y-4">
+            <FinanceFilters 
+              search={search} 
+              setSearch={setSearch} 
+              filterType={filterType} 
+              setFilterType={setFilterType} 
+              filterCategory={filterCategory} 
+              setFilterCategory={setFilterCategory} 
+              filterWallet={filterWallet}
+              setFilterWallet={setFilterWallet}
+              dateRange={dateRange}
+              setDateRange={setDateRange}
+              customDates={customDates}
+              setCustomDates={setCustomDates}
+              categories={categories} 
+              wallets={wallets}
+            />
+            <FinanceTable filteredTx={filteredTx} wallets={wallets} />
           </div>
         </div>
       )}
 
       {activeTab === 'PL' && (
-        <PLReport transactions={transactions} />
-      )}
-
-      {activeTab === 'BUDGETS' && (
-        <BudgetManager budgets={budgets} transactions={transactions} onUpdateBudget={handleUpdateBudget} />
-      )}
-
-      {activeTab === 'DEBTS' && (
-        <DebtManager debts={debts} wallets={wallets} onPayDebt={handlePayDebt} onCreateDebt={handleCreateDebt} />
+        <PLReport transactions={filteredTx} />
       )}
 
       {/* Modals */}
@@ -580,12 +407,7 @@ const Finance = ({ tab }) => {
         wallets={wallets}
       />
 
-      <TransferModal
-        isOpen={showTransferModal}
-        onClose={() => setShowTransferModal(false)}
-        wallets={wallets}
-        onTransfer={handleTransfer}
-      />
+
 
     </div>
   );

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { X, UserPlus, Save } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+import { api } from '../../services/api';
 
 const CreateEmployeeModal = ({ isOpen, onClose, employee, onSubmit }) => {
   const { t, i18n } = useTranslation();
@@ -15,12 +16,20 @@ const CreateEmployeeModal = ({ isOpen, onClose, employee, onSubmit }) => {
   const [lat, setLat] = useState('41.311081');
   const [lng, setLng] = useState('69.240562');
   const [password, setPassword] = useState('');
+  const [salary, setSalary] = useState('');
+  const [salaryType, setSalaryType] = useState('MONTHLY');
   const [roles, setRoles] = useState([]);
   const [error, setError] = useState('');
 
   useEffect(() => {
-    const allRoles = JSON.parse(localStorage.getItem('roles')) || [];
-    setRoles(allRoles);
+    api.getRoles()
+      .then(allRoles => setRoles(allRoles.map(r => ({
+        id: r.key,
+        name_uz: r.nameUz,
+        name_ru: r.nameRu,
+        name_en: r.nameEn
+      }))))
+      .catch(err => console.error('Failed to load roles:', err));
   }, []);
 
   useEffect(() => {
@@ -34,6 +43,8 @@ const CreateEmployeeModal = ({ isOpen, onClose, employee, onSubmit }) => {
         setLat(employee.lat ? employee.lat.toString() : '41.311081');
         setLng(employee.lng ? employee.lng.toString() : '69.240562');
         setPassword(employee.password || '');
+        setSalary(employee.salary ? employee.salary.toString() : '');
+        setSalaryType(employee.salary_type || employee.salaryType || 'MONTHLY');
       } else {
         setFullName('');
         setUsername('');
@@ -43,6 +54,8 @@ const CreateEmployeeModal = ({ isOpen, onClose, employee, onSubmit }) => {
         setLat('41.311081');
         setLng('69.240562');
         setPassword('admin'); // Default password for new employees
+        setSalary('');
+        setSalaryType('MONTHLY');
       }
       setError('');
     }
@@ -67,6 +80,8 @@ const CreateEmployeeModal = ({ isOpen, onClose, employee, onSubmit }) => {
       role,
       status,
       password: password.trim(),
+      salary: salary ? salary.trim() : '',
+      salary_type: salaryType,
       lat: role === 'WORKER_DRIVER' ? parseFloat(lat) || 41.311081 : null,
       lng: role === 'WORKER_DRIVER' ? parseFloat(lng) || 69.240562 : null
     };
@@ -152,7 +167,6 @@ const CreateEmployeeModal = ({ isOpen, onClose, employee, onSubmit }) => {
               onChange={(e) => setRole(e.target.value)}
               className="w-full glass-input rounded-xl px-3 py-2 text-slate-850 dark:text-white focus:outline-none cursor-pointer"
             >
-              <option value="WORKER_DRIVER">{t('employees_page.worker_driver')}</option>
               {roles.map(r => {
                 const rName = r[`name_${i18n.language}`] || r.name_uz;
                 return (
@@ -185,6 +199,32 @@ const CreateEmployeeModal = ({ isOpen, onClose, employee, onSubmit }) => {
             >
               <option value="ACTIVE">{t('employees_page.active_status')}</option>
               <option value="BLOCKED">{t('employees_page.blocked_status')}</option>
+            </select>
+          </div>
+
+          {/* Salary Amount */}
+          <div>
+            <label className="block text-slate-500 dark:text-gray-400 mb-1">Ish haqi / Oylik miqdori (UZS)</label>
+            <input 
+              type="number"
+              value={salary}
+              onChange={(e) => setSalary(e.target.value)}
+              placeholder="Masalan: 5000000"
+              className="w-full glass-input rounded-xl px-3 py-2 text-slate-800 dark:text-white focus:outline-none"
+            />
+          </div>
+
+          {/* Salary Type */}
+          <div>
+            <label className="block text-slate-500 dark:text-gray-400 mb-1">Ish turi / To'lov turi</label>
+            <select 
+              value={salaryType}
+              onChange={(e) => setSalaryType(e.target.value)}
+              className="w-full glass-input rounded-xl px-3 py-2 text-slate-800 dark:text-white focus:outline-none cursor-pointer"
+            >
+              <option value="MONTHLY">Oylik (Monthly)</option>
+              <option value="DAILY">Kunlik (Daily)</option>
+              <option value="HOURLY">Soatbay (Hourly)</option>
             </select>
           </div>
 
