@@ -55,8 +55,6 @@ class DriverOrdersScreen extends StatelessWidget {
                     final order = orders[index];
                     return OrderCard(
                       order: order,
-                      onAdvance: () =>
-                          context.read<OrdersCubit>().advanceToNextStatus(order),
                       onReject: () => _confirmReject(context, order),
                     );
                   },

@@ -232,9 +232,23 @@ export const api = {
     return handleResponse(res);
   },
 
-  // Orders
   async getOrders() {
     const res = await fetch(`${API_BASE_URL}/orders`, {
+      headers: getHeaders()
+    });
+    return handleResponse(res);
+  },
+
+  async getPendingHandovers() {
+    const res = await fetch(`${API_BASE_URL}/orders/pending-handovers`, {
+      headers: getHeaders()
+    });
+    return handleResponse(res);
+  },
+
+  async confirmHandover(orderId) {
+    const res = await fetch(`${API_BASE_URL}/orders/${orderId}/confirm-handover`, {
+      method: 'PUT',
       headers: getHeaders()
     });
     return handleResponse(res);

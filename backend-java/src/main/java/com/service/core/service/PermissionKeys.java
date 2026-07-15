@@ -27,9 +27,18 @@ public final class PermissionKeys {
     public static final String MOBILE_CHAT = "mobile_chat";
     public static final String MOBILE_SALARY_VIEW = "mobile_salary_view";
 
+    // Specific Action Permissions
+    public static final String ASSIGN_MEASUREMENT_UNIT = "assign_measurement_unit";
+    public static final String UPDATE_ORDER_STATUS = "update_order_status";
+    public static final String WRITE_ORDER_NOTES = "write_order_notes";
+    public static final String SET_ORDER_PRICE = "set_order_price";
+    public static final String RECORD_INCOME = "record_income";
+    public static final String RECORD_EXPENSE = "record_expense";
+
     public static final List<String> ALL = List.of(
             CLIENTS, EMPLOYEES, ORDERS, FINANCE, SALARIES, SETTINGS, MAP,
-            MOBILE_ORDERS, MOBILE_GPS, MOBILE_FINANCE_VIEW, MOBILE_TEAM_VIEW, MOBILE_CHAT, MOBILE_SALARY_VIEW
+            MOBILE_ORDERS, MOBILE_GPS, MOBILE_FINANCE_VIEW, MOBILE_TEAM_VIEW, MOBILE_CHAT, MOBILE_SALARY_VIEW,
+            ASSIGN_MEASUREMENT_UNIT, UPDATE_ORDER_STATUS, WRITE_ORDER_NOTES, SET_ORDER_PRICE, RECORD_INCOME, RECORD_EXPENSE
     );
 
     private PermissionKeys() {

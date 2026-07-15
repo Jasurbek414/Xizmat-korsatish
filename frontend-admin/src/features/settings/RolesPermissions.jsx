@@ -17,7 +17,13 @@ const EMPTY_PERMISSIONS = {
   mobile_finance_view: false,
   mobile_team_view: false,
   mobile_chat: false,
-  mobile_salary_view: false
+  mobile_salary_view: false,
+  assign_measurement_unit: false,
+  update_order_status: false,
+  write_order_notes: false,
+  set_order_price: false,
+  record_income: false,
+  record_expense: false
 };
 
 const RolesPermissions = () => {

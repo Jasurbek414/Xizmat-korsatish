@@ -2,9 +2,12 @@ package com.service.core.model;
 
 import jakarta.persistence.*;
 import lombok.*;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.UUID;
+import java.util.List;
+import java.util.ArrayList;
 
 @Entity
 @Table(name = "orders")
@@ -39,6 +42,11 @@ public class Order {
     @JoinColumn(name = "worker_id")
     private User worker;
 
+    @OneToMany(mappedBy = "order", cascade = CascadeType.ALL, fetch = FetchType.EAGER)
+    @JsonIgnoreProperties("order")
+    @Builder.Default
+    private List<OrderItem> items = new ArrayList<>();
+
     @Column(nullable = false, precision = 10, scale = 2)
     private BigDecimal price;
 
@@ -50,6 +58,14 @@ public class Order {
 
     private Double latitude;
     private Double longitude;
+
+    @Column(name = "collected_price", precision = 10, scale = 2)
+    @Builder.Default
+    private BigDecimal collectedPrice = BigDecimal.ZERO;
+
+    @Column(name = "payment_status", length = 50)
+    @Builder.Default
+    private String paymentStatus = "PENDING"; // PENDING, COLLECTED, HANDED_OVER
 
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;

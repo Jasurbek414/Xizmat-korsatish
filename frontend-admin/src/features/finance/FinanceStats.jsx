@@ -1,13 +1,13 @@
 import React from 'react';
-import { DollarSign, ArrowDownRight, Clock } from 'lucide-react';
+import { DollarSign, ArrowDownRight, Clock, ShieldAlert } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { formatCurrency } from '../../utils/format';
 
-const FinanceStats = ({ balance, dailyExpenses, expectedFunds }) => {
+const FinanceStats = ({ balance, dailyExpenses, expectedFunds, pendingHandoversSum = 0 }) => {
   const { t, i18n } = useTranslation();
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
       {/* Joriy Balans */}
       <div className="glass-card p-6 rounded-2xl flex items-center justify-between shadow-sm dark:shadow-none bg-white dark:bg-[#111827]/80">
         <div className="space-y-1">
@@ -33,6 +33,20 @@ const FinanceStats = ({ balance, dailyExpenses, expectedFunds }) => {
         </div>
         <div className="w-10 h-10 rounded-xl bg-rose-500/5 flex items-center justify-center text-rose-600 dark:text-rose-400">
           <ArrowDownRight className="w-5 h-5" />
+        </div>
+      </div>
+
+      {/* Topshirilishi kutilayotgan */}
+      <div className="glass-card p-6 rounded-2xl flex items-center justify-between shadow-sm dark:shadow-none bg-white dark:bg-[#111827]/80">
+        <div className="space-y-1">
+          <p className="text-[10px] font-bold text-slate-400 dark:text-gray-500 uppercase tracking-wider">Kuryerlarda (Topshirilmagan)</p>
+          <h3 className="text-xl font-extrabold text-amber-600 dark:text-amber-400 font-['Outfit']">
+            {formatCurrency(pendingHandoversSum, i18n.language)}
+          </h3>
+          <p className="text-[9px] text-slate-400 dark:text-gray-500 mt-1">Mijozlardan olinib, kuryerlar ushlab turgan pul</p>
+        </div>
+        <div className="w-10 h-10 rounded-xl bg-amber-500/5 flex items-center justify-center text-amber-600 dark:text-amber-400">
+          <ShieldAlert className="w-5 h-5" />
         </div>
       </div>
 

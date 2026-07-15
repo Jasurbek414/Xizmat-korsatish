@@ -41,61 +41,71 @@ const Finance = ({ tab }) => {
   // Totals State
   const [totals, setTotals] = useState({ income: 0, expense: 0, balance: 0 });
 
+  // Pending Handovers from Drivers
+  const [pendingHandovers, setPendingHandovers] = useState([]);
+  const [pendingHandoversSum, setPendingHandoversSum] = useState(0);
+
   // Form State
   const [newTx, setNewTx] = useState({ type: 'INCOME', amount: '', category: 'ORDER_PAYMENT', description: '', wallet_id: 'cash' });
 
   // Loading database items on mount or tab change
+  const loadData = async () => {
+    try {
+      const [txsData, statsData, ordersData, pendingHandoversData] = await Promise.all([
+        api.getTransactions(),
+        api.getFinanceStats(),
+        api.getOrders(),
+        api.getPendingHandovers()
+      ]);
+
+      const mappedTxs = txsData.map(t => ({
+        id: t.id,
+        type: t.type,
+        amount: t.amount,
+        category: t.category,
+        description: t.description || '',
+        created_at: t.createdAt || t.created_at,
+        wallet_id: 'cash'
+      }));
+
+      setTransactions(mappedTxs);
+      setOrdersList(ordersData);
+      setPendingHandovers(pendingHandoversData || []);
+      
+      const pHSum = (pendingHandoversData || []).reduce((sum, o) => sum + (o.collectedPrice || 0), 0);
+      setPendingHandoversSum(pHSum);
+
+      setTotals({
+        income: statsData.totalIncome,
+        expense: statsData.totalExpense,
+        balance: statsData.balance
+      });
+
+      setWallets([
+        { id: 'cash', name_uz: 'Asosiy Kassa (Naqd/Karta)', name_ru: 'Основная касса', name_en: 'Main Cash', balance: statsData.balance }
+      ]);
+
+      // Calculate Daily Expenses
+      const todayStr = new Date().toISOString().slice(0, 10);
+      const todayExp = mappedTxs
+        .filter(t => t.type === 'EXPENSE' && t.created_at && t.created_at.slice(0, 10) === todayStr)
+        .reduce((sum, t) => sum + t.amount, 0);
+      setDailyExpenses(todayExp);
+
+      // Calculate Expected Funds (from non-completed orders)
+      const pendingOrders = ordersData.filter(o => {
+        const statusId = o.status ? o.status.id : '';
+        return statusId !== 'b4444444-4444-4444-4444-444444444444';
+      });
+      const pendingSum = pendingOrders.reduce((sum, o) => sum + (o.price || 0), 0);
+      setExpectedFunds(pendingSum);
+
+    } catch (err) {
+      console.error("Failed to load finance data:", err);
+    }
+  };
+
   useEffect(() => {
-    const loadData = async () => {
-      try {
-        const [txsData, statsData, ordersData] = await Promise.all([
-          api.getTransactions(),
-          api.getFinanceStats(),
-          api.getOrders()
-        ]);
-
-        const mappedTxs = txsData.map(t => ({
-          id: t.id,
-          type: t.type,
-          amount: t.amount,
-          category: t.category,
-          description: t.description || '',
-          created_at: t.createdAt || t.created_at,
-          wallet_id: 'cash'
-        }));
-
-        setTransactions(mappedTxs);
-        setOrdersList(ordersData);
-        setTotals({
-          income: statsData.totalIncome,
-          expense: statsData.totalExpense,
-          balance: statsData.balance
-        });
-
-        setWallets([
-          { id: 'cash', name_uz: 'Asosiy Kassa (Naqd/Karta)', name_ru: 'Основная касса', name_en: 'Main Cash', balance: statsData.balance }
-        ]);
-
-        // Calculate Daily Expenses
-        const todayStr = new Date().toISOString().slice(0, 10);
-        const todayExp = mappedTxs
-          .filter(t => t.type === 'EXPENSE' && t.created_at && t.created_at.slice(0, 10) === todayStr)
-          .reduce((sum, t) => sum + t.amount, 0);
-        setDailyExpenses(todayExp);
-
-        // Calculate Expected Funds (from non-completed orders)
-        const pendingOrders = ordersData.filter(o => {
-          const statusId = o.status ? o.status.id : '';
-          return statusId !== 'b4444444-4444-4444-4444-444444444444';
-        });
-        const pendingSum = pendingOrders.reduce((sum, o) => sum + (o.price || 0), 0);
-        setExpectedFunds(pendingSum);
-
-      } catch (err) {
-        console.error("Failed to load finance data:", err);
-      }
-    };
-    
     loadData();
   }, [tab]);
 
@@ -135,6 +145,15 @@ const Finance = ({ tab }) => {
       });
     } catch (err) {
       console.error("Failed to add transaction:", err);
+    }
+  };
+
+  const handleConfirmHandover = async (orderId) => {
+    try {
+      await api.confirmHandover(orderId);
+      loadData();
+    } catch (err) {
+      console.error("Failed to confirm cash handover:", err);
     }
   };
 
@@ -368,7 +387,54 @@ const Finance = ({ tab }) => {
             balance={statsForSelectedDate.balance} 
             dailyExpenses={statsForSelectedDate.dailyExpenses} 
             expectedFunds={expectedFundsForSelectedDate} 
+            pendingHandoversSum={pendingHandoversSum}
           />
+
+          {/* Kassaga topshirish kutilayotgan pullar (kuryerlar tomonidan olingan) */}
+          {pendingHandovers.length > 0 && (
+            <div className="glass-card p-5 rounded-2xl border border-slate-200 dark:border-white/5 bg-white dark:bg-[#111827]/80 space-y-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h4 className="text-xs font-extrabold text-slate-800 dark:text-white tracking-tight flex items-center gap-1.5 font-['Outfit']">
+                    📥 Kassaga topshirilishi kutilayotgan pullar (Kuryerlarda)
+                  </h4>
+                  <p className="text-[10px] text-slate-400 dark:text-gray-500 font-medium">
+                    Kuryerlar mijozlardan qabul qilib olgan, lekin hali kassaga topshirmagan mablag'lar
+                  </p>
+                </div>
+                <span className="text-[10px] font-bold text-amber-600 bg-amber-500/10 px-2 py-0.5 rounded-md">
+                  {pendingHandovers.length} ta kutilmoqda
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {pendingHandovers.map(oh => (
+                  <div key={oh.id} className="p-3 rounded-xl border border-slate-200 dark:border-white/5 bg-slate-50 dark:bg-white/2 flex items-center justify-between gap-3 text-[10px]">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-1">
+                        <span className="font-extrabold text-slate-700 dark:text-gray-300">
+                          {oh.worker ? oh.worker.fullName : "Noma'lum xodim"}
+                        </span>
+                        <span className="text-[8px] text-slate-400">({oh.worker ? oh.worker.username : ""})</span>
+                      </div>
+                      <p className="text-slate-400 text-[8px] font-medium leading-none">
+                        Buyurtma: {oh.description || "Tavsif yo'q"}
+                      </p>
+                      <p className="text-[9px] font-bold text-amber-600 font-['Outfit']">
+                        {new Intl.NumberFormat('uz-UZ').format(oh.collectedPrice)} UZS
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => handleConfirmHandover(oh.id)}
+                      className="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-[8px] transition cursor-pointer shadow-xs whitespace-nowrap"
+                    >
+                      Qabul qildim
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Filters & Table Layout (Full Width) */}
           <div className="space-y-4">

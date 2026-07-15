@@ -22,6 +22,24 @@ class OrdersRepository {
     return _api.put('/orders/$orderId/reject');
   }
 
+  Future<void> collectPayment(String orderId, double amount) {
+    return _api.put('/orders/$orderId/collect-payment', data: {'amount': amount});
+  }
+
+  Future<void> updateOrderItemStatus(String orderId, String itemId, String status) {
+    return _api.put('/orders/$orderId/items/$itemId', data: {'status': status});
+  }
+
+  Future<void> addOrderItem(String orderId, String name, double length, double width, int quantity) {
+    return _api.post('/orders/$orderId/items', data: {
+      'name': name,
+      'length': length,
+      'width': width,
+      'quantity': quantity,
+      'status': 'ACCEPTED'
+    });
+  }
+
   Future<List<OrderStatusInfo>> fetchOrderStatuses() async {
     final data = await _api.get('/order-statuses') as List;
     return data

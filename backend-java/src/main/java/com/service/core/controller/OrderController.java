@@ -26,11 +26,12 @@ public class OrderController {
     private final OrderStatusRepository orderStatusRepository;
     private final UserRepository userRepository;
     private final PushNotificationService pushNotificationService;
+    private final TransactionRepository transactionRepository;
 
     public OrderController(OrderRepository orderRepository, CompanyRepository companyRepository,
                            ClientRepository clientRepository, ServiceRepository serviceRepository,
                            OrderStatusRepository orderStatusRepository, UserRepository userRepository,
-                           PushNotificationService pushNotificationService) {
+                           PushNotificationService pushNotificationService, TransactionRepository transactionRepository) {
         this.orderRepository = orderRepository;
         this.companyRepository = companyRepository;
         this.clientRepository = clientRepository;
@@ -38,6 +39,7 @@ public class OrderController {
         this.orderStatusRepository = orderStatusRepository;
         this.userRepository = userRepository;
         this.pushNotificationService = pushNotificationService;
+        this.transactionRepository = transactionRepository;
     }
 
     @GetMapping
@@ -276,6 +278,74 @@ public class OrderController {
         order.setWorker(null);
         Order saved = orderRepository.save(order);
         return ResponseEntity.ok(saved);
+    }
+
+    @PutMapping("/{id}/collect-payment")
+    public ResponseEntity<?> collectPayment(@PathVariable UUID id, @RequestBody Map<String, Object> request) {
+        String tenantId = TenantContext.getCurrentTenant();
+        if (tenantId == null) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of("message", "Tenant ID is missing"));
+        }
+        Order order = orderRepository.findById(id).orElse(null);
+        if (order == null || !order.getCompany().getId().equals(UUID.fromString(tenantId))) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("message", "Buyurtma topilmadi"));
+        }
+
+        Object amountObj = request.get("amount");
+        if (amountObj == null) {
+            return ResponseEntity.badRequest().body(Map.of("message", "Summa yuborilishi shart"));
+        }
+
+        BigDecimal amount = new BigDecimal(amountObj.toString());
+        order.setCollectedPrice(amount);
+        order.setPaymentStatus("COLLECTED");
+        Order saved = orderRepository.save(order);
+        return ResponseEntity.ok(saved);
+    }
+
+    @PutMapping("/{id}/confirm-handover")
+    @PreAuthorize("hasAnyRole('SUPERADMIN','ADMIN','MANAGER')")
+    public ResponseEntity<?> confirmHandover(@PathVariable UUID id) {
+        String tenantId = TenantContext.getCurrentTenant();
+        if (tenantId == null) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of("message", "Tenant ID is missing"));
+        }
+        Order order = orderRepository.findById(id).orElse(null);
+        if (order == null || !order.getCompany().getId().equals(UUID.fromString(tenantId))) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("message", "Buyurtma topilmadi"));
+        }
+
+        if (!"COLLECTED".equals(order.getPaymentStatus())) {
+            return ResponseEntity.badRequest().body(Map.of("message", "Bu buyurtma to'lovi topshirish kutilayotgan holatda emas"));
+        }
+
+        order.setPaymentStatus("HANDED_OVER");
+        Order savedOrder = orderRepository.save(order);
+
+        // Create Transaction
+        Transaction transaction = Transaction.builder()
+                .company(order.getCompany())
+                .order(order)
+                .type("INCOME")
+                .amount(order.getCollectedPrice())
+                .category("ORDER_PAYMENT")
+                .description("Kuryerdan topshirib olingan naqd pul: Buyurtma #" + order.getId().toString().substring(0, 8))
+                .build();
+        transactionRepository.save(transaction);
+
+        return ResponseEntity.ok(savedOrder);
+    }
+
+    @GetMapping("/pending-handovers")
+    @PreAuthorize("hasAnyRole('SUPERADMIN','ADMIN','MANAGER')")
+    public ResponseEntity<?> getPendingHandovers() {
+        String tenantId = TenantContext.getCurrentTenant();
+        if (tenantId == null) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of("message", "Tenant ID is missing"));
+        }
+
+        List<Order> orders = orderRepository.findByCompanyIdAndPaymentStatus(UUID.fromString(tenantId), "COLLECTED");
+        return ResponseEntity.ok(orders);
     }
 
     private User getCurrentUser() {

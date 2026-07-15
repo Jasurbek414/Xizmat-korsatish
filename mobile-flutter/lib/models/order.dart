@@ -52,6 +52,35 @@ class OrderClientInfo {
   }
 }
 
+class OrderItemInfo {
+  final String id;
+  final String name;
+  final double length;
+  final double width;
+  final int quantity;
+  final String status; // ACCEPTED, WASHED, DRIED, READY
+
+  OrderItemInfo({
+    required this.id,
+    required this.name,
+    required this.length,
+    required this.width,
+    required this.quantity,
+    required this.status,
+  });
+
+  factory OrderItemInfo.fromJson(Map<String, dynamic> json) {
+    return OrderItemInfo(
+      id: json['id'] ?? '',
+      name: json['name'] ?? 'Gilam',
+      length: (json['length'] as num?)?.toDouble() ?? 0.0,
+      width: (json['width'] as num?)?.toDouble() ?? 0.0,
+      quantity: (json['quantity'] as num?)?.toInt() ?? 1,
+      status: json['status'] ?? 'ACCEPTED',
+    );
+  }
+}
+
 class Order {
   final String id;
   final OrderClientInfo client;
@@ -65,6 +94,9 @@ class Order {
   final String? workerId;
   final String? workerName;
   final String createdAt;
+  final double collectedPrice;
+  final String paymentStatus;
+  final List<OrderItemInfo> items;
 
   Order({
     required this.id,
@@ -79,6 +111,9 @@ class Order {
     required this.workerId,
     required this.workerName,
     required this.createdAt,
+    required this.collectedPrice,
+    required this.paymentStatus,
+    required this.items,
   });
 
   factory Order.fromJson(Map<String, dynamic> json) {
@@ -99,6 +134,12 @@ class Order {
       workerId: worker?['id'],
       workerName: worker?['fullName'],
       createdAt: json['createdAt'] ?? '',
+      collectedPrice: (json['collectedPrice'] as num?)?.toDouble() ?? 0.0,
+      paymentStatus: json['paymentStatus'] ?? 'PENDING',
+      items: (json['items'] as List?)
+              ?.map((i) => OrderItemInfo.fromJson(i as Map<String, dynamic>))
+              .toList() ??
+          [],
     );
   }
 }

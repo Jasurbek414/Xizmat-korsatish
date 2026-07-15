@@ -77,4 +77,31 @@ class OrdersCubit extends Cubit<OrdersState> {
       emit(OrdersError(e.message));
     }
   }
+
+  Future<void> collectOrderPayment(Order order, double amount) async {
+    try {
+      await _repository.collectPayment(order.id, amount);
+      await load();
+    } on ApiException catch (e) {
+      emit(OrdersError(e.message));
+    }
+  }
+
+  Future<void> changeOrderItemStatus(Order order, OrderItemInfo item, String newStatus) async {
+    try {
+      await _repository.updateOrderItemStatus(order.id, item.id, newStatus);
+      await load();
+    } on ApiException catch (e) {
+      emit(OrdersError(e.message));
+    }
+  }
+
+  Future<void> createOrderItem(Order order, String name, double length, double width, int quantity) async {
+    try {
+      await _repository.addOrderItem(order.id, name, length, width, quantity);
+      await load();
+    } on ApiException catch (e) {
+      emit(OrdersError(e.message));
+    }
+  }
 }
