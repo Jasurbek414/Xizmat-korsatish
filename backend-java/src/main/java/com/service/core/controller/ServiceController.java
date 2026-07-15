@@ -38,7 +38,7 @@ public class ServiceController {
     }
 
     @PostMapping
-    @PreAuthorize("hasAnyRole('SUPERADMIN','ADMIN','MANAGER')")
+    @PreAuthorize("hasAnyRole('SUPERADMIN','ADMIN','MANAGER','DISPATCHER')")
     public ResponseEntity<?> createService(@RequestBody Map<String, Object> request) {
         String tenantId = TenantContext.getCurrentTenant();
         if (tenantId == null) {
@@ -75,7 +75,7 @@ public class ServiceController {
     }
 
     @PutMapping("/{id}")
-    @PreAuthorize("hasAnyRole('SUPERADMIN','ADMIN','MANAGER')")
+    @PreAuthorize("hasAnyRole('SUPERADMIN','ADMIN','MANAGER','DISPATCHER')")
     public ResponseEntity<?> updateService(@PathVariable UUID id, @RequestBody Map<String, Object> request) {
         String tenantId = TenantContext.getCurrentTenant();
         if (tenantId == null) {
@@ -99,7 +99,7 @@ public class ServiceController {
     }
 
     @DeleteMapping("/{id}")
-    @PreAuthorize("hasAnyRole('SUPERADMIN','ADMIN','MANAGER')")
+    @PreAuthorize("hasAnyRole('SUPERADMIN','ADMIN','MANAGER','DISPATCHER')")
     public ResponseEntity<?> deleteService(@PathVariable UUID id) {
         String tenantId = TenantContext.getCurrentTenant();
         if (tenantId == null) {
@@ -111,7 +111,13 @@ public class ServiceController {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("message", "Xizmat topilmadi"));
         }
 
-        serviceRepository.delete(service);
-        return ResponseEntity.ok(Map.of("message", "Xizmat o'chirildi"));
+        try {
+            serviceRepository.delete(service);
+            return ResponseEntity.ok(Map.of("message", "Xizmat o'chirildi"));
+        } catch (org.springframework.dao.DataIntegrityViolationException e) {
+            return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of(
+                "message", "Ushbu xizmat turini o'chirib bo'lmaydi, chunki tizimda unga bog'liq buyurtmalar mavjud."
+            ));
+        }
     }
 }

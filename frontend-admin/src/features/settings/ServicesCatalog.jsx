@@ -103,6 +103,7 @@ const ServicesCatalog = () => {
       setServices(prev => prev.filter(s => s.id !== id));
     } catch (err) {
       console.error("Failed to delete service:", err);
+      alert(err.message || "Xizmatni o'chirishda xatolik yuz berdi.");
     }
   };
 
