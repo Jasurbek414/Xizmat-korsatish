@@ -91,7 +91,7 @@ const OrderStatuses = () => {
   const handleDelete = async (id) => {
     const status = statuses.find(s => s.id === id);
     if (status?.is_system) {
-      alert("Tizim statusini o'chirib bo'lmaydi");
+      alert("Ushbu status tizim standarti (Tizim statusi) hisoblanadi. Tizim to'g'ri ishlashi uchun uni o'chirish taqiqlangan.");
       return;
     }
     if (!window.confirm("Haqiqatan ham ushbu statusni o'chirib yubormoqchimisiz?")) return;
@@ -101,6 +101,7 @@ const OrderStatuses = () => {
       setStatuses(prev => prev.filter(s => s.id !== id));
     } catch (err) {
       console.error("Failed to delete status:", err);
+      alert(err.message || "Statusni o'chirishda xatolik yuz berdi.");
     }
   };
 

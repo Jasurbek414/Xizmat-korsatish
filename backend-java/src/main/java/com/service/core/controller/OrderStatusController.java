@@ -42,7 +42,7 @@ public class OrderStatusController {
     }
 
     @PostMapping
-    @PreAuthorize("hasAnyRole('SUPERADMIN','ADMIN')")
+    @PreAuthorize("hasAnyRole('SUPERADMIN','ADMIN','MANAGER','DISPATCHER')")
     public ResponseEntity<?> createStatus(@RequestBody Map<String, String> request) {
         String tenantId = TenantContext.getCurrentTenant();
         if (tenantId == null) {
@@ -79,7 +79,7 @@ public class OrderStatusController {
     }
 
     @PutMapping("/reorder")
-    @PreAuthorize("hasAnyRole('SUPERADMIN','ADMIN')")
+    @PreAuthorize("hasAnyRole('SUPERADMIN','ADMIN','MANAGER','DISPATCHER')")
     public ResponseEntity<?> reorderStatuses(@RequestBody List<String> orderedIds) {
         String tenantId = TenantContext.getCurrentTenant();
         if (tenantId == null) {
@@ -100,7 +100,7 @@ public class OrderStatusController {
     }
 
     @PutMapping("/{id}")
-    @PreAuthorize("hasAnyRole('SUPERADMIN','ADMIN')")
+    @PreAuthorize("hasAnyRole('SUPERADMIN','ADMIN','MANAGER','DISPATCHER')")
     public ResponseEntity<?> updateStatus(@PathVariable UUID id, @RequestBody Map<String, String> request) {
         String tenantId = TenantContext.getCurrentTenant();
         if (tenantId == null) {
@@ -122,7 +122,7 @@ public class OrderStatusController {
     }
 
     @DeleteMapping("/{id}")
-    @PreAuthorize("hasAnyRole('SUPERADMIN','ADMIN')")
+    @PreAuthorize("hasAnyRole('SUPERADMIN','ADMIN','MANAGER','DISPATCHER')")
     public ResponseEntity<?> deleteStatus(@PathVariable UUID id) {
         String tenantId = TenantContext.getCurrentTenant();
         if (tenantId == null) {
