@@ -246,10 +246,12 @@ export const api = {
     return handleResponse(res);
   },
 
-  async confirmHandover(orderId) {
+  async confirmHandover(orderId, actualAmount = null) {
+    const body = actualAmount !== null ? JSON.stringify({ actual_amount: actualAmount }) : undefined;
     const res = await fetch(`${API_BASE_URL}/orders/${orderId}/confirm-handover`, {
       method: 'PUT',
-      headers: getHeaders()
+      headers: getHeaders(),
+      body
     });
     return handleResponse(res);
   },

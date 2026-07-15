@@ -148,12 +148,23 @@ const Finance = ({ tab }) => {
     }
   };
 
-  const handleConfirmHandover = async (orderId) => {
+  const handleConfirmHandover = async (orderId, defaultAmount) => {
+    const input = window.prompt(
+      `Kuryerdan topshirib olinayotgan summani kiriting:`,
+      defaultAmount
+    );
+    if (input === null) return;
+    const actualAmount = parseFloat(input);
+    if (isNaN(actualAmount) || actualAmount < 0) {
+      window.alert("Noto'g'ri summa kiritildi!");
+      return;
+    }
     try {
-      await api.confirmHandover(orderId);
+      await api.confirmHandover(orderId, actualAmount);
       loadData();
     } catch (err) {
       console.error("Failed to confirm cash handover:", err);
+      window.alert("Xatolik yuz berdi: " + (err.message || err));
     }
   };
 
@@ -425,7 +436,7 @@ const Finance = ({ tab }) => {
                       </p>
                     </div>
                     <button
-                      onClick={() => handleConfirmHandover(oh.id)}
+                      onClick={() => handleConfirmHandover(oh.id, oh.collectedPrice)}
                       className="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-[8px] transition cursor-pointer shadow-xs whitespace-nowrap"
                     >
                       Qabul qildim

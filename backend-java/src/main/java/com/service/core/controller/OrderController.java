@@ -304,8 +304,8 @@ public class OrderController {
     }
 
     @PutMapping("/{id}/confirm-handover")
-    @PreAuthorize("hasAnyRole('SUPERADMIN','ADMIN','MANAGER')")
-    public ResponseEntity<?> confirmHandover(@PathVariable UUID id) {
+    @PreAuthorize("hasAnyRole('SUPERADMIN','ADMIN','MANAGER','DISPATCHER')")
+    public ResponseEntity<?> confirmHandover(@PathVariable UUID id, @RequestBody(required = false) Map<String, Object> request) {
         String tenantId = TenantContext.getCurrentTenant();
         if (tenantId == null) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of("message", "Tenant ID is missing"));
@@ -319,6 +319,16 @@ public class OrderController {
             return ResponseEntity.badRequest().body(Map.of("message", "Bu buyurtma to'lovi topshirish kutilayotgan holatda emas"));
         }
 
+        BigDecimal actualAmount = order.getCollectedPrice();
+        if (request != null && request.containsKey("actual_amount")) {
+            try {
+                actualAmount = new BigDecimal(request.get("actual_amount").toString());
+            } catch (Exception e) {
+                return ResponseEntity.badRequest().body(Map.of("message", "Noto'g'ri summa formati"));
+            }
+        }
+
+        order.setCollectedPrice(actualAmount);
         order.setPaymentStatus("HANDED_OVER");
         Order savedOrder = orderRepository.save(order);
 
@@ -327,7 +337,7 @@ public class OrderController {
                 .company(order.getCompany())
                 .order(order)
                 .type("INCOME")
-                .amount(order.getCollectedPrice())
+                .amount(actualAmount)
                 .category("ORDER_PAYMENT")
                 .description("Kuryerdan topshirib olingan naqd pul: Buyurtma #" + order.getId().toString().substring(0, 8))
                 .build();
