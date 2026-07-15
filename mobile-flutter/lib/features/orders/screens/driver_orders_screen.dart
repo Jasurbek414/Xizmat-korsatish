@@ -125,8 +125,10 @@ class _DriverOrdersScreenState extends State<DriverOrdersScreen> {
                         itemCount: filteredOrders.length,
                         itemBuilder: (context, index) {
                           final order = filteredOrders[index];
+                          final statuses = state is OrdersLoaded ? state.statuses : const <OrderStatusInfo>[];
                           return OrderCard(
                             order: order,
+                            statuses: statuses,
                             onReject: () => _confirmReject(context, order),
                           );
                         },

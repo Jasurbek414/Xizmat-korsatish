@@ -8,11 +8,13 @@ import '../bloc/orders_cubit.dart';
 
 class OrderCard extends StatelessWidget {
   final Order order;
+  final List<OrderStatusInfo> statuses;
   final VoidCallback onReject;
 
   const OrderCard({
     super.key,
     required this.order,
+    required this.statuses,
     required this.onReject,
   });
 
@@ -125,7 +127,7 @@ class OrderCard extends StatelessWidget {
             )
           else
             Column(
-              children: order.items.map((item) => _CarpetItemWidget(order: order, item: item)).toList(),
+              children: order.items.map((item) => _CarpetItemWidget(order: order, statuses: statuses, item: item)).toList(),
             ),
 
           const SizedBox(height: 12),
@@ -272,9 +274,54 @@ class OrderCard extends StatelessWidget {
 
 class _CarpetItemWidget extends StatelessWidget {
   final Order order;
+  final List<OrderStatusInfo> statuses;
   final OrderItemInfo item;
 
-  const _CarpetItemWidget({required this.order, required this.item});
+  const _CarpetItemWidget({
+    required this.order,
+    required this.statuses,
+    required this.item,
+  });
+
+  String _getStatusLabel(String targetStep, String defaultValue) {
+    if (statuses.isEmpty) return defaultValue;
+
+    // Sort statuses by sortOrder
+    final sorted = [...statuses]..sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
+
+    switch (targetStep) {
+      case 'ACCEPTED':
+        // The first status is usually the accepted status
+        return sorted.first.nameUz;
+      case 'WASHED':
+        // The third status is usually "Bajarilmoqda" (Washing/In progress)
+        if (sorted.length >= 3) {
+          return sorted[2].nameUz;
+        }
+        return defaultValue;
+      case 'DRIED':
+        // Try to search for status names containing "qurit"
+        final found = sorted.firstWhere(
+          (s) => s.nameUz.toLowerCase().contains('qurit'),
+          orElse: () => sorted.firstWhere(
+            (s) => s.nameRu.toLowerCase().contains('суш') || s.nameEn.toLowerCase().contains('dry'),
+            orElse: () {
+              // If there are 5 or more statuses, the fourth status is usually the drying status
+              if (sorted.length >= 5) {
+                return sorted[3];
+              }
+              return OrderStatusInfo(id: '', nameUz: defaultValue, nameRu: '', nameEn: '', colorCode: '', sortOrder: 0);
+            }
+          ),
+        );
+        return found.nameUz;
+      case 'READY':
+        // The last status is usually the completed/ready status
+        return sorted.last.nameUz;
+      default:
+        return defaultValue;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -316,7 +363,7 @@ class _CarpetItemWidget extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               _CheckboxStep(
-                label: "Qabul",
+                label: _getStatusLabel('ACCEPTED', "Qabul"),
                 checked: _isAtLeast(item.status, 'ACCEPTED'),
                 onChanged: (val) {
                   if (val == true) {
@@ -325,21 +372,21 @@ class _CarpetItemWidget extends StatelessWidget {
                 },
               ),
               _CheckboxStep(
-                label: "Yuvildi",
+                label: _getStatusLabel('WASHED', "Yuvildi"),
                 checked: _isAtLeast(item.status, 'WASHED'),
                 onChanged: (val) {
                   context.read<OrdersCubit>().changeOrderItemStatus(order, item, val == true ? 'WASHED' : 'ACCEPTED');
                 },
               ),
               _CheckboxStep(
-                label: "Quritish",
+                label: _getStatusLabel('DRIED', "Quritish"),
                 checked: _isAtLeast(item.status, 'DRIED'),
                 onChanged: (val) {
                   context.read<OrdersCubit>().changeOrderItemStatus(order, item, val == true ? 'DRIED' : 'WASHED');
                 },
               ),
               _CheckboxStep(
-                label: "Tayyor",
+                label: _getStatusLabel('READY', "Tayyor"),
                 checked: _isAtLeast(item.status, 'READY'),
                 onChanged: (val) {
                   context.read<OrdersCubit>().changeOrderItemStatus(order, item, val == true ? 'READY' : 'DRIED');
