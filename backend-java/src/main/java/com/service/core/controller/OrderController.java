@@ -73,7 +73,7 @@ public class OrderController {
     }
 
     @PostMapping
-    @PreAuthorize("hasAnyRole('SUPERADMIN','ADMIN','MANAGER','DISPATCHER')")
+    @PreAuthorize("hasAnyRole('SUPERADMIN','ADMIN','MANAGER','DISPATCHER','WORKER_DRIVER','WORKER_FACTORY')")
     public ResponseEntity<?> createOrder(@RequestBody Map<String, Object> request) {
         String tenantId = TenantContext.getCurrentTenant();
         if (tenantId == null) {

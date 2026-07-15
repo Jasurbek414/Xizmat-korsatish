@@ -45,17 +45,22 @@ const Finance = ({ tab }) => {
   const [pendingHandovers, setPendingHandovers] = useState([]);
   const [pendingHandoversSum, setPendingHandoversSum] = useState(0);
 
+  // Pending Transactions from Drivers
+  const [pendingTransactions, setPendingTransactions] = useState([]);
+  const [pendingTransactionsSum, setPendingTransactionsSum] = useState(0);
+
   // Form State
   const [newTx, setNewTx] = useState({ type: 'INCOME', amount: '', category: 'ORDER_PAYMENT', description: '', wallet_id: 'cash' });
 
   // Loading database items on mount or tab change
   const loadData = async () => {
     try {
-      const [txsData, statsData, ordersData, pendingHandoversData] = await Promise.all([
+      const [txsData, statsData, ordersData, pendingHandoversData, pendingTxsData] = await Promise.all([
         api.getTransactions(),
         api.getFinanceStats(),
         api.getOrders(),
-        api.getPendingHandovers()
+        api.getPendingHandovers(),
+        api.getPendingTransactions()
       ]);
 
       const mappedTxs = txsData.map(t => ({
@@ -71,9 +76,13 @@ const Finance = ({ tab }) => {
       setTransactions(mappedTxs);
       setOrdersList(ordersData);
       setPendingHandovers(pendingHandoversData || []);
+      setPendingTransactions(pendingTxsData || []);
       
       const pHSum = (pendingHandoversData || []).reduce((sum, o) => sum + (o.collectedPrice || 0), 0);
       setPendingHandoversSum(pHSum);
+
+      const pTxSum = (pendingTxsData || []).reduce((sum, t) => sum + (t.amount || 0), 0);
+      setPendingTransactionsSum(pTxSum);
 
       setTotals({
         income: statsData.totalIncome,
@@ -164,6 +173,17 @@ const Finance = ({ tab }) => {
       loadData();
     } catch (err) {
       console.error("Failed to confirm cash handover:", err);
+      window.alert("Xatolik yuz berdi: " + (err.message || err));
+    }
+  };
+
+  const handleConfirmTransaction = async (txId) => {
+    if (!window.confirm("Ushbu kuryer tranzaksiyasini tasdiqlab, kassaga qabul qilasizmi?")) return;
+    try {
+      await api.confirmTransaction(txId);
+      loadData();
+    } catch (err) {
+      console.error("Failed to confirm transaction:", err);
       window.alert("Xatolik yuz berdi: " + (err.message || err));
     }
   };
@@ -440,6 +460,56 @@ const Finance = ({ tab }) => {
                       className="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-[8px] transition cursor-pointer shadow-xs whitespace-nowrap"
                     >
                       Qabul qildim
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {pendingTransactions.length > 0 && (
+            <div className="glass-card p-5 rounded-2xl border border-slate-200 dark:border-white/5 bg-white dark:bg-[#111827]/80 space-y-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h4 className="text-xs font-extrabold text-slate-800 dark:text-white tracking-tight flex items-center gap-1.5 font-['Outfit']">
+                    💰 Tasdiq kutayotgan tranzaksiyalar (Kuryerlar kiritgan)
+                  </h4>
+                  <p className="text-[10px] text-slate-400 dark:text-gray-500 font-medium">
+                    Kuryerlar tomonidan qo'shilgan, lekin hali buxgalter tasdiqlamagan kirim va chiqim operatsiyalari
+                  </p>
+                </div>
+                <span className="text-[10px] font-bold text-indigo-600 bg-indigo-500/10 px-2 py-0.5 rounded-md">
+                  {pendingTransactions.length} ta kutilmoqda
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {pendingTransactions.map(tx => (
+                  <div key={tx.id} className="p-3 rounded-xl border border-slate-200 dark:border-white/5 bg-slate-50 dark:bg-white/2 flex items-center justify-between gap-3 text-[10px]">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-1">
+                        <span className="font-extrabold text-slate-700 dark:text-gray-300">
+                          {tx.worker ? tx.worker.fullName : "Kuryer"}
+                        </span>
+                        <span className={`px-1.5 py-0.2 rounded text-[7px] font-extrabold ${tx.type === 'INCOME' ? 'text-emerald-600 bg-emerald-500/10' : 'text-rose-600 bg-rose-500/10'}`}>
+                          {tx.type === 'INCOME' ? 'KIRIM' : 'CHIQIM'}
+                        </span>
+                      </div>
+                      <p className="text-slate-400 text-[8px] font-medium leading-none">
+                        Kategoriya: {tx.category === 'ORDER_PAYMENT' ? 'Buyurtma to\'lovi' : tx.category === 'FUEL' ? 'Yoqilg\'i' : tx.category === 'SALARY' ? 'Ish haqi' : tx.category === 'CAR_REPAIR' ? 'Avto ta\'mirlash' : tx.category}
+                      </p>
+                      <p className="text-slate-400 text-[8px] font-medium leading-none">
+                        Izoh: {tx.description || "Izoh yo'q"}
+                      </p>
+                      <p className={`text-[9px] font-bold font-['Outfit'] ${tx.type === 'INCOME' ? 'text-emerald-600' : 'text-rose-600'}`}>
+                        {tx.type === 'INCOME' ? '+' : '-'}{new Intl.NumberFormat('uz-UZ').format(tx.amount)} UZS
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => handleConfirmTransaction(tx.id)}
+                      className="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-[8px] transition cursor-pointer shadow-xs whitespace-nowrap"
+                    >
+                      Tasdiqlash
                     </button>
                   </div>
                 ))}

@@ -104,4 +104,27 @@ class OrdersCubit extends Cubit<OrdersState> {
       emit(OrdersError(e.message));
     }
   }
+
+  Future<void> createOrder({
+    required String clientId,
+    required String serviceId,
+    required String workerId,
+    required String address,
+    required double price,
+    required String description,
+  }) async {
+    try {
+      await _repository.createOrder(
+        clientId: clientId,
+        serviceId: serviceId,
+        workerId: workerId,
+        address: address,
+        price: price,
+        description: description,
+      );
+      await load();
+    } on ApiException catch (e) {
+      emit(OrdersError(e.message));
+    }
+  }
 }

@@ -1,5 +1,6 @@
 import '../../../core/network/api_client.dart';
 import '../../../models/order.dart';
+import '../../../models/service_and_client.dart';
 
 class OrdersRepository {
   final ApiClient _api;
@@ -53,5 +54,48 @@ class OrdersRepository {
       '/gps/log',
       data: {'latitude': latitude, 'longitude': longitude},
     );
+  }
+
+  Future<List<ServiceInfo>> fetchServices() async {
+    final data = await _api.get('/services') as List;
+    return data
+        .cast<Map<String, dynamic>>()
+        .map(ServiceInfo.fromJson)
+        .toList();
+  }
+
+  Future<List<ClientInfo>> fetchClients() async {
+    final data = await _api.get('/clients') as List;
+    return data
+        .cast<Map<String, dynamic>>()
+        .map(ClientInfo.fromJson)
+        .toList();
+  }
+
+  Future<ClientInfo> createClient(String fullName, String phone, String address) async {
+    final data = await _api.post('/clients', data: {
+      'full_name': fullName,
+      'phone': phone,
+      'address': address,
+    }) as Map<String, dynamic>;
+    return ClientInfo.fromJson(data);
+  }
+
+  Future<void> createOrder({
+    required String clientId,
+    required String serviceId,
+    required String workerId,
+    required String address,
+    required double price,
+    required String description,
+  }) {
+    return _api.post('/orders', data: {
+      'client_id': clientId,
+      'service_id': serviceId,
+      'worker_id': workerId,
+      'address': address,
+      'price': price,
+      'description': description,
+    });
   }
 }

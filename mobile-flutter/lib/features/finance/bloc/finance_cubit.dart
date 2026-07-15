@@ -36,4 +36,25 @@ class FinanceCubit extends Cubit<FinanceState> {
       emit(FinanceError("Moliyaviy ma'lumotlarni yuklashda xatolik"));
     }
   }
+
+  Future<void> addTransaction({
+    required String type,
+    required double amount,
+    required String category,
+    required String description,
+  }) async {
+    try {
+      await _repository.createTransaction(
+        type: type,
+        amount: amount,
+        category: category,
+        description: description,
+      );
+      await load();
+    } on ApiException catch (e) {
+      emit(FinanceError(e.message));
+    } catch (_) {
+      emit(FinanceError("Tranzaksiyani saqlashda xatolik"));
+    }
+  }
 }

@@ -246,6 +246,21 @@ export const api = {
     return handleResponse(res);
   },
 
+  async getPendingTransactions() {
+    const res = await fetch(`${API_BASE_URL}/finance/pending-transactions`, {
+      headers: getHeaders()
+    });
+    return handleResponse(res);
+  },
+
+  async confirmTransaction(txId) {
+    const res = await fetch(`${API_BASE_URL}/finance/transactions/${txId}/confirm`, {
+      method: 'PUT',
+      headers: getHeaders()
+    });
+    return handleResponse(res);
+  },
+
   async confirmHandover(orderId, actualAmount = null) {
     const body = actualAmount !== null ? JSON.stringify({ actual_amount: actualAmount }) : undefined;
     const res = await fetch(`${API_BASE_URL}/orders/${orderId}/confirm-handover`, {

@@ -4,7 +4,6 @@ import 'package:lucide_icons/lucide_icons.dart';
 import '../../../core/theme.dart';
 import '../bloc/finance_cubit.dart';
 
-/// Menejer/admin uchun kompaniyaning joriy moliyaviy balansi xulosasi.
 class FinanceSummaryScreen extends StatelessWidget {
   const FinanceSummaryScreen({super.key});
 
@@ -58,10 +57,161 @@ class FinanceSummaryScreen extends StatelessWidget {
                     ),
                   ],
                 ),
+                const SizedBox(height: 24),
+                const Text(
+                  "Tranzaksiya qo'shish",
+                  style: TextStyle(
+                    fontFamily: 'Outfit',
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14,
+                    color: Colors.white,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Expanded(
+                      child: ElevatedButton.icon(
+                        onPressed: () => _showAddTransactionDialog(context, 'INCOME'),
+                        icon: const Icon(LucideIcons.plusCircle, size: 16),
+                        label: const Text('Kirim qilish', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppTheme.successColor,
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: ElevatedButton.icon(
+                        onPressed: () => _showAddTransactionDialog(context, 'EXPENSE'),
+                        icon: const Icon(LucideIcons.minusCircle, size: 16),
+                        label: const Text('Chiqim qilish', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppTheme.dangerColor,
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ],
             ),
           );
         },
+      ),
+    );
+  }
+
+  void _showAddTransactionDialog(BuildContext context, String type) {
+    final amountController = TextEditingController();
+    final descriptionController = TextEditingController();
+    final financeCubit = context.read<FinanceCubit>();
+
+    final categories = type == 'INCOME'
+        ? ['ORDER_PAYMENT', 'OTHER']
+        : ['FUEL', 'SALARY', 'CAR_REPAIR', 'OTHER'];
+        
+    String selectedCategory = categories.first;
+
+    showDialog(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (dialogContext, setDialogState) => AlertDialog(
+          backgroundColor: const Color(0xff1f2937),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: Text(
+            type == 'INCOME' ? "Kirim qo'shish" : "Chiqim qo'shish",
+            style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold),
+          ),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: amountController,
+                  keyboardType: TextInputType.number,
+                  style: const TextStyle(color: Colors.white, fontSize: 13),
+                  decoration: const InputDecoration(
+                    labelText: "Summa (so'm)",
+                    labelStyle: TextStyle(color: Colors.white54, fontSize: 11),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                DropdownButtonFormField<String>(
+                  value: selectedCategory,
+                  dropdownColor: const Color(0xff1f2937),
+                  style: const TextStyle(color: Colors.white, fontSize: 13),
+                  decoration: const InputDecoration(
+                    labelText: "Kategoriya",
+                    labelStyle: TextStyle(color: Colors.white54, fontSize: 11),
+                  ),
+                  items: categories.map((cat) {
+                    return DropdownMenuItem<String>(
+                      value: cat,
+                      child: Text(cat == 'ORDER_PAYMENT'
+                          ? "Buyurtma to'lovi"
+                          : cat == 'FUEL'
+                              ? "Yoqilg'i"
+                              : cat == 'SALARY'
+                                  ? "Ish haqi"
+                                  : cat == 'CAR_REPAIR'
+                                      ? "Mashina ta'mirlash"
+                                      : "Boshqa"),
+                    );
+                  }).toList(),
+                  onChanged: (val) {
+                    if (val != null) {
+                      setDialogState(() {
+                        selectedCategory = val;
+                      });
+                    }
+                  },
+                ),
+                const SizedBox(height: 10),
+                TextField(
+                  controller: descriptionController,
+                  style: const TextStyle(color: Colors.white, fontSize: 13),
+                  decoration: const InputDecoration(
+                    labelText: "Tavsif / Izoh",
+                    labelStyle: TextStyle(color: Colors.white54, fontSize: 11),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text("Bekor qilish", style: TextStyle(color: Colors.white54, fontSize: 12)),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                final amount = double.tryParse(amountController.text) ?? 0.0;
+                if (amount <= 0) {
+                  ScaffoldMessenger.of(dialogContext).showSnackBar(
+                    const SnackBar(content: Text("Iltimos, to'g'ri summa kiriting")),
+                  );
+                  return;
+                }
+                Navigator.pop(dialogContext);
+                
+                financeCubit.addTransaction(
+                  type: type,
+                  amount: amount,
+                  category: selectedCategory,
+                  description: descriptionController.text.trim(),
+                );
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: type == 'INCOME' ? AppTheme.successColor : AppTheme.dangerColor,
+              ),
+              child: const Text("Qo'shish", style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+            ),
+          ],
+        ),
       ),
     );
   }

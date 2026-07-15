@@ -39,6 +39,13 @@ public class Transaction {
     @Column(columnDefinition = "TEXT")
     private String description;
 
+    @Column(nullable = false, length = 50)
+    private String status; // PENDING, CONFIRMED
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "worker_id")
+    private User worker;
+
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
 

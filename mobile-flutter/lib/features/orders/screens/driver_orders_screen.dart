@@ -3,8 +3,10 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import '../../../core/theme.dart';
 import '../../../models/order.dart';
+import '../../auth/bloc/auth_bloc.dart';
 import '../bloc/orders_cubit.dart';
 import '../widgets/order_card.dart';
+import 'create_order_screen.dart';
 
 /// Haydovchi/ishchi/sex hodimiga tayinlangan buyurtmalar ro'yxati.
 /// Har bir buyurtmani keyingi bosqichga o'tkazish yoki rad etish mumkin.
@@ -55,86 +57,111 @@ class _DriverOrdersScreenState extends State<DriverOrdersScreen> {
               o.description.toLowerCase().contains(query);
         }).toList();
 
-        return Column(
-          children: [
-            // Qidiruv paneli
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-              child: TextField(
-                controller: _searchController,
-                style: const TextStyle(color: Colors.white, fontSize: 13),
-                onChanged: (val) {
-                  setState(() {
-                    _searchQuery = val;
-                  });
-                },
-                decoration: InputDecoration(
-                  hintText: "Mijoz nomi, telefon yoki manzil bo'yicha qidirish...",
-                  hintStyle: const TextStyle(color: Colors.white30, fontSize: 12),
-                  prefixIcon: const Icon(LucideIcons.search, size: 16, color: Colors.white54),
-                  suffixIcon: _searchQuery.isNotEmpty
-                      ? IconButton(
-                          icon: const Icon(LucideIcons.x, size: 16, color: Colors.white54),
-                          onPressed: () {
-                            _searchController.clear();
-                            setState(() {
-                              _searchQuery = "";
-                            });
-                          },
-                        )
-                      : null,
-                  filled: true,
-                  fillColor: AppTheme.cardColor.withOpacity(0.3),
-                  contentPadding: const EdgeInsets.symmetric(vertical: 8),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide(color: Colors.white.withOpacity(0.05)),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: const BorderSide(color: AppTheme.accentColor, width: 1),
-                  ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide(color: Colors.white.withOpacity(0.05)),
+        final authState = context.read<AuthBloc>().state;
+        String currentUserId = '';
+        if (authState is Authenticated) {
+          currentUserId = authState.user.id;
+        }
+
+        return Scaffold(
+          backgroundColor: Colors.transparent,
+          body: Column(
+            children: [
+              // Qidiruv paneli
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+                child: TextField(
+                  controller: _searchController,
+                  style: const TextStyle(color: Colors.white, fontSize: 13),
+                  onChanged: (val) {
+                    setState(() {
+                      _searchQuery = val;
+                    });
+                  },
+                  decoration: InputDecoration(
+                    hintText: "Mijoz nomi, telefon yoki manzil bo'yicha qidirish...",
+                    hintStyle: const TextStyle(color: Colors.white30, fontSize: 12),
+                    prefixIcon: const Icon(LucideIcons.search, size: 16, color: Colors.white54),
+                    suffixIcon: _searchQuery.isNotEmpty
+                        ? IconButton(
+                            icon: const Icon(LucideIcons.x, size: 16, color: Colors.white54),
+                            onPressed: () {
+                              _searchController.clear();
+                              setState(() {
+                                _searchQuery = "";
+                              });
+                            },
+                          )
+                        : null,
+                    filled: true,
+                    fillColor: AppTheme.cardColor.withOpacity(0.3),
+                    contentPadding: const EdgeInsets.symmetric(vertical: 8),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(color: Colors.white.withOpacity(0.05)),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: const BorderSide(color: AppTheme.accentColor, width: 1),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(color: Colors.white.withOpacity(0.05)),
+                    ),
                   ),
                 ),
               ),
-            ),
 
-            // Buyurtmalar ro'yxati
-            Expanded(
-              child: RefreshIndicator(
-                onRefresh: () => context.read<OrdersCubit>().load(),
-                child: filteredOrders.isEmpty
-                    ? ListView(
-                        children: [
-                          const SizedBox(height: 120),
-                          Center(
-                            child: Text(
-                              _searchQuery.isNotEmpty
-                                  ? "Qidiruv bo'yicha buyurtma topilmadi"
-                                  : "Hozircha sizga tayinlangan buyurtma yo'q",
-                              style: const TextStyle(color: AppTheme.textSecondary),
+              // Buyurtmalar ro'yxati
+              Expanded(
+                child: RefreshIndicator(
+                  onRefresh: () => context.read<OrdersCubit>().load(),
+                  child: filteredOrders.isEmpty
+                      ? ListView(
+                          children: [
+                            const SizedBox(height: 120),
+                            Center(
+                              child: Text(
+                                _searchQuery.isNotEmpty
+                                    ? "Qidiruv bo'yicha buyurtma topilmadi"
+                                    : "Hozircha sizga tayinlangan buyurtma yo'q",
+                                style: const TextStyle(color: AppTheme.textSecondary),
+                              ),
                             ),
-                          ),
-                        ],
-                      )
-                    : ListView.builder(
-                        padding: const EdgeInsets.all(16),
-                        itemCount: filteredOrders.length,
-                        itemBuilder: (context, index) {
-                          final order = filteredOrders[index];
-                          final statuses = state is OrdersLoaded ? state.statuses : const <OrderStatusInfo>[];
-                          return OrderCard(
-                            order: order,
-                            statuses: statuses,
-                          );
-                        },
-                      ),
+                          ],
+                        )
+                      : ListView.builder(
+                          padding: const EdgeInsets.all(16),
+                          itemCount: filteredOrders.length,
+                          itemBuilder: (context, index) {
+                            final order = filteredOrders[index];
+                            final statuses = state is OrdersLoaded ? state.statuses : const <OrderStatusInfo>[];
+                            return OrderCard(
+                              order: order,
+                              statuses: statuses,
+                            );
+                          },
+                        ),
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
+          floatingActionButton: FloatingActionButton(
+            backgroundColor: AppTheme.successColor,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (routeContext) => BlocProvider.value(
+                    value: context.read<OrdersCubit>(),
+                    child: CreateOrderScreen(currentUserId: currentUserId),
+                  ),
+                ),
+              );
+            },
+            child: const Icon(LucideIcons.plus, color: Colors.white),
+          ),
         );
       },
     );

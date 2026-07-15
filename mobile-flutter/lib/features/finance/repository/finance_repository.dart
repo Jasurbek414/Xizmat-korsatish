@@ -29,4 +29,18 @@ class FinanceRepository {
     final data = await _api.get('/finance/stats');
     return FinanceStats.fromJson(Map<String, dynamic>.from(data as Map));
   }
+
+  Future<void> createTransaction({
+    required String type,
+    required double amount,
+    required String category,
+    required String description,
+  }) {
+    return _api.post('/finance/transactions', data: {
+      'type': type,
+      'amount': amount,
+      'category': category,
+      'description': description,
+    });
+  }
 }
