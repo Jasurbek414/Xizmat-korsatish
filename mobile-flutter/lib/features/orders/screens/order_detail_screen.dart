@@ -214,35 +214,8 @@ class OrderDetailScreen extends StatelessWidget {
           ),
           bottomSheet: Container(
             color: AppTheme.darkBackground,
-            padding: const EdgeInsets.all(16),
-            child: Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: () => _confirmReject(context, order),
-                    icon: const Icon(LucideIcons.x, size: 16, color: AppTheme.dangerColor),
-                    label: const Text('Rad etish', style: TextStyle(color: AppTheme.dangerColor)),
-                    style: OutlinedButton.styleFrom(
-                      side: const BorderSide(color: AppTheme.dangerColor),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: ElevatedButton.icon(
-                    onPressed: () => context.read<OrdersCubit>().advanceToNextStatus(order),
-                    icon: const Icon(LucideIcons.arrowRight, size: 16),
-                    label: const Text('Bosqich'),
-                    style: ElevatedButton.styleFrom(
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                    ),
-                  ),
-                ),
-              ],
-            ),
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+            child: _buildBottomAction(context, order, state.statuses),
           ),
         );
       },
@@ -257,26 +230,133 @@ class OrderDetailScreen extends StatelessWidget {
     return Color(int.parse(buffer.toString(), radix: 16));
   }
 
-  void _confirmReject(BuildContext context, Order order) {
+  Widget _buildBottomAction(BuildContext context, Order order, List<OrderStatusInfo> statuses) {
+    final sorted = [...statuses]..sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
+    final currentIndex = sorted.indexWhere((s) => s.id == order.status?.id);
+    final isLastStatus = currentIndex == sorted.length - 1 || order.status?.id == 'b4444444-4444-4444-4444-444444444444';
+
+    if (isLastStatus) {
+      if (order.paymentStatus == 'PENDING') {
+        return SizedBox(
+          width: double.infinity,
+          child: ElevatedButton.icon(
+            onPressed: () => _showCollectPaymentDialog(context, order),
+            icon: const Icon(LucideIcons.wallet, size: 18),
+            label: const Text('Chiqim qilish (Topshirish)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppTheme.successColor,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              padding: const EdgeInsets.symmetric(vertical: 14),
+            ),
+          ),
+        );
+      } else {
+        return Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(vertical: 14),
+          decoration: BoxDecoration(
+            color: AppTheme.successColor.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: AppTheme.successColor.withOpacity(0.3)),
+          ),
+          child: const Center(
+            child: Text(
+              "Mijozga topshirildi",
+              style: TextStyle(color: AppTheme.successColor, fontWeight: FontWeight.bold, fontSize: 13),
+            ),
+          ),
+        );
+      }
+    }
+
+    final nextStatus = (currentIndex != -1 && currentIndex < sorted.length - 1)
+        ? sorted[currentIndex + 1]
+        : null;
+    final nextLabel = nextStatus != null ? nextStatus.nameUz : "Keyingi bosqich";
+
+    return SizedBox(
+      width: double.infinity,
+      child: ElevatedButton.icon(
+        onPressed: () => context.read<OrdersCubit>().advanceToNextStatus(order),
+        icon: const Icon(LucideIcons.arrowRight, size: 16),
+        label: Text("Bosqich: $nextLabel"),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: AppTheme.accentColor,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          padding: const EdgeInsets.symmetric(vertical: 14),
+        ),
+      ),
+    );
+  }
+
+  void _showCollectPaymentDialog(BuildContext context, Order order) {
+    final amountController = TextEditingController(text: order.price.toStringAsFixed(0));
+    final ordersCubit = context.read<OrdersCubit>();
+
     showDialog(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('Buyurtmani rad etish'),
-        content: const Text(
-          "Haqiqatan ham bu buyurtmani rad etmoqchimisiz? U dispetcherga qaytariladi.",
+        backgroundColor: const Color(0xff1f2937),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text(
+          "Chiqim qilish (To'lovni qabul qilish)",
+          style: TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              "Buyurtma summasi: ${order.price.toStringAsFixed(0)} so'm",
+              style: const TextStyle(color: AppTheme.textSecondary, fontSize: 12),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: amountController,
+              keyboardType: TextInputType.number,
+              style: const TextStyle(color: Colors.white, fontSize: 13),
+              decoration: const InputDecoration(
+                labelText: "Olingan summa (so'm)",
+                labelStyle: TextStyle(color: Colors.white54, fontSize: 11),
+              ),
+            ),
+          ],
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(dialogContext),
-            child: const Text('Bekor qilish'),
+            child: const Text("Bekor qilish", style: TextStyle(color: Colors.white54, fontSize: 12)),
           ),
-          TextButton(
-            onPressed: () {
+          ElevatedButton(
+            onPressed: () async {
+              final amount = double.tryParse(amountController.text) ?? 0.0;
+              if (amount < 0) {
+                ScaffoldMessenger.of(dialogContext).showSnackBar(
+                  const SnackBar(content: Text("Iltimos, to'g'ri summa kiriting")),
+                );
+                return;
+              }
               Navigator.pop(dialogContext);
-              Navigator.pop(context);
-              context.read<OrdersCubit>().reject(order);
+
+              try {
+                await ordersCubit.collectOrderPayment(order, amount);
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text("Buyurtma topshirildi, to'lov qabul qilindi")),
+                  );
+                }
+              } catch (e) {
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text("Xatolik yuz berdi: $e")),
+                  );
+                }
+              }
             },
-            child: const Text('Rad etish', style: TextStyle(color: AppTheme.dangerColor)),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppTheme.successColor,
+            ),
+            child: const Text("Tasdiqlash", style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
           ),
         ],
       ),
