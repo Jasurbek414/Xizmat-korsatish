@@ -40,6 +40,11 @@ public class SecurityConfig {
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/api/v1/auth/login", "/api/v1/auth/subdomain/**").permitAll()
+                // /ws/telephony JWT tekshiruvi Spring Security filter zanjirida emas,
+                // TelephonyHandshakeInterceptor'da (WebSocket handshake bosqichida) amalga
+                // oshiriladi - shuning uchun bu yerda ham ruxsat berilishi kerak, lekin
+                // haqiqiy autentifikatsiya interceptor darajasida majburiy.
+                .requestMatchers("/ws/telephony", "/ws/telephony/**").permitAll()
                 .anyRequest().authenticated()
             )
             .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);

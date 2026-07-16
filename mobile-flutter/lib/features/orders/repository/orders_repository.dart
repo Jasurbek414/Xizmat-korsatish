@@ -19,10 +19,6 @@ class OrdersRepository {
     return _api.put('/orders/$orderId/status', data: {'status_id': statusId});
   }
 
-  Future<void> rejectOrder(String orderId) {
-    return _api.put('/orders/$orderId/reject');
-  }
-
   Future<void> collectPayment(String orderId, double amount) {
     return _api.put('/orders/$orderId/collect-payment', data: {'amount': amount});
   }

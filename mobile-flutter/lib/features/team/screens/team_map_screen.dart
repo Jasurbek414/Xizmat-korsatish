@@ -55,6 +55,12 @@ class TeamMapScreen extends StatelessWidget {
               )
               .toList(),
         ),
+        const RichAttributionWidget(
+          alignment: AttributionAlignment.bottomLeft,
+          attributions: [
+            TextSourceAttribution('© OpenStreetMap contributors'),
+          ],
+        ),
       ],
     );
   }

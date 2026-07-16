@@ -7,9 +7,7 @@ plugins {
 
 android {
     namespace = "com.service.core.mobile_flutter"
-    // mobile_scanner (androidx.camera 1.5.0) compileSdk >=35 talab qiladi -
-    // flutter.compileSdkVersion() bilan kelgan standart qiymatdan yuqoriroq.
-    compileSdk = 36
+    compileSdk = flutter.compileSdkVersion
     ndkVersion = "27.0.12077973"
 
     compileOptions {
@@ -28,8 +26,7 @@ android {
         applicationId = "com.service.core.mobile_flutter"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
-        // mobile_scanner (androidx.camera) kamida minSdk 23 talab qiladi.
-        minSdk = 23
+        minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode()
         versionName = flutter.versionName()

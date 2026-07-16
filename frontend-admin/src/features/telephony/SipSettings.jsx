@@ -1,7 +1,7 @@
 import React from 'react';
-import { Settings, Save } from 'lucide-react';
+import { Settings, Save, Trash2 } from 'lucide-react';
 
-const SipSettings = ({ sipSettings, setSipSettings, handleSaveSettings }) => {
+const SipSettings = ({ sipSettings, setSipSettings, handleSaveSettings, handleDeleteSettings }) => {
   return (
     <div className="glass-card p-5 rounded-2xl bg-white dark:bg-[#111827] border border-slate-200 dark:border-white/5 shadow-sm space-y-4">
       <h3 className="text-sm font-bold text-slate-800 dark:text-white flex items-center gap-2 border-b border-slate-100 dark:border-white/5 pb-2 font-['Outfit']">
@@ -9,18 +9,6 @@ const SipSettings = ({ sipSettings, setSipSettings, handleSaveSettings }) => {
       </h3>
 
       <form onSubmit={handleSaveSettings} className="space-y-3">
-        <div>
-          <label className="block text-slate-500 dark:text-gray-400 mb-1">WebSocket Gateway Server (WSS / WS)</label>
-          <input 
-            type="text"
-            value={sipSettings.ws_server || ''}
-            onChange={(e) => setSipSettings({ ...sipSettings, ws_server: e.target.value })}
-            placeholder="ws://127.0.0.1:8089"
-            className="w-full glass-input rounded-lg px-2.5 py-1.5 text-slate-800 dark:text-white focus:outline-none"
-            required
-          />
-        </div>
-
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label className="block text-slate-500 dark:text-gray-400 mb-1">SIP Server</label>
@@ -79,12 +67,17 @@ const SipSettings = ({ sipSettings, setSipSettings, handleSaveSettings }) => {
           />
         </div>
 
-        <div className="flex justify-between items-center pt-2">
-          <div>
-            <label className="text-[10px] text-slate-400 block">Driver WebSocket Port</label>
-            <span className="font-mono text-slate-500 text-[10px]">ws://127.0.0.1:{sipSettings.ws_port || '8089'}</span>
-          </div>
-          <button 
+        <div className="flex justify-end items-center gap-2 pt-2">
+          {sipSettings.id && handleDeleteSettings && (
+            <button
+              type="button"
+              onClick={handleDeleteSettings}
+              className="bg-rose-500/10 text-rose-600 border border-rose-500/20 px-3.5 py-1.5 rounded-xl text-[10px] font-bold flex items-center gap-1 shadow-sm cursor-pointer hover:bg-rose-500/20"
+            >
+              <Trash2 className="w-3.5 h-3.5" /> O'chirish
+            </button>
+          )}
+          <button
             type="submit"
             className="premium-btn text-white px-3.5 py-1.5 rounded-xl text-[10px] font-bold flex items-center gap-1 shadow-sm cursor-pointer border border-transparent"
           >

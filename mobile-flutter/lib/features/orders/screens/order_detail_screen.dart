@@ -233,7 +233,7 @@ class OrderDetailScreen extends StatelessWidget {
   Widget _buildBottomAction(BuildContext context, Order order, List<OrderStatusInfo> statuses) {
     final sorted = [...statuses]..sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
     final currentIndex = sorted.indexWhere((s) => s.id == order.status?.id);
-    final isLastStatus = currentIndex == sorted.length - 1 || order.status?.id == 'b4444444-4444-4444-4444-444444444444';
+    final isLastStatus = sorted.isNotEmpty && currentIndex == sorted.length - 1;
 
     if (isLastStatus) {
       if (order.paymentStatus == 'PENDING') {

@@ -23,7 +23,7 @@ class OrdersError extends OrdersState {
 }
 
 /// Haydovchi/ishchi/sex hodimiga tayinlangan buyurtmalar ro'yxati va ularning
-/// holatini boshqarish (qabul qilingandan keyingi bosqichlar, rad etish).
+/// holatini (qabul qilingandan keyingi bosqichlar) boshqarish.
 class OrdersCubit extends Cubit<OrdersState> {
   final OrdersRepository _repository;
 
@@ -63,15 +63,6 @@ class OrdersCubit extends Cubit<OrdersState> {
     final nextStatus = sorted[currentIndex + 1];
     try {
       await _repository.updateStatus(order.id, nextStatus.id);
-      await load();
-    } on ApiException catch (e) {
-      emit(OrdersError(e.message));
-    }
-  }
-
-  Future<void> reject(Order order) async {
-    try {
-      await _repository.rejectOrder(order.id);
       await load();
     } on ApiException catch (e) {
       emit(OrdersError(e.message));

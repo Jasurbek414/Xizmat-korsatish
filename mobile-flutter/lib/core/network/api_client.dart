@@ -9,7 +9,11 @@ import 'api_exception.dart';
 class ApiClient {
   final Dio _dio;
   final SecureStorageService _storage;
-  void Function()? onUnauthorized;
+
+  /// Har bir repository o'zining ApiClient nusxasini yaratadi, shuning uchun
+  /// bu callback instance emas, static: main.dart'da bir marta ulansa,
+  /// barcha nusxalarning 401 xatoligida ishga tushadi.
+  static void Function()? onUnauthorized;
 
   ApiClient({SecureStorageService? storage, Dio? dio})
     : _storage = storage ?? SecureStorageService(),
@@ -33,7 +37,7 @@ class ApiClient {
         },
         onError: (error, handler) {
           if (error.response?.statusCode == 401) {
-            onUnauthorized?.call();
+            ApiClient.onUnauthorized?.call();
           }
           handler.next(error);
         },

@@ -27,12 +27,28 @@ services:
       - JWT_SECRET=${JWT_SECRET}
       - CORS_ALLOWED_ORIGINS=${CORS_ALLOWED_ORIGINS:-http://localhost:3005}
       - FIREBASE_SERVICE_ACCOUNT_PATH=${FIREBASE_SERVICE_ACCOUNT_PATH:-}
+      # FreeSWITCH ESL bilan aloqa - parol pastdagi "freeswitch" xizmatiga
+      # o'rnatilgan qiymat bilan BIR XIL bo'lishi SHART, aks holda ESL
+      # autentifikatsiyasi muvaffaqiyatsiz tugaydi.
+      - FREESWITCH_ESL_HOST=freeswitch
+      - FREESWITCH_ESL_PASSWORD=${FREESWITCH_ESL_PASSWORD:-changeme_esl_password_dev_only}
+      # SIP hisob parollarini bazada shifrlash uchun (SipPasswordConverter).
+      - SIP_CREDENTIALS_KEY=${SIP_CREDENTIALS_KEY:-}
     # Push bildirishnomani yoqish uchun: Firebase Console'dan service account JSON kalitini
     # backend-java/firebase-service-account.json sifatida saqlang, keyin quyidagi qatorni
     # va yuqoridagi FIREBASE_SERVICE_ACCOUNT_PATH qiymatini ("/app/firebase-service-account.json")
     # .env faylida faollashtiring:
     # volumes:
     #   - ./backend-java/firebase-service-account.json:/app/firebase-service-account.json:ro
+    volumes:
+      # SipAccount yaratilganda FreeSwitchGatewayFileWriter shu papkaga gateway
+      # XML fayli yozadi - freeswitch xizmati buni sip_profiles/external ostida
+      # ko'rishi uchun ikkalasi ham SHU umumiy volume'ni ulashi kerak.
+      - freeswitch_gateways:/freeswitch-gateways
+      # Operatorning ichki SIP extension'i (Device) uchun - FreeSwitchExtensionFileWriter
+      # shu yerga yozadi, freeswitch xizmati buni directory/default ostida ko'radi.
+      # Bu MAVJUD gateway volume'dan BUTUNLAY ALOHIDA - trunk gateway'larga tegmaydi.
+      - freeswitch_extensions:/freeswitch-extensions
     depends_on:
       - db
     restart: always
@@ -49,6 +65,7 @@ services:
     container_name: service-core-tunnel
     restart: always
     network_mode: "service:proxy"
+    user: "root"
     command:
       - "tunnel"
       - "--no-autoupdate"
@@ -64,11 +81,84 @@ services:
     image: nginx:alpine
     container_name: service-core-proxy
     restart: always
+    dns:
+      - 1.1.1.1
+      - 8.8.8.8
     volumes:
       - ./proxy-nginx.conf:/etc/nginx/conf.d/default.conf
     depends_on:
       - frontend
       - backend
 
+  freeswitch:
+    image: safarov/freeswitch:latest
+    container_name: service-core-freeswitch
+    ports:
+      - "5060:5060/udp"
+      - "5060:5060/tcp"
+      - "7443:7443"
+      # 8021 (ESL) ATAYIN host'ga ochilmaydi - faqat ichki Docker tarmog'i
+      # orqali "backend" xizmati yetadi (avval bu port internetga to'g'ridan-to'g'ri
+      # ochiq edi va parol ham zaif "1234" edi - PBX'ni to'liq masofadan
+      # boshqarish xavfi bor edi).
+    environment:
+      - SOUND_RATES=8000:16000
+      - SOUND_LANGUAGES=en
+      # backend xizmatidagi FREESWITCH_ESL_PASSWORD bilan BIR XIL bo'lishi SHART.
+      - FREESWITCH_ESL_PASSWORD=${FREESWITCH_ESL_PASSWORD:-changeme_esl_password_dev_only}
+    volumes:
+      # FreeSwitchGatewayFileWriter (backend) shu papkaga yozadigan gateway
+      # fayllari - vanilla "external" Sofia profili bu papkadagi *.xml
+      # fayllarni avtomatik "include" qiladi (standart FreeSWITCH xatti-harakati).
+      - freeswitch_gateways:/etc/freeswitch/sip_profiles/external
+      # Operatorlarning ichki SIP extension'lari (FreeSwitchExtensionFileWriter,
+      # backend) - vanilla directory/default.xml o'zining "default/*.xml"
+      # fayllarini avtomatik "include" qiladi (tekshirilgan, gateway'lar bilan
+      # bir xil mexanizm). Trunk gateway volume'idan ALOHIDA.
+      - freeswitch_extensions:/etc/freeswitch/directory/default
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        if [ ! -f /etc/freeswitch/freeswitch.xml ]; then
+          mkdir -p /etc/freeswitch
+          cp -varf /usr/share/freeswitch/conf/vanilla/* /etc/freeswitch/
+        fi
+        sed -i "s/default_password=[^\"]*/default_password=$FREESWITCH_ESL_PASSWORD/" /etc/freeswitch/vars.xml
+        # Bu image'ning vanilla event_socket.conf.xml'i parolni $${default_password}
+        # o'zgaruvchisi orqali emas, "ClueCon" qiymatini TO'G'RIDAN-TO'G'RI (literal)
+        # yozadi - shuning uchun yuqoridagi vars.xml o'zgarishi bu yerga ta'sir
+        # qilmaydi, alohida almashtirish kerak (jonli konteynerda ESL "Connection
+        # refused"/parol nomuvofiqligi sifatida aniqlangan xato).
+        sed -i "s/value=\"ClueCon\"/value=\"$FREESWITCH_ESL_PASSWORD\"/" /etc/freeswitch/autoload_configs/event_socket.conf.xml
+        sed -i 's/value="::"/value="0.0.0.0"/' /etc/freeswitch/autoload_configs/event_socket.conf.xml
+        # Standart holatda mod_event_socket "loopback.auto" ACL'ni qo'llaydi
+        # (fayldagi <!--apply-inbound-acl--> izohlangan bo'lsa ham) - bu backend
+        # konteynerining Docker ichki tarmoq IP'sini rad etadi (jonli testda
+        # "IP ... Rejected by acl 'loopback.auto'" sifatida aniqlangan). Faqat
+        # "rfc1918.auto"ga almashtirish esa 127.0.0.1 (fs_cli/mahalliy konsol)ni
+        # buzadi (RFC1918 localhost'ni o'z ichiga olmaydi) - shuning uchun
+        # ikkalasini ham qamrab oladigan maxsus ACL qo'shamiz.
+        sed -i 's|<network-lists>|<network-lists>\n    <list name="esl_internal" default="deny">\n      <node type="allow" cidr="127.0.0.0/8"/>\n      <node type="allow" cidr="10.0.0.0/8"/>\n      <node type="allow" cidr="172.16.0.0/12"/>\n      <node type="allow" cidr="192.168.0.0/16"/>\n    </list>|' /etc/freeswitch/autoload_configs/acl.conf.xml
+        sed -i 's|<!--<param name="apply-inbound-acl" value="loopback.auto"/>-->|<param name="apply-inbound-acl" value="esl_internal"/>|' /etc/freeswitch/autoload_configs/event_socket.conf.xml
+        /usr/bin/freeswitch -nc -nf -nonat
+    # MUHIM: image'ning o'ziga o'rnatilgan standart HEALTHCHECK (fs_cli -x
+    # status, parolsiz) doim "unhealthy" ko'rsatardi - chunki biz ESL parolini
+    # standart "ClueCon"dan almashtirganmiz (yuqoridagi entrypoint'da), lekin
+    # image'ning /healthcheck.sh skripti buni bilmaydi. FreeSWITCH'ning o'zi
+    # sog'lom bo'lsa ham (jonli fs_cli -p buyruqlari bilan tasdiqlangan),
+    # Docker uni doim "unhealthy" deb ko'rsatardi - bu haqiqiy monitoring
+    # signalini ishonchsiz qilib qo'yardi. Endi to'g'ri parol bilan qayta
+    # belgilanadi.
+    healthcheck:
+      test: ["CMD-SHELL", "fs_cli -p \"$$FREESWITCH_ESL_PASSWORD\" -x status | grep -q ^UP || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: always
+
 volumes:
   postgres_data:
+  freeswitch_gateways:
+  freeswitch_extensions:

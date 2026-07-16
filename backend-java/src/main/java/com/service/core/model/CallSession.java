@@ -6,35 +6,37 @@ import java.time.LocalDateTime;
 import java.util.UUID;
 
 @Entity
-@Table(name = "calls")
+@Table(name = "call_sessions")
 @Getter
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class Call {
+public class CallSession {
 
     @Id
     @GeneratedValue(strategy = GenerationType.AUTO)
     private UUID id;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "company_id", nullable = false)
-    private Company company;
+    @JoinColumn(name = "sip_account_id")
+    private SipAccount sipAccount;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "dispatcher_id")
     private User dispatcher;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "client_id")
-    private Client client;
+    @Column(name = "client_phone", nullable = false, length = 50)
+    private String clientPhone;
 
     @Column(nullable = false, length = 20)
     private String direction; // INBOUND, OUTBOUND
 
+    @Column(nullable = false, length = 50)
+    private String status; // SUCCESS, NO_ANSWER, BUSY, FAILED, etc.
+
     @Column(nullable = false)
-    private Integer duration; // in seconds
+    private Integer duration;
 
     @Column(name = "recording_url", length = 512)
     private String recordingUrl;
@@ -45,5 +47,8 @@ public class Call {
     @PrePersist
     protected void onCreate() {
         createdAt = LocalDateTime.now();
+        if (duration == null) {
+            duration = 0;
+        }
     }
 }

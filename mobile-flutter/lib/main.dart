@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:hive_flutter/hive_flutter.dart';
+import 'core/network/api_client.dart';
 import 'core/theme.dart';
 import 'features/auth/bloc/auth_bloc.dart';
 import 'features/auth/screens/login_screen.dart';
@@ -16,13 +17,35 @@ void main() async {
   runApp(const MyApp());
 }
 
-class MyApp extends StatelessWidget {
+class MyApp extends StatefulWidget {
   const MyApp({super.key});
 
   @override
+  State<MyApp> createState() => _MyAppState();
+}
+
+class _MyAppState extends State<MyApp> {
+  late final AuthBloc _authBloc;
+
+  @override
+  void initState() {
+    super.initState();
+    _authBloc = AuthBloc()..add(AppStartedEvent());
+    // Token muddati tugab, server 401 qaytarsa - qaysi repository so'ragan
+    // bo'lishidan qat'i nazar, foydalanuvchini avtomatik chiqarib yuboramiz.
+    ApiClient.onUnauthorized = () => _authBloc.add(LogoutEvent());
+  }
+
+  @override
+  void dispose() {
+    _authBloc.close();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return BlocProvider(
-      create: (context) => AuthBloc()..add(AppStartedEvent()),
+    return BlocProvider.value(
+      value: _authBloc,
       child: MaterialApp(
         title: 'ServiceCore Mobile Console',
         theme: AppTheme.darkTheme,

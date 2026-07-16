@@ -113,6 +113,12 @@ class _DriverMapScreenState extends State<DriverMapScreen> {
                       ),
                   ],
                 ),
+                const RichAttributionWidget(
+                  alignment: AttributionAlignment.bottomLeft,
+                  attributions: [
+                    TextSourceAttribution('© OpenStreetMap contributors'),
+                  ],
+                ),
               ],
             ),
             if (_myPosition == null)

@@ -26,6 +26,17 @@
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Ilova buyurtma manzili yo'nalishini xaritada ko'rsatish va joylashuvingizni serverga yuborish uchun joylashuvingizdan foydalanadi.</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>Smena faol bo'lganda, ilova fonda ishlayotgan paytda ham joylashuvingizni dispetcherga yuborish uchun doimiy joylashuv ruxsati kerak.</string>
+	<key>NSLocationAlwaysUsageDescription</key>
+	<string>Smena faol bo'lganda, ilova fonda ishlayotgan paytda ham joylashuvingizni dispetcherga yuborish uchun doimiy joylashuv ruxsati kerak.</string>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>location</string>
+		<string>fetch</string>
+	</array>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

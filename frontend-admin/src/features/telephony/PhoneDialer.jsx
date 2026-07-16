@@ -68,7 +68,7 @@ const PhoneDialer = ({
         {/* Keypad or Active Call controls */}
         {callStatus === 'ACTIVE' ? (
           <div className="flex justify-center gap-6 py-4 animate-scale-in">
-            <button 
+            <button
               type="button"
               onClick={toggleMute}
               className={`p-4 rounded-full border transition cursor-pointer ${isMuted ? 'bg-rose-500/10 text-rose-500 border-rose-500/20' : 'bg-slate-100 hover:bg-slate-200 dark:bg-white/5 dark:hover:bg-white/10 text-slate-600 dark:text-gray-300 border-slate-200 dark:border-white/5'}`}
@@ -76,11 +76,25 @@ const PhoneDialer = ({
             >
               {isMuted ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
             </button>
-            <button 
+            <button
               type="button"
               onClick={handleHangup}
               className="p-4 rounded-full bg-rose-600 hover:bg-rose-700 text-white shadow-lg shadow-rose-600/30 transition cursor-pointer"
               title="Qo'ng'iroqni tugallash"
+            >
+              <PhoneOff className="w-5 h-5" />
+            </button>
+          </div>
+        ) : callStatus === 'CONNECTING' ? (
+          // MUHIM: avval bu holatda hech qanday tugma yo'q edi - qo'ng'iroq
+          // "ketmoqda" holatida abadiy qolib ketsa, foydalanuvchi uni bekor
+          // qila olmas edi. Endi bekor qilish/tugatish tugmasi ko'rsatiladi.
+          <div className="flex justify-center py-4 animate-scale-in">
+            <button
+              type="button"
+              onClick={handleHangup}
+              className="p-4 rounded-full bg-rose-600 hover:bg-rose-700 text-white shadow-lg shadow-rose-600/30 transition cursor-pointer"
+              title="Qo'ng'iroqni bekor qilish"
             >
               <PhoneOff className="w-5 h-5" />
             </button>
@@ -154,7 +168,7 @@ const PhoneDialer = ({
           <HelpCircle className="w-3.5 h-3.5 text-indigo-500" /> Tezkor yo'riqnoma:
         </span>
         <p>1. Qo'ng'iroq qilish uchun raqam kiritib yashil qo'ng'iroq tugmasini bosing.</p>
-        <p>2. Dastur to'g'ri ishlashi uchun shaxsiy kompyuterda local telephony driver fonda ishlab turishi lozim.</p>
+        <p>2. "SIP Aloqa" holati "Ulandi (Faol)" bo'lishi kerak - aks holda SIP sozlamalarini tekshiring.</p>
       </div>
     </div>
   );

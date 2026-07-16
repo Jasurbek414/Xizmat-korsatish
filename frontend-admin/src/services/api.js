@@ -465,18 +465,66 @@ export const api = {
     return handleResponse(res);
   },
 
-  async getCalls() {
-    const res = await fetch(`${API_BASE_URL}/calls`, {
+  async getSipAccounts() {
+    const res = await fetch(`${API_BASE_URL}/sip-accounts`, {
       headers: getHeaders()
     });
     return handleResponse(res);
   },
 
-  async createCall(callData) {
-    const res = await fetch(`${API_BASE_URL}/calls`, {
+  async createSipAccount(accountData) {
+    const res = await fetch(`${API_BASE_URL}/sip-accounts`, {
       method: 'POST',
       headers: getHeaders(),
-      body: JSON.stringify(callData)
+      body: JSON.stringify(accountData)
+    });
+    return handleResponse(res);
+  },
+
+  // Mavjud SipAccount'ni yangilaydi (yangi qator yaratmasdan) - "sozlamalarni
+  // saqlash" har safar YANGI trunk yaratib, eskisini yetim qoldirmasligi uchun.
+  async updateSipAccount(id, accountData) {
+    const res = await fetch(`${API_BASE_URL}/sip-accounts/${id}`, {
+      method: 'PUT',
+      headers: getHeaders(),
+      body: JSON.stringify(accountData)
+    });
+    return handleResponse(res);
+  },
+
+  async deleteSipAccount(id) {
+    const res = await fetch(`${API_BASE_URL}/sip-accounts/${id}`, {
+      method: 'DELETE',
+      headers: getHeaders()
+    });
+    return handleResponse(res);
+  },
+
+  // JsSIP registratsiyasi uchun haqiqiy hisob ma'lumotlarini (parol bilan)
+  // olish - umumiy /sip-accounts ro'yxati endi parolni qaytarmaydi.
+  async getSipAccountCredentials(id) {
+    const res = await fetch(`${API_BASE_URL}/sip-accounts/${id}/credentials`, {
+      headers: getHeaders()
+    });
+    return handleResponse(res);
+  },
+
+  // Backend endi qo'ng'iroqlarni ESL hodisalari orqali o'zi avtoritativ
+  // yozadi (TelephonyService.endCall) - shu yozuvlarni o'qish uchun.
+  async getCallSessions() {
+    const res = await fetch(`${API_BASE_URL}/call-sessions`, {
+      headers: getHeaders()
+    });
+    return handleResponse(res);
+  },
+
+  // Brauzerning JsSIP orqali FreeSWITCH "internal" profiliga ro'yxatdan
+  // o'tishi uchun - bu operatorning SHAXSIY ichki extension'i, UzTelecom
+  // trunk (SipAccount) bilan hech qanday aloqasi yo'q. Har qanday
+  // autentifikatsiya qilingan foydalanuvchi (jumladan DISPATCHER) chaqira oladi.
+  async getMyExtension() {
+    const res = await fetch(`${API_BASE_URL}/telephony/my-extension`, {
+      headers: getHeaders()
     });
     return handleResponse(res);
   }

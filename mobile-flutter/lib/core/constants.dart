@@ -11,6 +11,10 @@ class AppConstants {
   static String get baseApiUrl =>
       '${_useHttps ? 'https' : 'http'}://$_apiHost/api/v1';
 
+  /// Kompaniya subdomenlari joylashgan asosiy domen (login ekranida
+  /// "subdomen.ecos.uz" ko'rinishida ko'rsatish uchun).
+  static const String companyDomainSuffix = 'ecos.uz';
+
   // Hive Database Boxes
   static const String settingsBox = 'settings_box';
   static const String offlineQueueBox = 'offline_queue_box';
