@@ -101,6 +101,19 @@ public class TelephonyWebSocketHandler extends TextWebSocketHandler implements T
         Map<String, Object> data = objectMapper.readValue(payload, Map.class);
         String action = (String) data.get("action");
 
+        if ("PING".equals(action)) {
+            // Keepalive: mijoz har ~40 soniyada yuboradi (Cloudflare/nginx bo'sh
+            // WebSocket'ni ~100 soniyadan keyin uzadi). PONG bilan javob berib,
+            // ikki tomonlama trafik hosil qilamiz - shunda control kanali tirik
+            // qoladi va DIAL/HANGUP buyruqlari har doim yetib boradi.
+            try {
+                session.sendMessage(new TextMessage("{\"type\":\"PONG\"}"));
+            } catch (IOException ignored) {
+                // Ulanish yopilgan - mijoz o'zi qayta ulanadi.
+            }
+            return;
+        }
+
         try {
             if ("DIAL".equals(action)) {
                 UUID sipAccountId = UUID.fromString((String) data.get("sipAccountId"));

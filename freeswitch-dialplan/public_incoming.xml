@@ -1,0 +1,29 @@
+<include>
+  <!--
+    KIRUVCHI qo'ng'iroq marshruti (mijoz kompaniya UzTelecom raqamiga qo'ng'iroq
+    qilganda). UzTelecom kiruvchi INVITE'ni "external" profilga yuboradi va u
+    "public" kontekstiga tushadi (destination_number = trunk hisob username'i,
+    masalan "101"). Bu fayl public/*.xml orqali AVTOMATIK "public" kontekstiga
+    include qilinadi (o'z <context> o'ramasi kerak emas).
+
+    Oqim:
+      1. ring_ready  -> qo'ng'iroq qiluvchi mijoz "jiringlash" ohangini eshitadi
+         (biz operatorni topayotgan paytda jimlik bo'lmaydi).
+      2. park        -> qo'ng'iroqni "ushlab" turadi (javob bermasdan, uzmasdan).
+      3. Backend CHANNEL_PARK hodisasini oladi (FreeSwitchEventListener),
+         destination_number bo'yicha kompaniyani aniqlaydi, o'sha kompaniyaning
+         ONLAYN operator(lar)ining brauzeriga (user/<extension>) uuid_transfer
+         'bridge:...' inline orqali ulaydi. Operator brauzerda "javob berish"
+         bosganda qo'ng'iroq bog'lanadi.
+
+    Xavfsizlik: park'dan keyin backend destination_number HAQIQIY SipAccount
+    (kompaniya trunk'i) ekanini tekshiradi - mos kelmasa qo'ng'iroqni uzadi.
+    Shuning uchun bu keng shablon (har qanday raqam) xavfsiz.
+  -->
+  <extension name="incoming_to_operator">
+    <condition field="destination_number" expression="^(\+?\d{2,15})$">
+      <action application="ring_ready"/>
+      <action application="park"/>
+    </condition>
+  </extension>
+</include>

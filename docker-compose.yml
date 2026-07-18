@@ -97,6 +97,15 @@ services:
       - "5060:5060/udp"
       - "5060:5060/tcp"
       - "7443:7443"
+      # MUHIM (WebRTC media/RTP uchun): brauzer (operator kompyuteri, NAT
+      # ortida) bilan FreeSWITCH orasidagi ovoz (RTP/SRTP) shu UDP portlar
+      # orqali oqadi. Signal (WSS) Cloudflare tunnel orqali kelsa ham, MEDIA
+      # to'g'ridan-to'g'ri serverning ochiq IP'siga (84.54.75.20) keladi -
+      # shuning uchun bu portlar host'da ochilishi SHART. Aks holda brauzer
+      # javob bersa ham "no suitable candidates found" -> INCOMPATIBLE_DESTINATION
+      # bilan darhol uziladi (jonli logda aniqlangan). Oraliq switch.conf.xml'da
+      # 16384-16483 ga cheklangan (aks holda standart 16384-32768 = 16k port).
+      - "16384-16483:16384-16483/udp"
       # 8021 (ESL) ATAYIN host'ga ochilmaydi - faqat ichki Docker tarmog'i
       # orqali "backend" xizmati yetadi (avval bu port internetga to'g'ridan-to'g'ri
       # ochiq edi va parol ham zaif "1234" edi - PBX'ni to'liq masofadan
@@ -116,6 +125,14 @@ services:
       # fayllarini avtomatik "include" qiladi (tekshirilgan, gateway'lar bilan
       # bir xil mexanizm). Trunk gateway volume'idan ALOHIDA.
       - freeswitch_extensions:/etc/freeswitch/directory/default
+      # Chiquvchi qo'ng'iroq dialplani (trunk JAVOB berganda brauzerga bridge).
+      # BIND MOUNT - konteyner qayta yaratilsa ham saqlanadi (dialplan/*.xml
+      # avtomatik include qilinadi, boshqa vanilla dialplan fayllariga tegmaydi).
+      - ./freeswitch-dialplan/trunk_answered.xml:/etc/freeswitch/dialplan/trunk_answered.xml:ro
+      # KIRUVCHI qo'ng'iroq dialplani (public/*.xml orqali "public" kontekstiga
+      # include qilinadi) - tashqi mijoz qo'ng'irog'ini park qiladi, backend
+      # CHANNEL_PARK'da kompaniyaning onlayn operatoriga bridge qiladi.
+      - ./freeswitch-dialplan/public_incoming.xml:/etc/freeswitch/dialplan/public/01_route_to_operator.xml:ro
     entrypoint:
       - /bin/sh
       - -c
@@ -141,6 +158,27 @@ services:
         # ikkalasini ham qamrab oladigan maxsus ACL qo'shamiz.
         sed -i 's|<network-lists>|<network-lists>\n    <list name="esl_internal" default="deny">\n      <node type="allow" cidr="127.0.0.0/8"/>\n      <node type="allow" cidr="10.0.0.0/8"/>\n      <node type="allow" cidr="172.16.0.0/12"/>\n      <node type="allow" cidr="192.168.0.0/16"/>\n    </list>|' /etc/freeswitch/autoload_configs/acl.conf.xml
         sed -i 's|<!--<param name="apply-inbound-acl" value="loopback.auto"/>-->|<param name="apply-inbound-acl" value="esl_internal"/>|' /etc/freeswitch/autoload_configs/event_socket.conf.xml
+        # MUHIM (WebRTC media/NAT): FreeSWITCH SDP'da o'zining media manzili
+        # sifatida standart holatda Docker ichki IP'sini (172.20.0.5) e'lon
+        # qiladi - brauzer bunga yeta olmaydi. Serverning HAQIQIY ochiq IP'sini
+        # (84.54.75.20) LITERAL qo'yamiz - shunda WebRTC ICE candidate'ga ham
+        # to'g'ri qo'llaniladi (MUHIM: "stun:stun.freeswitch.org" shakli c= qatoriga
+        # qo'llansa ham ICE candidate'ga qo'llanmасди -> a=candidate 172.20.0.5
+        # qolib, brauzer media yo'lini topa olmasdi, OVOZ ikkala tomonга oqmasdi;
+        # literal IP bilan candidate 84.54.75.20 bo'ladi va ovoz oqadi - jonli
+        # sinovda tasdiqlangan). Agar server IP o'zgarsa - shu qiymatni yangilang.
+        sed -i 's|name="ext-rtp-ip" value="[^"]*"|name="ext-rtp-ip" value="84.54.75.20"|' /etc/freeswitch/sip_profiles/internal.xml
+        # ext-sip-ip ATAYIN o'zgartirilmaydi: brauzer WSS (wss://.../ws/sip)
+        # orqali nginx'dan o'tib ulanadi, shuning uchun internal profilning SIP
+        # signalizatsiya manzili STUN bilan tashqi IP (84.54.75.20)ga
+        # o'zgartirilsa, profil g'alati portga bog'lanib (masalan :54576)
+        # brauzerning SIP REGISTER'i buziladi. Faqat MEDIA (ext-rtp-ip) tashqi
+        # IP bo'lishi kerak - signalizatsiya WSS tunnel orqali boradi.
+        # RTP port oralig'ini host'da ochilgan diapazon bilan bir xil qilib
+        # cheklaymiz (docker-compose ports: 16384-16483). Standart 16384-32768
+        # (16k port) ni host'da ochib bo'lmaydi.
+        sed -i 's|<!-- <param name="rtp-start-port" value="16384"/> -->|<param name="rtp-start-port" value="16384"/>|' /etc/freeswitch/autoload_configs/switch.conf.xml
+        sed -i 's|<!-- <param name="rtp-end-port" value="32768"/> -->|<param name="rtp-end-port" value="16483"/>|' /etc/freeswitch/autoload_configs/switch.conf.xml
         /usr/bin/freeswitch -nc -nf -nonat
     # MUHIM: image'ning o'ziga o'rnatilgan standart HEALTHCHECK (fs_cli -x
     # status, parolsiz) doim "unhealthy" ko'rsatardi - chunki biz ESL parolini

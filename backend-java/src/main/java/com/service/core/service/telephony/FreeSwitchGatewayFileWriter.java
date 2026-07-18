@@ -90,11 +90,24 @@ public class FreeSwitchGatewayFileWriter {
                 "    <param name=\"password\" value=\"" + password + "\"/>\n" +
                 "    <param name=\"auth-username\" value=\"" + authUsername + "\"/>\n" +
                 "    <param name=\"realm\" value=\"" + realm + "\"/>\n" +
+                // MUHIM (foydalanuvchi ko'rsatgan xato): chiquvchi INVITE'ning
+                // From/Contact domeni standart holatda FreeSWITCH serverining
+                // o'z IP'si (84.54.75.20) bo'lib qolardi. UzTelecom IPBX esa
+                // From domeni O'ZINING realm'i (SIP server = 84.54.75.26)
+                // bo'lishini kutadi - aks holda qo'ng'iroqni "503 Service
+                // Unavailable" bilan rad etadi. Shu sabab from-domain va
+                // from-user aniq belgilanadi: From = <trunk_username>@<realm>.
+                "    <param name=\"from-domain\" value=\"" + realm + "\"/>\n" +
+                "    <param name=\"from-user\" value=\"" + username + "\"/>\n" +
                 "    <param name=\"proxy\" value=\"" + proxy + "\"/>\n" +
                 "    <param name=\"register\" value=\"true\"/>\n" +
                 "    <param name=\"expire-seconds\" value=\"" + account.getKeepaliveInterval() + "\"/>\n" +
                 "    <param name=\"retry-seconds\" value=\"30\"/>\n" +
-                "    <param name=\"caller-id-in-from\" value=\"true\"/>\n" +
+                // caller-id-in-from=false: From HAR DOIM trunk hisobining
+                // identity'si (101@84.54.75.26) bo'ladi, operator extensioni
+                // (2001) EMAS - UzTelecom faqat o'zining autentifikatsiya
+                // qilingan hisobini From'da qabul qiladi.
+                "    <param name=\"caller-id-in-from\" value=\"false\"/>\n" +
                 "  </gateway>\n" +
                 "</include>\n";
     }

@@ -4,6 +4,7 @@ import com.service.core.model.Company;
 import com.service.core.model.SipAccount;
 import com.service.core.repository.CompanyRepository;
 import com.service.core.repository.SipAccountRepository;
+import com.service.core.service.telephony.RegistrationManager;
 import com.service.core.service.telephony.TelephonyService;
 import com.service.core.tenant.TenantContext;
 import org.springframework.http.HttpStatus;
@@ -23,13 +24,16 @@ public class SipAccountController {
     private final SipAccountRepository sipAccountRepository;
     private final CompanyRepository companyRepository;
     private final TelephonyService telephonyService;
+    private final RegistrationManager registrationManager;
 
     public SipAccountController(SipAccountRepository sipAccountRepository,
                                 CompanyRepository companyRepository,
-                                TelephonyService telephonyService) {
+                                TelephonyService telephonyService,
+                                RegistrationManager registrationManager) {
         this.sipAccountRepository = sipAccountRepository;
         this.companyRepository = companyRepository;
         this.telephonyService = telephonyService;
+        this.registrationManager = registrationManager;
     }
 
     // Parolni hech qachon API javobida qaytarmaydigan javob shakli - frontend
@@ -44,9 +48,10 @@ public class SipAccountController {
             String authUsername,
             Integer keepaliveInterval,
             boolean hasPassword,
+            String registrationStatus,
             LocalDateTime createdAt
     ) {
-        static SipAccountResponse from(SipAccount account) {
+        static SipAccountResponse from(SipAccount account, String registrationStatus) {
             return new SipAccountResponse(
                     account.getId(),
                     account.getName(),
@@ -56,6 +61,7 @@ public class SipAccountController {
                     account.getAuthUsername(),
                     account.getKeepaliveInterval(),
                     account.getPassword() != null && !account.getPassword().isBlank(),
+                    registrationStatus,
                     account.getCreatedAt()
             );
         }
@@ -71,7 +77,9 @@ public class SipAccountController {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of("message", "Tenant ID is missing"));
         }
         List<SipAccount> accounts = sipAccountRepository.findByCompanyIdOrderByCreatedAtAsc(UUID.fromString(tenantId));
-        List<SipAccountResponse> response = accounts.stream().map(SipAccountResponse::from).toList();
+        List<SipAccountResponse> response = accounts.stream()
+                .map(a -> SipAccountResponse.from(a, registrationManager.getStatus(a.getId())))
+                .toList();
         return ResponseEntity.ok(response);
     }
 
@@ -99,7 +107,7 @@ public class SipAccountController {
 
         SipAccount saved = sipAccountRepository.save(account);
         telephonyService.registerSipAccount(saved);
-        return ResponseEntity.status(HttpStatus.CREATED).body(SipAccountResponse.from(saved));
+        return ResponseEntity.status(HttpStatus.CREATED).body(SipAccountResponse.from(saved, registrationManager.getStatus(saved.getId())));
     }
 
     // MUHIM (audit: "dublikat trunk yaratilishi" xatosi) - sozlamalarni
@@ -147,7 +155,7 @@ public class SipAccountController {
 
         SipAccount saved = sipAccountRepository.save(account);
         telephonyService.updateSipAccount(saved);
-        return ResponseEntity.ok(SipAccountResponse.from(saved));
+        return ResponseEntity.ok(SipAccountResponse.from(saved, registrationManager.getStatus(saved.getId())));
     }
 
     // Brauzerning o'z JsSIP klienti bilan haqiqiy SIP REGISTER qilishi uchun

@@ -1,0 +1,32 @@
+<include>
+  <!--
+    Chiquvchi qo'ng'iroq: brauzer (WebRTC operator) ni UzTelecom trunk'iga
+    ulash. Bu fayl docker-compose orqali FreeSWITCH'ning dialplan papkasiga
+    BIND MOUNT qilinadi (konteyner qayta yaratilsa ham yo'qolmaydi).
+
+    ARXITEKTURA (jonli sinovda bosqichma-bosqich aniqlangan yagona ishonchli
+    yechim): backend AVVAL TRUNK'ni (tashqi raqamni) originate qiladi va shu
+    kontekstga yo'naltiradi. Trunk jiringlayotganda (183 early media) FreeSWITCH
+    uni o'zi boshqaradi - brauzerga BRIDGE QILINMAYDI. Aynan shu sabab UzTelecom
+    IPBX'i 503 BERMAYDI (brauzerga early media'da bridge qilinsa, WebRTC DTLS
+    media ~1.8s tayyor bo'lguncha UzTelecom media kutib, qo'ng'iroqni "503
+    Service Unavailable" bilan tashlardi).
+
+    Trunk HAQIQATAN JAVOB berganda (200 OK) shu extension ishga tushadi va
+    brauzerga (user/<operator_ext>) bridge qilinadi. Bridge faqat JAVOBdan
+    keyin bo'lgani uchun 503 chiqmaydi.
+
+    operator_ext - backend originate'da o'rnatiladigan kanal o'zgaruvchisi
+    (operatorning ichki extension raqami, masalan 2001).
+    Kodek: to'liq ro'yxat - UzTelecom PCMU'ni tanlaydi, FreeSWITCH brauzer
+    (OPUS) bilan orasida transkodlaydi.
+  -->
+  <context name="trunk_answered">
+    <extension name="bridge_to_operator">
+      <condition field="destination_number" expression="^.*$">
+        <action application="set" data="hangup_after_bridge=true"/>
+        <action application="bridge" data="[absolute_codec_string=^^:PCMU:PCMA:G722:OPUS]user/${operator_ext}"/>
+      </condition>
+    </extension>
+  </context>
+</include>

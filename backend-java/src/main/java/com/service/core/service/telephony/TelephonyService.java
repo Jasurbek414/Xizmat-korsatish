@@ -8,13 +8,19 @@ import com.service.core.repository.CallSessionRepository;
 import com.service.core.repository.DeviceRepository;
 import com.service.core.repository.SipAccountRepository;
 import com.service.core.repository.UserRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Service
 public class TelephonyService {
+
+    private static final Logger log = LoggerFactory.getLogger(TelephonyService.class);
 
     private final SIPAdapter sipAdapter;
     private final RegistrationManager registrationManager;
@@ -145,8 +151,10 @@ public class TelephonyService {
 
         try {
             // Gateway nomi har doim SipAccount.getId() (UUID) - FreeSwitchGatewayFileWriter
-            // shunday yozadi (username emas).
-            sipAdapter.makeCall(sessionUuid, caller, callee, account.getId().toString());
+            // shunday yozadi (username emas). Caller ID esa trunk hisob username'i
+            // (masalan "101") - UzTelecom AYNAN shuni kutadi; bo'sh caller ID bo'lsa
+            // "503 congestion" bilan rad etadi (jonli sinovda aniqlangan asosiy sabab).
+            sipAdapter.makeCall(sessionUuid, caller, callee, account.getId().toString(), account.getUsername());
             eventBus.publish(new TelephonyEvent("INVITE", session, session.getCompanyId()));
         } catch (Exception e) {
             session.setState("FAILED");
@@ -155,6 +163,39 @@ public class TelephonyService {
         }
 
         return sessionUuid;
+    }
+
+    /**
+     * KIRUVCHI qo'ng'iroq marshruti - ESL CHANNEL_PARK hodisasidan chaqiriladi.
+     * Tashqi mijoz kompaniya UzTelecom raqamiga qo'ng'iroq qildi, dialplan uni
+     * "public" kontekstда park qildi. Bu yerda:
+     *   1) destination_number (trunk hisob username'i, masalan "101") bo'yicha
+     *      qaysi KOMPANIYA ekanini aniqlaymiz (SipAccount.company).
+     *   2) o'sha kompaniyaning HOZIR ONLAYN operatorlarini topamiz.
+     *   3) ularning brauzeriga (user/<extension>) qo'ng'iroqni bridge qilamiz
+     *      (bir nechta bo'lsa - bir vaqtda jiringlaydi, birinchi javob bergan).
+     * Mos kompaniya yoki onlayn operator bo'lmasa - qo'ng'iroqni uzamiz.
+     */
+    public void handleIncomingCall(String destinationNumber, String callerNumber, String channelUuid) {
+        SipAccount account = sipAccountRepository.findFirstByUsername(destinationNumber).orElse(null);
+        if (account == null || account.getCompany() == null) {
+            log.warn("Kiruvchi qo'ng'iroq: '{}' raqamiga mos kompaniya (trunk) topilmadi - uziladi", destinationNumber);
+            sipAdapter.hangupCall(channelUuid);
+            return;
+        }
+        UUID companyId = account.getCompany().getId();
+        List<Device> operators = deviceRepository.findOnlineByCompany(companyId, "ONLINE", "WEBRTC");
+        if (operators.isEmpty()) {
+            log.info("Kiruvchi qo'ng'iroq ({}dan -> {}): onlayn operator yo'q - uziladi", callerNumber, destinationNumber);
+            sipAdapter.hangupCall(channelUuid);
+            return;
+        }
+        String bridgeTarget = operators.stream()
+                .map(d -> "user/" + d.getExtensionNumber())
+                .collect(Collectors.joining(","));
+        log.info("Kiruvchi qo'ng'iroq ({}dan -> {}): {} ta onlayn operatorga ulanmoqda: {}",
+                callerNumber, destinationNumber, operators.size(), bridgeTarget);
+        sipAdapter.bridgeIncomingCall(channelUuid, bridgeTarget);
     }
 
     /** ESL hodisa tinglovchisi (ishonchli, ichki manba) tomonidan chaqiriladi. */

@@ -25,4 +25,12 @@ public interface DeviceRepository extends JpaRepository<Device, UUID> {
     // Java tomonida hisoblanadi.
     @Query("SELECT d.extensionNumber FROM Device d WHERE d.extensionNumber IS NOT NULL")
     List<String> findAllExtensionNumbers();
+
+    // KIRUVCHI qo'ng'iroq: kompaniyaning HOZIR ONLAYN (brauzeri ulangan)
+    // WebRTC operatorlarini topamiz - kiruvchi qo'ng'iroqni faqat shularning
+    // brauzeriga jiringlatamiz. Device.user.company orqali kompaniyaga bog'lanadi.
+    @Query("SELECT d FROM Device d WHERE d.user.company.id = :companyId "
+            + "AND d.status = :status AND d.deviceType = :deviceType "
+            + "AND d.extensionNumber IS NOT NULL")
+    List<Device> findOnlineByCompany(UUID companyId, String status, String deviceType);
 }

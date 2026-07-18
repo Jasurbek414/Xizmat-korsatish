@@ -153,7 +153,7 @@ public class FreeSwitchEventListener {
             // jiringlab turgan bo'lsa ham) emas, CHANNEL_BRIDGE orqali
             // aniqlanadi - bu hodisa faqat ikkala oyoq (operator VA tashqi
             // mijoz) haqiqatan bog'langanda keladi.
-            writer.print("event plain CHANNEL_BRIDGE CHANNEL_HANGUP CHANNEL_HANGUP_COMPLETE "
+            writer.print("event plain CHANNEL_BRIDGE CHANNEL_HANGUP CHANNEL_HANGUP_COMPLETE CHANNEL_PARK "
                     + "CUSTOM sofia::register sofia::register_failure sofia::gateway_state\n\n");
             writer.flush();
             readEventBlock(in); // "event" buyrug'iga +OK javobi.
@@ -268,6 +268,21 @@ public class FreeSwitchEventListener {
                     UUID sessionUuid = resolveSessionUuid(event);
                     if (sessionUuid != null) {
                         telephonyService.answerCall(sessionUuid);
+                    }
+                }
+                case "CHANNEL_PARK" -> {
+                    // KIRUVCHI qo'ng'iroq: tashqi mijoz kompaniya raqamiga qo'ng'iroq
+                    // qildi, dialplan uni "public" kontekstда park qildi. Endi backend
+                    // kompaniyani aniqlab, onlayn operator(lar)ning brauzeriga ulaydi.
+                    // Faqat KIRUVCHI (inbound) leg'larni ishlaymiz - chiquvchi
+                    // qo'ng'iroqlarda park bo'lmaydi.
+                    String direction = event.get("Call-Direction");
+                    if (!"inbound".equals(direction)) break;
+                    String channelUuid = event.get("Unique-ID");
+                    String destination = event.get("Caller-Destination-Number");
+                    String caller = event.get("Caller-Caller-ID-Number");
+                    if (channelUuid != null && destination != null) {
+                        telephonyService.handleIncomingCall(destination, caller, channelUuid);
                     }
                 }
                 case "CHANNEL_HANGUP", "CHANNEL_HANGUP_COMPLETE" -> {
