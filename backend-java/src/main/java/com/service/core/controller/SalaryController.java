@@ -70,8 +70,9 @@ public class SalaryController {
                 .type("EXPENSE")
                 .amount(netAmount)
                 .category("SALARY")
-                .description(String.format("%s uchun %s oyi maoshi to'lovi", 
+                .description(String.format("%s uchun %s oyi maoshi to'lovi",
                         salary.getUser().getFullName(), salary.getPayPeriod().toString().substring(0, 7)))
+                .status("CONFIRMED")
                 .build();
         transactionRepository.save(tx);
 
@@ -107,8 +108,9 @@ public class SalaryController {
                 .type("EXPENSE")
                 .amount(amount)
                 .category("SALARY")
-                .description(String.format("%s uchun %s oyi uchun avans berildi", 
+                .description(String.format("%s uchun %s oyi uchun avans berildi",
                         salary.getUser().getFullName(), salary.getPayPeriod().toString().substring(0, 7)))
+                .status("CONFIRMED")
                 .build();
         transactionRepository.save(tx);
 

@@ -439,6 +439,7 @@ public class OrderController {
                 .amount(actualAmount)
                 .category("ORDER_PAYMENT")
                 .description("Kuryerdan topshirib olingan naqd pul: Buyurtma #" + order.getId().toString().substring(0, 8))
+                .status("CONFIRMED")
                 .build();
         transactionRepository.save(transaction);
 

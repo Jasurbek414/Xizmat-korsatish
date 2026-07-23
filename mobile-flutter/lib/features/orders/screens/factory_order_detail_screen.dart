@@ -95,6 +95,14 @@ class _FactoryOrderDetailScreenState extends State<FactoryOrderDetailScreen> {
   int _calcTotalQuantity(List<OrderItemInfo> items) =>
       items.fold(0, (s, i) => s + i.quantity);
 
+  /// Barcha gilamlar "Tayyor" bosqichiga yetganmi - shu bo'lmasa buyurtmani
+  /// haydovchiga topshirish (keyingi bosqichga o'tkazish) taqiqlanadi.
+  /// Gilamlar umuman kiritilmagan bo'lsa (item-based bo'lmagan xizmat) - to'siq
+  /// qo'yilmaydi.
+  bool get _allItemsReady =>
+      widget.order.items.isEmpty ||
+      widget.order.items.every((i) => i.status == 'READY');
+
   OrderStatusInfo? get _nextStatus {
     final sorted = [...widget.statuses]
       ..sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
@@ -777,22 +785,41 @@ class _FactoryOrderDetailScreenState extends State<FactoryOrderDetailScreen> {
               ),
             ),
             const SizedBox(height: 10),
-            if (_nextStatus != null)
+            if (_nextStatus != null) ...[
               SizedBox(
                 width: double.infinity,
                 child: FilledButton.icon(
-                  onPressed: _saving ? null : () => _save(advance: true),
+                  onPressed: (_saving || !_allItemsReady)
+                      ? null
+                      : () => _save(advance: true),
                   style: FilledButton.styleFrom(
-                      backgroundColor: AppTheme.blue,
+                      backgroundColor:
+                          _allItemsReady ? AppTheme.blue : AppTheme.textMuted,
                       padding:
                           const EdgeInsets.symmetric(vertical: 15)),
-                  icon: const Icon(LucideIcons.arrowRight, size: 18),
+                  icon: Icon(
+                      _allItemsReady
+                          ? LucideIcons.arrowRight
+                          : LucideIcons.lock,
+                      size: 18),
                   label: Text(
-                      '${_nextStatus!.nameUz}ga yuborish',
+                      _allItemsReady
+                          ? 'Tayyor - ${_nextStatus!.nameUz}ga yuborish'
+                          : 'Avval barcha gilamlarni "Tayyor" belgilang',
+                      textAlign: TextAlign.center,
                       style: const TextStyle(
                           fontWeight: FontWeight.w700)),
                 ),
               ),
+              if (!_allItemsReady)
+                const Padding(
+                  padding: EdgeInsets.only(top: 8),
+                  child: Text(
+                    "Haydovchiga topshirishdan oldin har bir gilamning \"Tayyor\" katagini belgilang.",
+                    style: TextStyle(color: AppTheme.textMuted, fontSize: 11),
+                  ),
+                ),
+            ],
           ] else
             // Tarix — yakunlangan belgisi
             Container(
