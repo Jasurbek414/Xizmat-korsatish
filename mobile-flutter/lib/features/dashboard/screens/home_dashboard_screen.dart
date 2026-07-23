@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import '../../../core/permissions/permission_keys.dart';
@@ -8,6 +9,7 @@ import '../../../models/user.dart';
 import '../../../ui/app_ui.dart';
 import '../../auth/bloc/auth_bloc.dart';
 import '../../finance/screens/finance_summary_screen.dart';
+import '../../gps/widgets/shift_toggle_button.dart';
 import '../../map/screens/driver_map_screen.dart';
 import '../../orders/bloc/orders_cubit.dart';
 import '../../orders/widgets/order_card.dart';
@@ -72,8 +74,9 @@ class HomeDashboardScreen extends StatelessWidget {
           child: ListView(
             padding: const EdgeInsets.fromLTRB(0, 4, 0, 96),
             children: [
-              _statsRow(orders, statuses),
-              _quickActions(context),
+              _greetingHeader(),
+              _statsRow(orders, statuses).animate().fadeIn(delay: 80.ms, duration: 350.ms).slideY(begin: 0.08),
+              _quickActions(context).animate().fadeIn(delay: 160.ms, duration: 350.ms).slideY(begin: 0.08),
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 18, 16, 8),
                 child: Row(children: [
@@ -99,6 +102,94 @@ class HomeDashboardScreen extends StatelessWidget {
         );
       },
     );
+  }
+
+  /// Rolga qarab bosh sahifa gradientini tanlaydi - haydovchi (ko'k), sex
+  /// xodimi (feruza) va boshqalar (asosiy yashil) vizual jihatdan farqlansin.
+  List<Color> get _roleGradient {
+    if (user.role.contains('DRIVER')) return const [AppTheme.blue, Color(0xFF1B4CC4)];
+    if (user.role.contains('SEH') || user.role.contains('FACTORY') || user.role == 'WORKER') {
+      return const [AppTheme.teal, Color(0xFF0A6F65)];
+    }
+    return const [AppTheme.primary, AppTheme.primaryDark];
+  }
+
+  String get _roleLabel {
+    final r = user.role;
+    if (r.contains('DRIVER')) return 'Haydovchi';
+    if (r.contains('SEH') || r.contains('FACTORY')) return 'Sex xodimi';
+    if (r.contains('DISPATCH')) return 'Dispetcher';
+    if (r.contains('MANAGER')) return 'Menejer';
+    if (r.contains('ADMIN')) return 'Admin';
+    return 'Xodim';
+  }
+
+  String get _greeting {
+    final hour = DateTime.now().hour;
+    if (hour < 6) return 'Xayrli tun';
+    if (hour < 12) return 'Xayrli tong';
+    if (hour < 17) return 'Xayrli kun';
+    return 'Xayrli kech';
+  }
+
+  Widget _greetingHeader() {
+    final gradient = _roleGradient;
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 10, 16, 4),
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(colors: gradient, begin: Alignment.topLeft, end: Alignment.bottomRight),
+        borderRadius: BorderRadius.circular(22),
+        boxShadow: [
+          BoxShadow(color: gradient[0].withOpacity(0.35), blurRadius: 24, offset: const Offset(0, 10)),
+        ],
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 52,
+            height: 52,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: Colors.white.withOpacity(0.18),
+              border: Border.all(color: Colors.white.withOpacity(0.5), width: 1.5),
+            ),
+            child: Text(
+              user.fullName.isNotEmpty ? user.fullName[0].toUpperCase() : '?',
+              style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: Colors.white),
+            ),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('$_greeting,',
+                    style: TextStyle(color: Colors.white.withOpacity(0.85), fontSize: 12, fontWeight: FontWeight.w600)),
+                const SizedBox(height: 2),
+                Text(
+                  user.fullName.isNotEmpty ? user.fullName : user.username,
+                  style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w800),
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 6),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.18),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(_roleLabel,
+                      style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w700)),
+                ),
+              ],
+            ),
+          ),
+          if (permissions.has(PermissionKeys.mobileGps)) const ShiftToggleButton(),
+        ],
+      ),
+    ).animate().fadeIn(duration: 400.ms).slideY(begin: -0.08, curve: Curves.easeOutCubic);
   }
 
   Widget _statsRow(List<Order> orders, List<OrderStatusInfo> statuses) {

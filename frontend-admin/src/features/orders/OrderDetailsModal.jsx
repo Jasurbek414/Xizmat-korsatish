@@ -2,7 +2,7 @@ import React from 'react';
 import { X, Calendar, User, ShoppingBag, MapPin, DollarSign, Clock, FileText, CheckCircle2, Layers } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
-const OrderDetailsModal = ({ order, isOpen, onClose, statuses, clients }) => {
+const OrderDetailsModal = ({ order, isOpen, onClose, statuses }) => {
   const { t } = useTranslation();
 
   if (!isOpen || !order) return null;
@@ -11,13 +11,9 @@ const OrderDetailsModal = ({ order, isOpen, onClose, statuses, clients }) => {
   const currentStatusIndex = statuses.findIndex(s => s.id === order.status_id);
   const currentStatus = statuses[currentStatusIndex] || statuses[0];
 
-  // Look up client phone
-  const clientObj = clients.find(c => {
-    const cName = (c.fullName || c.full_name || '').toLowerCase();
-    const oName = (order.client_name || '').toLowerCase();
-    return cName && cName === oName;
-  });
-  const clientPhone = clientObj ? clientObj.phone : '+998 90 123 45 67';
+  // Haqiqiy mijoz telefoni - order bilan birga backenddan keladi (order.client.phone).
+  // Agar bo'sh bo'lsa, soxta raqam o'rniga aniq "kiritilmagan" holatini ko'rsatamiz.
+  const clientPhone = order.client_phone || "Kiritilmagan";
 
   // Generate dynamic tracker steps
   const steps = statuses.map((st, idx) => {
@@ -30,40 +26,23 @@ const OrderDetailsModal = ({ order, isOpen, onClose, statuses, clients }) => {
     };
   });
 
-  // Mocked activity logs based on order status history
-  const activityLogs = [
-    {
-      title: 'Buyurtma yaratildi',
-      time: 'Bugun, 10:00',
-      desc: `Admin tomonidan "${order.service_name}" xizmati buyurtmasi yaratildi.`,
-      statusId: '1'
-    }
-  ];
-
-  if (currentStatusIndex >= 1) {
-    activityLogs.unshift({
-      title: 'Kuryer tayinlandi',
-      time: 'Bugun, 10:30',
-      desc: `Mas'ul haydovchi ${order.worker_name} buyurtmaga biriktirildi.`,
-      statusId: '2'
+  // Haqiqiy faoliyat tarixi - backendda buyurtma statuslari tarixi alohida
+  // saqlanmagani uchun faqat aniq mavjud sanalar (yaratilgan/oxirgi yangilangan)
+  // ko'rsatiladi. O'ylab topilgan oraliq bosqichlar va soxta vaqtlar ishlatilmaydi.
+  const formatDt = (val) => val ? new Date(val).toLocaleString('uz-UZ') : null;
+  const activityLogs = [];
+  if (order.updated_at && order.updated_at !== order.created_at) {
+    activityLogs.push({
+      title: `Joriy holat: ${currentStatus ? currentStatus.name_uz : 'Noma\'lum'}`,
+      time: formatDt(order.updated_at),
+      desc: `Buyurtma oxirgi marta yangilandi.`
     });
   }
-  if (currentStatusIndex >= 2) {
-    activityLogs.unshift({
-      title: 'Bajarish boshlandi',
-      time: 'Bugun, 11:15',
-      desc: `Haydovchi ${order.worker_name} xizmat ko'rsatishni boshladi.`,
-      statusId: '3'
-    });
-  }
-  if (currentStatusIndex >= 3) {
-    activityLogs.unshift({
-      title: 'Yakunlandi',
-      time: 'Bugun, 12:00',
-      desc: 'Buyurtma muvaffaqiyatli yakunlandi va hisob-kitob qilindi.',
-      statusId: '4'
-    });
-  }
+  activityLogs.push({
+    title: 'Buyurtma yaratildi',
+    time: formatDt(order.created_at) || "Sana noma'lum",
+    desc: `"${order.service_name}" xizmati uchun buyurtma yaratildi.`
+  });
 
   return (
     <div className="fixed inset-0 bg-black/50 dark:bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
@@ -155,6 +134,9 @@ const OrderDetailsModal = ({ order, isOpen, onClose, statuses, clients }) => {
                 <div>
                   <p className="text-[9px] text-slate-400 dark:text-gray-500">{t('orders_page.worker')}</p>
                   <p className="text-xs text-slate-800 dark:text-white font-bold">{order.worker_name}</p>
+                  {order.worker_phone && (
+                    <p className="text-[10px] text-slate-500 dark:text-gray-400 font-mono mt-0.5">{order.worker_phone}</p>
+                  )}
                 </div>
               </div>
             </div>

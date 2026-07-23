@@ -95,6 +95,7 @@ public class RoleSeedService {
         perms.put(PermissionKeys.MOBILE_GPS, true);
         perms.put(PermissionKeys.MOBILE_CHAT, true);
         perms.put(PermissionKeys.MOBILE_SALARY_VIEW, true);
+        perms.put(PermissionKeys.MOBILE_FINANCE_VIEW, true);
         return perms;
     }
 

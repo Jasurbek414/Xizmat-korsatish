@@ -82,12 +82,12 @@ class _FactoryOrderDetailScreenState extends State<FactoryOrderDetailScreen> {
   double _itemArea(OrderItemInfo item) {
     final eni = double.tryParse(_eniCtrl[item.id]?.text ?? '') ?? 0;
     final boyi = double.tryParse(_boyiCtrl[item.id]?.text ?? '') ?? 0;
-    return eni * boyi;
+    return eni * boyi * item.quantity;
   }
 
   double _calcTotalArea(List<OrderItemInfo> items) {
     if (_isCompleted) {
-      return items.fold(0.0, (s, i) => s + (i.width * i.length));
+      return items.fold(0.0, (s, i) => s + (i.width * i.length * i.quantity));
     }
     return items.fold(0.0, (s, i) => s + _itemArea(i));
   }

@@ -46,9 +46,12 @@ const Orders = ({ tab }) => {
     return ordersData.map(o => ({
       id: o.id,
       client_name: o.client ? (o.client.fullName || o.client.full_name) : '',
+      client_phone: o.client ? (o.client.phone || '') : '',
+      client_address: o.client ? (o.client.address || '') : '',
       service_name: o.service ? (o.service.nameUz || o.service.name_uz) : '',
       worker_name: o.worker ? (o.worker.fullName || o.worker.full_name) : 'Biriktirilmagan',
       worker_id: o.worker ? o.worker.id : '',
+      worker_phone: o.worker ? (o.worker.phone || '') : '',
       status_id: o.status ? o.status.id : '',
       address: o.address,
       description: o.description,
@@ -58,7 +61,8 @@ const Orders = ({ tab }) => {
       items: o.items || [],
       payment_status: o.paymentStatus || o.payment_status || 'PENDING',
       collected_price: o.collectedPrice || o.collected_price || 0,
-      created_at: o.createdAt || o.created_at
+      created_at: o.createdAt || o.created_at,
+      updated_at: o.updatedAt || o.updated_at
     }));
   };
 
@@ -340,9 +344,8 @@ const Orders = ({ tab }) => {
       <OrderDetailsModal 
         order={selectedOrder} 
         isOpen={!!selectedOrder} 
-        onClose={() => setSelectedOrder(null)} 
-        statuses={statuses} 
-        clients={clients} 
+        onClose={() => setSelectedOrder(null)}
+        statuses={statuses}
       />
 
       {/* Create Order Modal */}
