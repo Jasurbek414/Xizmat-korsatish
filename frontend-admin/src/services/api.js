@@ -372,6 +372,17 @@ export const api = {
     return handleResponse(res);
   },
 
+  /// pay_period: "YYYY-MM" (ixtiyoriy, berilmasa joriy oy ishlatiladi).
+  /// Oyligi sozlangan barcha faol xodimlar uchun shu oylik hisobini yaratadi.
+  async generatePayroll(payPeriod) {
+    const res = await fetch(`${API_BASE_URL}/salaries/generate`, {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify(payPeriod ? { pay_period: payPeriod } : {})
+    });
+    return handleResponse(res);
+  },
+
   // Company Settings
   async getCompanySettings() {
     const res = await fetch(`${API_BASE_URL}/company`, {

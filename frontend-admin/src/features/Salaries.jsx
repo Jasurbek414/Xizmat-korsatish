@@ -31,76 +31,89 @@ const Salaries = ({ tab }) => {
   const [completedStatusId, setCompletedStatusId] = useState(null);
 
   // Load database items and calculate dynamic commissions
-  useEffect(() => {
-    const loadData = async () => {
-      try {
-        const [salariesData, ordersData, statusesData] = await Promise.all([
-          api.getSalaries(),
-          api.getOrders(),
-          api.getOrderStatuses()
-        ]);
+  const loadData = async () => {
+    try {
+      const [salariesData, ordersData, statusesData] = await Promise.all([
+        api.getSalaries(),
+        api.getOrders(),
+        api.getOrderStatuses()
+      ]);
 
-        // "Yakunlangan" - ro'yxatdagi eng oxirgi bosqich (sort_order bo'yicha),
-        // chunki har bir kompaniya statuslarni o'zi moslashtirib sozlaydi.
-        const sortedStatuses = [...statusesData].sort((a, b) => a.sortOrder - b.sortOrder);
-        const completedStatusId = sortedStatuses.length > 0 ? sortedStatuses.slice(-1)[0].id : null;
+      // "Yakunlangan" - ro'yxatdagi eng oxirgi bosqich (sort_order bo'yicha),
+      // chunki har bir kompaniya statuslarni o'zi moslashtirib sozlaydi.
+      const sortedStatuses = [...statusesData].sort((a, b) => a.sortOrder - b.sortOrder);
+      const completedStatusId = sortedStatuses.length > 0 ? sortedStatuses.slice(-1)[0].id : null;
 
-        const mappedOrders = ordersData.map(o => ({
-          id: o.id,
-          worker_name: o.worker ? o.worker.fullName : '',
-          price: o.price,
-          status_id: o.status ? o.status.id : null,
-          created_at: o.createdAt
-        }));
+      const mappedOrders = ordersData.map(o => ({
+        id: o.id,
+        worker_name: o.worker ? o.worker.fullName : '',
+        price: o.price,
+        status_id: o.status ? o.status.id : null,
+        created_at: o.createdAt
+      }));
 
-        const computedSalaries = salariesData.map(sal => {
-          const payPeriodStr = sal.payPeriod.substring(0, 7); // e.g. "2026-06"
+      const computedSalaries = salariesData.map(sal => {
+        const payPeriodStr = sal.payPeriod.substring(0, 7); // e.g. "2026-06"
 
-          // Find completed orders for this worker in this period
-          const workerCompletedOrders = mappedOrders.filter(ord => {
-            const isWorker = ord.worker_name.toLowerCase() === sal.user.fullName.toLowerCase();
-            const isCompleted = completedStatusId !== null && ord.status_id === completedStatusId;
-            const ordPeriod = ord.created_at ? ord.created_at.slice(0, 7) : '';
-            return isWorker && isCompleted && ordPeriod === payPeriodStr;
-          });
-
-          const totalOrdersAmount = workerCompletedOrders.reduce((sum, ord) => sum + ord.price, 0);
-          const commission = Math.round(totalOrdersAmount * 0.1); // 10% commission
-
-          return {
-            id: sal.id,
-            user_id: sal.user.id,
-            full_name: sal.user.fullName,
-            base_salary: sal.baseSalary,
-            bonus: sal.bonus + commission,
-            deductions: sal.deductions,
-            status: sal.status,
-            pay_period: payPeriodStr
-          };
+        // Find completed orders for this worker in this period
+        const workerCompletedOrders = mappedOrders.filter(ord => {
+          const isWorker = ord.worker_name.toLowerCase() === sal.user.fullName.toLowerCase();
+          const isCompleted = completedStatusId !== null && ord.status_id === completedStatusId;
+          const ordPeriod = ord.created_at ? ord.created_at.slice(0, 7) : '';
+          return isWorker && isCompleted && ordPeriod === payPeriodStr;
         });
 
-        setSalaries(computedSalaries);
-        setOrders(mappedOrders);
-        setCompletedStatusId(completedStatusId);
+        const totalOrdersAmount = workerCompletedOrders.reduce((sum, ord) => sum + ord.price, 0);
+        const commission = Math.round(totalOrdersAmount * 0.1); // 10% commission
 
-        // Extract unique periods
-        const uniquePeriods = [...new Set(computedSalaries.map(s => s.pay_period))];
-        setPeriods(uniquePeriods);
+        return {
+          id: sal.id,
+          user_id: sal.user.id,
+          full_name: sal.user.fullName,
+          base_salary: sal.baseSalary,
+          bonus: sal.bonus + commission,
+          deductions: sal.deductions,
+          status: sal.status,
+          pay_period: payPeriodStr
+        };
+      });
 
-        // Calculate Summary Stats
-        const total = computedSalaries.reduce((sum, s) => sum + s.base_salary + s.bonus - s.deductions, 0);
-        const paid = computedSalaries.filter(s => s.status === 'PAID').reduce((sum, s) => sum + s.base_salary + s.bonus - s.deductions, 0);
-        const pending = computedSalaries.filter(s => s.status === 'UNPAID').reduce((sum, s) => sum + s.base_salary + s.bonus - s.deductions, 0);
+      setSalaries(computedSalaries);
+      setOrders(mappedOrders);
+      setCompletedStatusId(completedStatusId);
 
-        setSummary({ total, paid, pending });
-      } catch (err) {
-        console.error("Failed to load salaries:", err);
-      }
-    };
+      // Extract unique periods
+      const uniquePeriods = [...new Set(computedSalaries.map(s => s.pay_period))];
+      setPeriods(uniquePeriods);
 
+      // Calculate Summary Stats
+      const total = computedSalaries.reduce((sum, s) => sum + s.base_salary + s.bonus - s.deductions, 0);
+      const paid = computedSalaries.filter(s => s.status === 'PAID').reduce((sum, s) => sum + s.base_salary + s.bonus - s.deductions, 0);
+      const pending = computedSalaries.filter(s => s.status === 'UNPAID').reduce((sum, s) => sum + s.base_salary + s.bonus - s.deductions, 0);
+
+      setSummary({ total, paid, pending });
+    } catch (err) {
+      console.error("Failed to load salaries:", err);
+    }
+  };
+
+  useEffect(() => {
     loadData();
     setWallets(getDbItem('wallets') || []);
   }, [tab]);
+
+  // Joriy oy uchun oyligi sozlangan barcha faol xodimlarga oylik hisobini yaratadi
+  // (avval yaratilganlar qayta o'tkazib yuboriladi - dublikat bo'lmaydi).
+  const handleGeneratePayroll = async () => {
+    if (!window.confirm("Joriy oy uchun barcha xodimlarga oylik hisobi yaratilsinmi?")) return;
+    try {
+      const result = await api.generatePayroll();
+      alert(result.message || "Oylik hisoblari yaratildi");
+      await loadData();
+    } catch (err) {
+      alert(err.message || "Oylik hisobini yaratishda xatolik yuz berdi");
+    }
+  };
 
   // Pay single employee salary
   const handlePaySalary = async (id) => {
@@ -190,7 +203,7 @@ const Salaries = ({ tab }) => {
     <div className="space-y-6 animate-fade-in text-xs font-semibold">
       
       {/* Statistics Cards */}
-      <SalariesStats summary={summary} onPayAll={handlePayAll} />
+      <SalariesStats summary={summary} onPayAll={handlePayAll} onGeneratePayroll={handleGeneratePayroll} />
 
       {/* Filter panel */}
       <SalariesFilters 

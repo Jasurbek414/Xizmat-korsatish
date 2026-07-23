@@ -1,29 +1,37 @@
 import React from 'react';
-import { DollarSign, CheckCircle, AlertCircle, CreditCard } from 'lucide-react';
+import { DollarSign, CheckCircle, AlertCircle, CreditCard, FilePlus2 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { formatCurrency } from '../../utils/format';
 
-const SalariesStats = ({ summary, onPayAll }) => {
+const SalariesStats = ({ summary, onPayAll, onGeneratePayroll }) => {
   const { t, i18n } = useTranslation();
 
   return (
     <div className="space-y-6 text-xs font-semibold">
-      
+
       {/* Title + Batch Action Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h2 className="text-2xl font-extrabold text-slate-800 dark:text-white tracking-tight font-['Outfit']">{t('salaries_page.title')}</h2>
           <p className="text-xs text-slate-500 dark:text-gray-400 font-medium">{t('salaries_page.desc')}</p>
         </div>
-        
-        {summary.pending > 0 && (
-          <button 
-            onClick={onPayAll}
-            className="flex items-center gap-2 premium-btn text-white px-4 py-2 rounded-xl text-xs font-bold transition cursor-pointer w-fit shadow-sm"
+
+        <div className="flex items-center gap-2">
+          <button
+            onClick={onGeneratePayroll}
+            className="flex items-center gap-2 bg-slate-100 hover:bg-slate-200 dark:bg-white/5 dark:hover:bg-white/10 text-slate-700 dark:text-gray-200 px-4 py-2 rounded-xl text-xs font-bold transition cursor-pointer w-fit"
           >
-            <CreditCard className="w-4 h-4" /> {t('salaries_page.pay_all')}
+            <FilePlus2 className="w-4 h-4" /> Oylik hisobini yaratish
           </button>
-        )}
+          {summary.pending > 0 && (
+            <button
+              onClick={onPayAll}
+              className="flex items-center gap-2 premium-btn text-white px-4 py-2 rounded-xl text-xs font-bold transition cursor-pointer w-fit shadow-sm"
+            >
+              <CreditCard className="w-4 h-4" /> {t('salaries_page.pay_all')}
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Stats Cards */}
