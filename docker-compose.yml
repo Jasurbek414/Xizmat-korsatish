@@ -168,6 +168,15 @@ services:
         # literal IP bilan candidate 84.54.75.20 bo'ladi va ovoz oqadi - jonli
         # sinovda tasdiqlangan). Agar server IP o'zgarsa - shu qiymatni yangilang.
         sed -i 's|name="ext-rtp-ip" value="[^"]*"|name="ext-rtp-ip" value="84.54.75.20"|' /etc/freeswitch/sip_profiles/internal.xml
+        # ESLATMA: local-network-acl STANDART holatida (localnet.auto) qoldiriladi.
+        # Brauzer SIP nginx (172.20.0.6, docker ichki tarmoq) orqali kelgani uchun
+        # FreeSWITCH klientni "mahalliy" deb hisoblab, ICE candidate'ga o'zining
+        # ICHKI IP'sini (172.20.0.5) qo'yadi. Bu ATAYIN shunday: coturn (TURN
+        # server) AYNAN shu ichki IP'ga docker tarmog'i orqali bevosita yetadi va
+        # media'ni brauzerga TCP orqali relay qiladi (Docker Desktop UDP yo'li
+        # buzuq bo'lgani uchun). Ilgari "none" (84.54.75.20) sinaб ko'rilgan edi -
+        # candidate to'g'ri bo'lsa ham Docker Desktop/WSL2 host UDP forwarding'i
+        # buzuq bo'lgani uchun DTLS o'tmasdi; coturn TCP-relay yechimi shu sababli.
         # ext-sip-ip ATAYIN o'zgartirilmaydi: brauzer WSS (wss://.../ws/sip)
         # orqali nginx'dan o'tib ulanadi, shuning uchun internal profilning SIP
         # signalizatsiya manzili STUN bilan tashqi IP (84.54.75.20)ga
@@ -195,6 +204,47 @@ services:
       retries: 5
       start_period: 30s
     restart: always
+
+  # TURN server (coturn) - WebRTC ovoz (media) relay.
+  # MUHIM SABAB: server Docker Desktop/WSL2 (Windows) da ishlaydi - u WebRTC
+  # uchun kerakli UDP RTP portlarini ishonchli uzatolmaydi (host UDP forwarding
+  # buzuq, symmetric NAT). Yechim: brauzer media'ni coturn'ga TCP orqali yuboradi
+  # (Docker Desktop TCP'ni ISHONCHLI uzatadi), coturn esa FreeSWITCH'ga ICHKI
+  # docker tarmog'i orqali (172.20.0.x, host UDP forwarding'siz) uzatadi. Shunday
+  # qilib buzuq host UDP yo'li butunlay chetlab o'tiladi.
+  # Brauzer: turn:<server>:3478?transport=tcp + iceTransportPolicy:'relay'.
+  # FreeSWITCH internal profil o'zining ICHKI IP'sini (172.20.0.5) candidate
+  # qilib e'lon qiladi - coturn ichkaridan bevosita yetadi (local-network-acl
+  # standart holatga qaytarildi).
+  coturn:
+    image: coturn/coturn:latest
+    container_name: service-core-coturn
+    restart: always
+    ports:
+      - "3478:3478/tcp"
+      - "3478:3478/udp"
+      # 443/TLS (turns) - ISP'lar 3478 ni bloklashi mumkin, lekin 443 (HTTPS
+      # porti) deyarli har doim ochiq. Brauzer turns:<ip>:443?transport=tcp
+      # bilan ulanadi - HTTPS trafik kabi ko'rinadi, hech qaysi ISP bloklaмaydi.
+      - "443:443/tcp"
+    volumes:
+      - ./coturn-certs:/certs:ro
+    command:
+      - "-n"
+      - "--log-file=stdout"
+      - "--listening-port=3478"
+      - "--tls-listening-port=443"
+      - "--cert=/certs/turn_cert.pem"
+      - "--pkey=/certs/turn_pkey.pem"
+      - "--realm=namifor.ecos.uz"
+      - "--fingerprint"
+      - "--lt-cred-mech"
+      - "--user=webrtc:webrtcTURN2026x9k4relay"
+      - "--min-port=49160"
+      - "--max-port=49200"
+      - "--no-dtls"
+      - "--no-cli"
+      - "--no-multicast-peers"
 
 volumes:
   postgres_data:

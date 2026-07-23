@@ -155,14 +155,13 @@ const OrderDetailsModal = ({ order, isOpen, onClose, statuses, clients }) => {
                 <div>
                   <p className="text-[9px] text-slate-400 dark:text-gray-500">{t('orders_page.worker')}</p>
                   <p className="text-xs text-slate-800 dark:text-white font-bold">{order.worker_name}</p>
-                  <p className="text-[10px] text-slate-500 dark:text-gray-400 font-mono mt-0.5">Worker Active</p>
                 </div>
               </div>
             </div>
 
             {/* Right: Order details */}
             <div className="border border-slate-200 dark:border-white/5 p-4 rounded-xl space-y-3 bg-white dark:bg-transparent shadow-xs">
-              <h5 className="text-[10px] font-bold text-slate-400 dark:text-gray-500 uppercase tracking-wider mb-2">Xizmat va Narx</h5>
+              <h5 className="text-[10px] font-bold text-slate-400 dark:text-gray-500 uppercase tracking-wider mb-2">Xizmat va Vaqt</h5>
               
               <div className="flex items-center gap-3">
                 <div className="w-8 h-8 rounded-lg bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 flex items-center justify-center">
@@ -176,28 +175,87 @@ const OrderDetailsModal = ({ order, isOpen, onClose, statuses, clients }) => {
 
               <div className="flex items-center gap-3 border-t border-slate-100 dark:border-white/5 pt-3">
                 <div className="w-8 h-8 rounded-lg bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 flex items-center justify-center">
-                  <Layers className="w-4 h-4" />
+                  <Calendar className="w-4 h-4" />
                 </div>
                 <div>
-                  <p className="text-[9px] text-slate-400 dark:text-gray-500">Miqdor va o'lchov birligi</p>
-                  <p className="text-xs text-slate-800 dark:text-white font-bold">
-                    {order.quantity !== undefined ? `${order.quantity} ${order.measurement_unit || 'dona'}` : '1 dona'}
+                  <p className="text-[9px] text-slate-400 dark:text-gray-500">Olingan / Yaratilgan Vaqti</p>
+                  <p className="text-xs text-slate-800 dark:text-white font-mono font-bold">
+                    {order.created_at ? new Date(order.created_at).toLocaleString('uz-UZ') : "Kiritilmagan"}
                   </p>
                 </div>
               </div>
 
               <div className="flex items-center gap-3 border-t border-slate-100 dark:border-white/5 pt-3">
-                <div className="w-8 h-8 rounded-lg bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 flex items-center justify-center">
+                <div className="w-8 h-8 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
                   <DollarSign className="w-4 h-4" />
                 </div>
                 <div>
-                  <p className="text-[9px] text-slate-400 dark:text-gray-500">{t('orders_page.price')}</p>
+                  <p className="text-[9px] text-slate-400 dark:text-gray-500">{t('orders_page.price')} & To'lov</p>
                   <p className="text-xs text-indigo-600 dark:text-indigo-400 font-extrabold font-['Outfit']">
                     {order.price.toLocaleString()} UZS
+                  </p>
+                  <p className="text-[9px] text-slate-500 dark:text-gray-400 font-mono mt-0.5">
+                    Holati: {order.payment_status === 'HANDED_OVER' ? 'Kassaga topshirilgan' : order.payment_status === 'COLLECTED' ? 'Topshirish kutilmoqda' : 'Kutilmoqda'}
+                    {order.collected_price ? ` (${order.collected_price.toLocaleString()} UZS)` : ''}
                   </p>
                 </div>
               </div>
             </div>
+          </div>
+
+          {/* Buyurtma Tarkibi (Gilamlar ro'yxati) */}
+          <div className="border border-slate-200 dark:border-white/5 p-4 rounded-xl space-y-3 bg-white dark:bg-transparent shadow-xs">
+            <div className="flex justify-between items-center mb-1">
+              <h5 className="text-[10px] font-bold text-slate-400 dark:text-gray-500 uppercase tracking-wider">
+                Buyurtma Tarkibi ({order.items ? order.items.length : 0} ta mahsulot)
+              </h5>
+            </div>
+            
+            {(!order.items || order.items.length === 0) ? (
+              <p className="text-xs text-slate-400 dark:text-gray-500 italic">Hozircha mahsulot/gilamlar kiritilmagan</p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="border-b border-slate-200 dark:border-white/5 text-[9px] font-bold text-slate-400 uppercase tracking-wider">
+                      <th className="py-2 pr-2">#</th>
+                      <th className="py-2 px-2">Mahsulot Nomi</th>
+                      <th className="py-2 px-2">O'lchami (Bo'yi x Eni)</th>
+                      <th className="py-2 px-2">Yuzi / Soni</th>
+                      <th className="py-2 pl-2 text-right">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 dark:divide-white/5 text-xs">
+                    {order.items.map((item, iIdx) => {
+                      const isArea = (item.length > 0 && item.width > 0);
+                      const area = (item.length * item.width * item.quantity).toFixed(1);
+                      return (
+                        <tr key={item.id || iIdx}>
+                          <td className="py-2 pr-2 text-slate-400 font-mono text-[10px]">{iIdx + 1}</td>
+                          <td className="py-2 px-2 font-bold text-slate-800 dark:text-white">{item.name || 'Gilam'}</td>
+                          <td className="py-2 px-2 font-mono text-slate-600 dark:text-gray-300">
+                            {isArea ? `${item.length}m x ${item.width}m` : '-'}
+                          </td>
+                          <td className="py-2 px-2 font-semibold text-indigo-600 dark:text-indigo-400">
+                            {isArea ? `${area} m² (${item.quantity} dona)` : `${item.quantity} dona`}
+                          </td>
+                          <td className="py-2 pl-2 text-right">
+                            <span className={`px-2 py-0.5 rounded text-[9px] font-bold ${
+                              item.status === 'READY' ? 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20' :
+                              item.status === 'DRIED' ? 'bg-purple-500/10 text-purple-500 border border-purple-500/20' :
+                              item.status === 'WASHED' ? 'bg-blue-500/10 text-blue-500 border border-blue-500/20' :
+                              'bg-amber-500/10 text-amber-500 border border-amber-500/20'
+                            }`}>
+                              {item.status === 'READY' ? 'Tayyor' : item.status === 'DRIED' ? 'Quritildi' : item.status === 'WASHED' ? 'Yuvildi' : 'Qabul qilingan'}
+                            </span>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
 
           {/* Address & Description */}

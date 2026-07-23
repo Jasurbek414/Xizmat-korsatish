@@ -54,7 +54,10 @@ const Orders = ({ tab }) => {
       description: o.description,
       price: o.price,
       quantity: 1,
-      measurement_unit: 'dona',
+      measurement_unit: o.service ? (o.service.measurementUnit || o.service.measurement_unit || 'm²') : 'm²',
+      items: o.items || [],
+      payment_status: o.paymentStatus || o.payment_status || 'PENDING',
+      collected_price: o.collectedPrice || o.collected_price || 0,
       created_at: o.createdAt || o.created_at
     }));
   };

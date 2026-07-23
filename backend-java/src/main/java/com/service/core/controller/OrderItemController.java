@@ -2,8 +2,10 @@ package com.service.core.controller;
 
 import com.service.core.model.Order;
 import com.service.core.model.OrderItem;
+import com.service.core.model.OrderStatus;
 import com.service.core.repository.OrderRepository;
 import com.service.core.repository.OrderItemRepository;
+import com.service.core.repository.OrderStatusRepository;
 import com.service.core.tenant.TenantContext;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -21,10 +23,28 @@ public class OrderItemController {
 
     private final OrderRepository orderRepository;
     private final OrderItemRepository orderItemRepository;
+    private final OrderStatusRepository orderStatusRepository;
 
-    public OrderItemController(OrderRepository orderRepository, OrderItemRepository orderItemRepository) {
+    public OrderItemController(OrderRepository orderRepository, OrderItemRepository orderItemRepository, OrderStatusRepository orderStatusRepository) {
         this.orderRepository = orderRepository;
         this.orderItemRepository = orderItemRepository;
+        this.orderStatusRepository = orderStatusRepository;
+    }
+
+    private boolean isOrderPastOrCompleted(Order order) {
+        if ("HANDED_OVER".equals(order.getPaymentStatus())) {
+            return true;
+        }
+        if (order.getStatus() != null && order.getCompany() != null) {
+            List<com.service.core.model.OrderStatus> sorted = orderStatusRepository.findByCompanyIdOrderBySortOrderAsc(order.getCompany().getId());
+            if (!sorted.isEmpty()) {
+                com.service.core.model.OrderStatus lastStatus = sorted.get(sorted.size() - 1);
+                if (lastStatus.getId().equals(order.getStatus().getId()) && !"PENDING".equals(order.getPaymentStatus())) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     @GetMapping
@@ -53,6 +73,11 @@ public class OrderItemController {
         Order order = orderRepository.findById(orderId).orElse(null);
         if (order == null || !order.getCompany().getId().equals(UUID.fromString(tenantId))) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("message", "Buyurtma topilmadi"));
+        }
+
+        if (isOrderPastOrCompleted(order)) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(Map.of("message", "Tarixga o'tgan buyurtmaga yangi mahsulot qo'shish taqiqlanadi"));
         }
 
         String name = request.getOrDefault("name", "Gilam").toString();
@@ -84,6 +109,11 @@ public class OrderItemController {
         Order order = orderRepository.findById(orderId).orElse(null);
         if (order == null || !order.getCompany().getId().equals(UUID.fromString(tenantId))) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("message", "Buyurtma topilmadi"));
+        }
+
+        if (isOrderPastOrCompleted(order)) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(Map.of("message", "Tarixga o'tgan buyurtma mahsulotlarini o'zgartirish taqiqlanadi"));
         }
 
         OrderItem item = orderItemRepository.findById(itemId).orElse(null);
@@ -121,6 +151,11 @@ public class OrderItemController {
         Order order = orderRepository.findById(orderId).orElse(null);
         if (order == null || !order.getCompany().getId().equals(UUID.fromString(tenantId))) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("message", "Buyurtma topilmadi"));
+        }
+
+        if (isOrderPastOrCompleted(order)) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(Map.of("message", "Tarixga o'tgan buyurtma mahsulotlarini o'chirish taqiqlanadi"));
         }
 
         OrderItem item = orderItemRepository.findById(itemId).orElse(null);

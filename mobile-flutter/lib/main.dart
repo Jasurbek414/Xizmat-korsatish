@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'core/network/api_client.dart';
+import 'core/storage/secure_storage_service.dart';
 import 'core/theme.dart';
+import 'core/theme_notifier.dart';
 import 'features/auth/bloc/auth_bloc.dart';
 import 'features/auth/screens/login_screen.dart';
 import 'features/dashboard/screens/main_dashboard.dart';
@@ -12,6 +14,14 @@ import 'features/notifications/services/push_notification_service.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Hive.initFlutter();
+
+  // Saqlangan tema holatini tiklaymiz
+  final storage = SecureStorageService();
+  final saved = await storage.readThemeMode();
+  if (saved != null) {
+    isDarkMode.value = saved;
+  }
+
   await BackgroundGpsService.initialize();
   await PushNotificationService.initialize();
   runApp(const MyApp());
@@ -31,8 +41,6 @@ class _MyAppState extends State<MyApp> {
   void initState() {
     super.initState();
     _authBloc = AuthBloc()..add(AppStartedEvent());
-    // Token muddati tugab, server 401 qaytarsa - qaysi repository so'ragan
-    // bo'lishidan qat'i nazar, foydalanuvchini avtomatik chiqarib yuboramiz.
     ApiClient.onUnauthorized = () => _authBloc.add(LogoutEvent());
   }
 
@@ -46,11 +54,18 @@ class _MyAppState extends State<MyApp> {
   Widget build(BuildContext context) {
     return BlocProvider.value(
       value: _authBloc,
-      child: MaterialApp(
-        title: 'ServiceCore Mobile Console',
-        theme: AppTheme.darkTheme,
-        debugShowCheckedModeBanner: false,
-        home: const AppNavigator(),
+      child: ValueListenableBuilder<bool>(
+        valueListenable: isDarkMode,
+        builder: (context, dark, _) {
+          return MaterialApp(
+            title: 'ServiceCore Mobile Console',
+            theme: AppTheme.lightTheme,
+            darkTheme: AppTheme.darkTheme,
+            themeMode: dark ? ThemeMode.dark : ThemeMode.light,
+            debugShowCheckedModeBanner: false,
+            home: const AppNavigator(),
+          );
+        },
       ),
     );
   }
@@ -64,8 +79,6 @@ class AppNavigator extends StatelessWidget {
     return BlocConsumer<AuthBloc, AuthState>(
       listener: (context, state) {
         if (state is Authenticated) {
-          // FCM tokenini backend'ga ro'yxatdan o'tkazish - shu qurilmaga
-          // push bildirishnoma yuborish uchun kerak.
           PushNotificationService.registerTokenWithBackend();
         }
       },
@@ -88,9 +101,6 @@ class AppNavigator extends StatelessWidget {
             );
           }
 
-          // Barcha qolgan rollar (standart yoki admin panelida yaratilgan
-          // maxsus rollar) uchun bitta umumiy dashboard - qaysi bo'limlar
-          // ko'rinishi faqat backend'dan kelgan ruxsatlarga bog'liq.
           return MainDashboard(user: user, permissions: state.permissions);
         }
 
@@ -100,7 +110,6 @@ class AppNavigator extends StatelessWidget {
           );
         }
 
-        // Default to login screen
         return const LoginScreen();
       },
     );

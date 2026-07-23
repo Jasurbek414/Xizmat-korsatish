@@ -72,8 +72,65 @@ public class OrderController {
         return ResponseEntity.ok(orders);
     }
 
+    /**
+     * Dispatch pool: kompaniyaning BARCHA faol buyurtmalari.
+     * Har bir haydovchi ko'radi va bo'shini o'ziga qabul qila oladi.
+     */
+    @GetMapping("/available")
+    public ResponseEntity<?> getAvailableOrders() {
+        String tenantId = TenantContext.getCurrentTenant();
+        if (tenantId == null) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of("message", "Tenant ID is missing"));
+        }
+        List<Order> orders = orderRepository.findByCompanyIdAndPaymentStatus(UUID.fromString(tenantId), "PENDING");
+        return ResponseEntity.ok(orders);
+    }
+
+    /**
+     * Tarix bo'limi: to'langan yoki topshirilgan buyurtmalar (COLLECTED yoki HANDED_OVER).
+     */
+    @GetMapping("/completed")
+    public ResponseEntity<?> getCompletedOrders() {
+        String tenantId = TenantContext.getCurrentTenant();
+        if (tenantId == null) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of("message", "Tenant ID is missing"));
+        }
+        List<Order> orders = orderRepository.findCompletedByCompanyId(UUID.fromString(tenantId));
+        return ResponseEntity.ok(orders);
+    }
+
+    /**
+     * Haydovchi buyurtmani O'ZIGA qabul qiladi (self-assign).
+     * Faqat tayinlanmagan (workerId = null) buyurtmani qabul qilish mumkin.
+     */
+    @PutMapping("/{id}/accept")
+    public ResponseEntity<?> acceptOrder(@PathVariable UUID id) {
+        String tenantId = TenantContext.getCurrentTenant();
+        if (tenantId == null) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of("message", "Tenant ID is missing"));
+        }
+
+        User currentUser = getCurrentUser();
+        if (currentUser == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("message", "Foydalanuvchi topilmadi"));
+        }
+
+        Order order = orderRepository.findById(id).orElse(null);
+        if (order == null || !order.getCompany().getId().equals(UUID.fromString(tenantId))) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("message", "Buyurtma topilmadi"));
+        }
+
+        if (order.getWorker() != null) {
+            return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of("message", "Bu buyurtma allaqachon boshqa haydovchiga biriktirilgan"));
+        }
+
+        order.setWorker(currentUser);
+        orderRepository.save(order);
+        return ResponseEntity.ok(order);
+    }
+
     @PostMapping
-    @PreAuthorize("hasAnyRole('SUPERADMIN','ADMIN','MANAGER','DISPATCHER','WORKER_DRIVER','WORKER_FACTORY')")
+    @PreAuthorize("hasAnyRole('SUPERADMIN','ADMIN','MANAGER','DISPATCHER','WORKER_DRIVER','WORKER_FACTORY','WORKER_SEH')")
     public ResponseEntity<?> createOrder(@RequestBody Map<String, Object> request) {
         String tenantId = TenantContext.getCurrentTenant();
         if (tenantId == null) {
@@ -149,6 +206,11 @@ public class OrderController {
         Order order = orderRepository.findById(id).orElse(null);
         if (order == null || !order.getCompany().getId().equals(UUID.fromString(tenantId))) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("message", "Buyurtma topilmadi"));
+        }
+
+        if ("HANDED_OVER".equals(order.getPaymentStatus())) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(Map.of("message", "Tarixga o'tgan (kassaga topshirilgan) buyurtma statusini o'zgartirish taqiqlanadi"));
         }
 
         OrderStatus status = orderStatusRepository.findById(UUID.fromString(statusIdStr))
@@ -231,6 +293,43 @@ public class OrderController {
             order.setWorker(worker);
         } else if (request.containsKey("worker_id")) {
             order.setWorker(null);
+        }
+
+        Order saved = orderRepository.save(order);
+        return ResponseEntity.ok(saved);
+    }
+
+    /**
+     * Mobil ilova uchun: buyurtma narxini va izohini yangilash.
+     * Haydovchi va ishchi o'z buyurtmasining narxini o'zgartirishi mumkin.
+     * Tarixga o'tgan (kassaga topshirilgan) buyurtmalarda narx o'zgartirish taqiqlanadi.
+     */
+    @PutMapping("/{id}/price")
+    public ResponseEntity<?> updateOrderPrice(@PathVariable UUID id, @RequestBody Map<String, Object> request) {
+        String tenantId = TenantContext.getCurrentTenant();
+        if (tenantId == null) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of("message", "Tenant ID is missing"));
+        }
+
+        Order order = orderRepository.findById(id).orElse(null);
+        if (order == null || !order.getCompany().getId().equals(UUID.fromString(tenantId))) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("message", "Buyurtma topilmadi"));
+        }
+
+        if ("HANDED_OVER".equals(order.getPaymentStatus())) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(Map.of("message", "Tarixga o'tgan buyurtma narxini o'zgartirish taqiqlanadi"));
+        }
+
+        Object priceObj = request.get("price");
+        if (priceObj == null) {
+            return ResponseEntity.badRequest().body(Map.of("message", "Yangi narx kiritilishi shart"));
+        }
+
+        order.setPrice(new BigDecimal(priceObj.toString()));
+
+        if (request.containsKey("description")) {
+            order.setDescription((String) request.get("description"));
         }
 
         Order saved = orderRepository.save(order);

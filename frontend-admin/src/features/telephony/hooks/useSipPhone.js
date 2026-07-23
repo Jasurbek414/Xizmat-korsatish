@@ -4,6 +4,30 @@ import JsSIP from 'jssip';
 // Verbose JsSIP debug loglarini o'chirib qo'yamiz (brauzer konsolini tozalash).
 JsSIP.debug.disable('JsSIP:*');
 
+// WebRTC media (ovoz) uchun ICE/TURN sozlamasi.
+// MUHIM: server Docker Desktop/WSL2 (Windows) da ishlaydi - u WebRTC uchun
+// kerakli UDP RTP portlarini ishonchli uzatolmaydi. Shuning uchun media'ni
+// coturn (TURN) server orqali TCP bilan relay qilamiz: brauzer -> coturn (TCP,
+// Docker Desktop TCP'ni ishonchli uzatadi) -> FreeSWITCH (ichki docker tarmoq).
+// iceTransportPolicy:'relay' - brauzer FAQAT relay (coturn) yo'lini ishlatadi
+// (to'g'ridan-to'g'ri UDP baribir Docker Desktop'da ishlamaydi). TURN URL domen
+// EMAS, to'g'ridan-to'g'ri server IP bo'lishi shart (domen Cloudflare tunnel'ga
+// ketadi, u yerda TURN yo'q).
+const PC_CONFIG = {
+  iceServers: [
+    // STUN - to'g'ridan-to'g'ri urinish (qo'ng'iroq har doim o'rnatilishi uchun).
+    { urls: 'stun:stun.l.google.com:19302' },
+    { urls: 'stun:stun.freeswitch.org' },
+    // TURN (coturn) - ovoz media'sini TCP orqali relay qiladi (Docker Desktop
+    // UDP yo'li buzuq). URL domen EMAS, to'g'ridan-to'g'ri server IP.
+    { urls: 'turn:84.54.75.20:3478?transport=tcp', username: 'webrtc', credential: 'webrtcTURN2026x9k4relay' },
+  ],
+  // MUHIM: 'relay' EMAS, 'all' (standart) - brauzer HAM to'g'ridan-to'g'ri HAM
+  // relay yo'lini sinaydi. Shunda coturn yetib bormasa ham qo'ng'iroq O'RNATILADI
+  // (javob berish/rad etish ishlaydi), coturn yetsa ovoz relay orqali keladi.
+  // ('relay' majburiy qilinsa, coturn yetmaганда qo'ng'iroq umuman buzilardi.)
+};
+
 // Brauzerning FreeSWITCH "internal" profilidagi shaxsiy ichki WebRTC
 // extension'ini boshqaradigan hook. Brauzer UzTelecom trunk bilan HECH QACHON
 // to'g'ridan-to'g'ri ishlamaydi - u faqat ichki extension (masalan 2001) sifatida
@@ -172,14 +196,8 @@ export default function useSipPhone({
               session.answer({
                 mediaConstraints: { audio: true, video: false },
                 mediaStream: stream,
-                // Brauzer NAT ortida - STUN orqali ochiq nomzodni ham to'playdi
-                // (aks holda FreeSWITCH media yo'lini topa olmasdi).
-                pcConfig: {
-                  iceServers: [
-                    { urls: 'stun:stun.l.google.com:19302' },
-                    { urls: 'stun:stun.freeswitch.org' },
-                  ],
-                },
+                // Media coturn (TURN) orqali relay qilinadi - PC_CONFIG'ga qarang.
+                pcConfig: PC_CONFIG,
               });
             })
             .catch((err) => {
@@ -318,12 +336,8 @@ export default function useSipPhone({
         session.answer({
           mediaConstraints: { audio: true, video: false },
           mediaStream: stream,
-          pcConfig: {
-            iceServers: [
-              { urls: 'stun:stun.l.google.com:19302' },
-              { urls: 'stun:stun.freeswitch.org' },
-            ],
-          },
+          // Media coturn (TURN) orqali relay qilinadi - PC_CONFIG'ga qarang.
+          pcConfig: PC_CONFIG,
         });
       })
       .catch((err) => {

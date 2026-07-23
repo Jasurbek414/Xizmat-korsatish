@@ -1,12 +1,15 @@
 class AppConstants {
   /// Backend hostini muhitga (emulator/real qurilma/production) qarab
   /// `--dart-define=API_HOST=...` orqali build vaqtida almashtirish mumkin.
-  /// Android emulyatoridan hostning localhost'iga chiqish uchun 10.0.2.2 ishlatiladi.
+  /// PRODUCTION: namifor-api.ecos.uz
   static const String _apiHost = String.fromEnvironment(
     'API_HOST',
-    defaultValue: '10.0.2.2:8082',
+    defaultValue: 'namifor-api.ecos.uz',
   );
-  static const bool _useHttps = bool.fromEnvironment('API_HTTPS');
+  static const bool _useHttps = bool.fromEnvironment(
+    'API_HTTPS',
+    defaultValue: true,
+  );
 
   static String get baseApiUrl =>
       '${_useHttps ? 'https' : 'http'}://$_apiHost/api/v1';
@@ -28,4 +31,7 @@ class AppConstants {
   static const String keyPermissions = 'permissions';
   static const String keyTheme = 'theme_preference';
   static const String keyShiftStatus = 'shift_status'; // ONLINE / OFFLINE
+
+  /// Dark mode (true) yoki light mode (false)
+  static const String keyDarkMode = 'dark_mode';
 }

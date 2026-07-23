@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import '../../../core/theme.dart';
 import '../../../models/service_and_client.dart';
@@ -16,7 +17,6 @@ class CreateOrderScreen extends StatefulWidget {
 }
 
 class _CreateOrderScreenState extends State<CreateOrderScreen> {
-  final _formKey = GlobalKey<FormState>();
   final _repository = OrdersRepository();
 
   bool _loading = false;
@@ -24,16 +24,16 @@ class _CreateOrderScreenState extends State<CreateOrderScreen> {
   List<ClientInfo> _clients = [];
 
   bool _createNewClient = false;
+  int _currentStep = 0; // 0 = mijoz, 1 = xizmat, 2 = manzil, 3 = tasdiqlash
 
   final _clientNameController = TextEditingController();
   final _clientPhoneController = TextEditingController();
-
-  ClientInfo? _selectedClient;
-  ServiceInfo? _selectedService;
-
   final _addressController = TextEditingController();
   final _priceController = TextEditingController();
   final _descriptionController = TextEditingController();
+
+  ClientInfo? _selectedClient;
+  ServiceInfo? _selectedService;
 
   @override
   void initState() {
@@ -57,251 +57,44 @@ class _CreateOrderScreenState extends State<CreateOrderScreen> {
       setState(() => _loading = false);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Boshlang'ich ma'lumotlarni yuklashda xatolik: $e")),
+          SnackBar(
+            content: Text("Ma'lumotlarni yuklashda xatolik: $e"),
+            backgroundColor: AppTheme.dangerColor,
+            behavior: SnackBarBehavior.floating,
+          ),
         );
       }
     }
   }
 
   @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppTheme.darkBackground,
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(LucideIcons.arrowLeft, color: Colors.white),
-          onPressed: () => Navigator.pop(context),
-        ),
-        title: const Text(
-          "Yangi buyurtma yaratish",
-          style: TextStyle(
-            fontFamily: 'Outfit',
-            fontWeight: FontWeight.bold,
-            fontSize: 16,
-            color: Colors.white,
-          ),
-        ),
-      ),
-      body: _loading
-          ? const Center(child: CircularProgressIndicator())
-          : SingleChildScrollView(
-              padding: const EdgeInsets.all(16),
-              child: Form(
-                key: _formKey,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // 1. Client Selection Card
-                    Container(
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: AppTheme.cardColor.withOpacity(0.5),
-                        borderRadius: BorderRadius.circular(18),
-                        border: Border.all(color: Colors.white.withOpacity(0.05)),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              const Text(
-                                "Mijoz tanlash",
-                                style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
-                              ),
-                              Row(
-                                children: [
-                                  const Text("Yangi mijoz", style: TextStyle(color: AppTheme.textSecondary, fontSize: 11)),
-                                  Switch(
-                                    value: _createNewClient,
-                                    activeColor: AppTheme.accentColor,
-                                    onChanged: (val) {
-                                      setState(() {
-                                        _createNewClient = val;
-                                      });
-                                    },
-                                  ),
-                                ],
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 10),
-                          if (_createNewClient) ...[
-                            TextFormField(
-                              controller: _clientNameController,
-                              style: const TextStyle(color: Colors.white, fontSize: 13),
-                              decoration: const InputDecoration(
-                                labelText: "Mijoz ismi (F.I.O)",
-                                labelStyle: TextStyle(color: Colors.white54, fontSize: 11),
-                              ),
-                              validator: (val) => (val == null || val.trim().isEmpty) ? "Mijoz ismini yozing" : null,
-                            ),
-                            const SizedBox(height: 10),
-                            TextFormField(
-                              controller: _clientPhoneController,
-                              style: const TextStyle(color: Colors.white, fontSize: 13),
-                              keyboardType: TextInputType.phone,
-                              decoration: const InputDecoration(
-                                labelText: "Telefon raqami (+998)",
-                                labelStyle: TextStyle(color: Colors.white54, fontSize: 11),
-                              ),
-                              validator: (val) => (val == null || val.trim().isEmpty) ? "Telefon raqamini yozing" : null,
-                            ),
-                          ] else ...[
-                            DropdownButtonFormField<ClientInfo>(
-                              value: _selectedClient,
-                              dropdownColor: const Color(0xff1f2937),
-                              style: const TextStyle(color: Colors.white, fontSize: 13),
-                              decoration: const InputDecoration(
-                                labelText: "Mavjud mijozlardan tanlang",
-                                labelStyle: TextStyle(color: Colors.white54, fontSize: 11),
-                              ),
-                              items: _clients.map((c) {
-                                return DropdownMenuItem<ClientInfo>(
-                                  value: c,
-                                  child: Text("${c.fullName} (${c.phone})"),
-                                );
-                              }).toList(),
-                              onChanged: (val) {
-                                setState(() {
-                                  _selectedClient = val;
-                                  if (val != null && _addressController.text.isEmpty) {
-                                    _addressController.text = val.address;
-                                  }
-                                });
-                              },
-                              validator: (val) => val == null ? "Mijozni tanlang" : null,
-                            ),
-                          ],
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 16),
+  void dispose() {
+    _clientNameController.dispose();
+    _clientPhoneController.dispose();
+    _addressController.dispose();
+    _priceController.dispose();
+    _descriptionController.dispose();
+    super.dispose();
+  }
 
-                    // 2. Service Selection Card
-                    Container(
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: AppTheme.cardColor.withOpacity(0.5),
-                        borderRadius: BorderRadius.circular(18),
-                        border: Border.all(color: Colors.white.withOpacity(0.05)),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            "Xizmat turi va Narxi",
-                            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
-                          ),
-                          const SizedBox(height: 10),
-                          DropdownButtonFormField<ServiceInfo>(
-                            value: _selectedService,
-                            dropdownColor: const Color(0xff1f2937),
-                            style: const TextStyle(color: Colors.white, fontSize: 13),
-                            decoration: const InputDecoration(
-                              labelText: "Xizmat turini tanlang",
-                              labelStyle: TextStyle(color: Colors.white54, fontSize: 11),
-                            ),
-                            items: _services.map((s) {
-                              return DropdownMenuItem<ServiceInfo>(
-                                  value: s,
-                                  child: Text("${s.nameUz} (${s.price.toStringAsFixed(0)} so'm / ${s.measurementUnit})")
-                              );
-                            }).toList(),
-                            onChanged: (val) {
-                              setState(() {
-                                _selectedService = val;
-                                if (val != null) {
-                                  _priceController.text = val.price.toStringAsFixed(0);
-                                }
-                              });
-                            },
-                            validator: (val) => val == null ? "Xizmatni tanlang" : null,
-                          ),
-                          const SizedBox(height: 10),
-                          TextFormField(
-                            controller: _priceController,
-                            style: const TextStyle(color: Colors.white, fontSize: 13),
-                            keyboardType: TextInputType.number,
-                            decoration: const InputDecoration(
-                              labelText: "Umumiy taxminiy narx (so'm)",
-                              labelStyle: TextStyle(color: Colors.white54, fontSize: 11),
-                            ),
-                            validator: (val) => (val == null || val.trim().isEmpty) ? "Narxni kiriting" : null,
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-
-                    // 3. Location and Details Card
-                    Container(
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: AppTheme.cardColor.withOpacity(0.5),
-                        borderRadius: BorderRadius.circular(18),
-                        border: Border.all(color: Colors.white.withOpacity(0.05)),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            "Manzil va Izoh",
-                            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
-                          ),
-                          const SizedBox(height: 10),
-                          TextFormField(
-                            controller: _addressController,
-                            style: const TextStyle(color: Colors.white, fontSize: 13),
-                            decoration: const InputDecoration(
-                              labelText: "Buyurtma manzili",
-                              labelStyle: TextStyle(color: Colors.white54, fontSize: 11),
-                            ),
-                            validator: (val) => (val == null || val.trim().isEmpty) ? "Manzilni kiriting" : null,
-                          ),
-                          const SizedBox(height: 10),
-                          TextFormField(
-                            controller: _descriptionController,
-                            style: const TextStyle(color: Colors.white, fontSize: 13),
-                            decoration: const InputDecoration(
-                              labelText: "Izoh / Qo'shimcha ma'lumotlar",
-                              labelStyle: TextStyle(color: Colors.white54, fontSize: 11),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 32),
-
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton(
-                        onPressed: _submitForm,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppTheme.successColor,
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                        ),
-                        child: const Text(
-                          "Buyurtma yaratish",
-                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-    );
+  bool get _canGoNext {
+    switch (_currentStep) {
+      case 0:
+        if (_createNewClient) {
+          return _clientNameController.text.trim().isNotEmpty &&
+              _clientPhoneController.text.trim().isNotEmpty;
+        }
+        return _selectedClient != null;
+      case 1:
+        return _selectedService != null && _priceController.text.trim().isNotEmpty;
+      case 2:
+        return _addressController.text.trim().isNotEmpty;
+      default:
+        return true;
+    }
   }
 
   Future<void> _submitForm() async {
-    if (!_formKey.currentState!.validate()) return;
-
-    final ordersCubit = context.read<OrdersCubit>();
-
     setState(() => _loading = true);
     try {
       String clientId = "";
@@ -317,7 +110,7 @@ class _CreateOrderScreenState extends State<CreateOrderScreen> {
         clientId = _selectedClient!.id;
       }
 
-      await ordersCubit.createOrder(
+      await context.read<OrdersCubit>().createOrder(
             clientId: clientId,
             serviceId: _selectedService!.id,
             workerId: widget.currentUserId,
@@ -329,7 +122,20 @@ class _CreateOrderScreenState extends State<CreateOrderScreen> {
       setState(() => _loading = false);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Buyurtma muvaffaqiyatli yaratildi")),
+          SnackBar(
+            content: const Row(
+              children: [
+                Icon(LucideIcons.checkCircle, color: Colors.white, size: 20),
+                SizedBox(width: 10),
+                Text("Buyurtma muvaffaqiyatli yaratildi",
+                    style: TextStyle(fontWeight: FontWeight.w600)),
+              ],
+            ),
+            backgroundColor: AppTheme.primary,
+            behavior: SnackBarBehavior.floating,
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          ),
         );
         Navigator.pop(context);
       }
@@ -337,19 +143,559 @@ class _CreateOrderScreenState extends State<CreateOrderScreen> {
       setState(() => _loading = false);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Buyurtma yaratishda xatolik: $e")),
+          SnackBar(
+            content: Text("Xatolik: $e"),
+            backgroundColor: AppTheme.dangerColor,
+            behavior: SnackBarBehavior.floating,
+          ),
         );
       }
     }
   }
 
   @override
-  void dispose() {
-    _clientNameController.dispose();
-    _clientPhoneController.dispose();
-    _addressController.dispose();
-    _priceController.dispose();
-    _descriptionController.dispose();
-    super.dispose();
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return Scaffold(
+      backgroundColor: AppTheme.bgOf(context),
+      appBar: AppBar(
+        leading: IconButton(
+          icon: const Icon(LucideIcons.arrowLeft),
+          onPressed: () => Navigator.pop(context),
+        ),
+        title: const Text("Yangi buyurtma"),
+      ),
+      body: _loading && _services.isEmpty
+          ? const Center(child: CircularProgressIndicator())
+          : Column(
+              children: [
+                // Step indicators
+                _stepIndicator(isDark),
+                Expanded(
+                  child: AnimatedSwitcher(
+                    duration: 300.ms,
+                    switchInCurve: Curves.easeOut,
+                    switchOutCurve: Curves.easeIn,
+                    child: _buildStepContent(isDark),
+                  ),
+                ),
+                // Bottom navigation
+                _buildBottomNav(isDark),
+              ],
+            ),
+    );
+  }
+
+  Widget _stepIndicator(bool isDark) {
+    final steps = [
+      ('Mijoz', LucideIcons.user),
+      ('Xizmat', LucideIcons.package),
+      ('Manzil', LucideIcons.mapPin),
+      ('Tasdiqlash', LucideIcons.checkCircle),
+    ];
+
+    return Container(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+      child: Row(
+        children: List.generate(steps.length, (i) {
+          final isActive = i == _currentStep;
+          final isDone = i < _currentStep;
+          final color = isDone
+              ? AppTheme.primary
+              : isActive
+                  ? AppTheme.primary
+                  : isDark
+                      ? AppTheme.darkTextMutedColor
+                      : AppTheme.textMuted;
+
+          return Expanded(
+            child: Row(
+              children: [
+                // Step circle
+                AnimatedContainer(
+                  duration: 300.ms,
+                  width: 32,
+                  height: 32,
+                  decoration: BoxDecoration(
+                    color: isDone || isActive
+                        ? AppTheme.primary
+                        : Colors.transparent,
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: color,
+                      width: isActive ? 2.5 : 1.5,
+                    ),
+                  ),
+                  child: Center(
+                    child: isDone
+                        ? const Icon(Icons.check,
+                            size: 16, color: Colors.white)
+                        : Text(
+                            '${i + 1}',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                              color: isActive ? Colors.white : color,
+                            ),
+                          ),
+                  ),
+                ),
+                // Label
+                if (i < steps.length - 1) ...[
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Container(
+                      height: 2,
+                      decoration: BoxDecoration(
+                        color: isDone ? AppTheme.primary : color.withOpacity(0.3),
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          );
+        }),
+      ),
+    );
+  }
+
+  Widget _buildStepContent(bool isDark) {
+    final key = ValueKey(_currentStep);
+    final padding = const EdgeInsets.fromLTRB(16, 8, 16, 0);
+
+    switch (_currentStep) {
+      case 0:
+        return Padding(
+          key: key,
+          padding: padding,
+          child: _buildClientStep(isDark),
+        ).animate().fadeIn(duration: 300.ms).slideX(begin: 0.1);
+      case 1:
+        return Padding(
+          key: key,
+          padding: padding,
+          child: _buildServiceStep(isDark),
+        ).animate().fadeIn(duration: 300.ms).slideX(begin: 0.1);
+      case 2:
+        return Padding(
+          key: key,
+          padding: padding,
+          child: _buildLocationStep(isDark),
+        ).animate().fadeIn(duration: 300.ms).slideX(begin: 0.1);
+      case 3:
+        return Padding(
+          key: key,
+          padding: padding,
+          child: _buildConfirmStep(isDark),
+        ).animate().fadeIn(duration: 300.ms).slideX(begin: 0.1);
+      default:
+        return const SizedBox.shrink();
+    }
+  }
+
+  // ---- STEP 1: Mijoz ma'lumotlari ----
+  Widget _buildClientStep(bool isDark) {
+    return ListView(
+      children: [
+        _stepHeader('Mijoz tanlash', 'Buyurtma kimga tegishli?'),
+        const SizedBox(height: 16),
+        _sectionCard(
+          isDark,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text("Yangi mijoz",
+                    style: TextStyle(
+                        fontWeight: FontWeight.w600, fontSize: 13)),
+                Switch(
+                  value: _createNewClient,
+                  activeColor: AppTheme.primary,
+                  onChanged: (val) => setState(() => _createNewClient = val),
+                ),
+              ],
+            ),
+            if (_createNewClient) ...[
+              const SizedBox(height: 12),
+              TextField(
+                controller: _clientNameController,
+                style: TextStyle(
+                    fontSize: 13,
+                    color: isDark
+                        ? AppTheme.darkTextPrimaryColor
+                        : AppTheme.textPrimary),
+                onChanged: (_) => setState(() {}),
+                decoration: const InputDecoration(
+                  labelText: "Mijoz ismi (F.I.O)",
+                  prefixIcon:
+                      Icon(LucideIcons.user, size: 18),
+                ),
+              ),
+              const SizedBox(height: 10),
+              TextField(
+                controller: _clientPhoneController,
+                keyboardType: TextInputType.phone,
+                style: TextStyle(
+                    fontSize: 13,
+                    color: isDark
+                        ? AppTheme.darkTextPrimaryColor
+                        : AppTheme.textPrimary),
+                onChanged: (_) => setState(() {}),
+                decoration: const InputDecoration(
+                  labelText: "Telefon raqami (+998)",
+                  prefixIcon:
+                      Icon(LucideIcons.phone, size: 18),
+                ),
+              ),
+            ] else ...[
+              const SizedBox(height: 12),
+              DropdownButtonFormField<ClientInfo>(
+                value: _selectedClient,
+                dropdownColor: isDark
+                    ? AppTheme.darkSurfaceColor
+                    : AppTheme.surface,
+                style: TextStyle(
+                    fontSize: 13,
+                    color: isDark
+                        ? AppTheme.darkTextPrimaryColor
+                        : AppTheme.textPrimary),
+                decoration: const InputDecoration(
+                  labelText: "Mavjud mijozlardan tanlang",
+                  prefixIcon:
+                      Icon(LucideIcons.userCircle, size: 18),
+                ),
+                items: _clients.map((c) {
+                  return DropdownMenuItem<ClientInfo>(
+                    value: c,
+                    child: Text("${c.fullName} (${c.phone})",
+                        overflow: TextOverflow.ellipsis),
+                  );
+                }).toList(),
+                onChanged: (val) {
+                  setState(() {
+                    _selectedClient = val;
+                    if (val != null &&
+                        _addressController.text.isEmpty) {
+                      _addressController.text = val.address;
+                    }
+                  });
+                },
+              ),
+            ],
+          ],
+        ),
+      ],
+    );
+  }
+
+  // ---- STEP 2: Xizmat turi va narx ----
+  Widget _buildServiceStep(bool isDark) {
+    return ListView(
+      children: [
+        _stepHeader('Xizmat va narx', 'Buyurtma turi va to\'lov miqdori'),
+        const SizedBox(height: 16),
+        _sectionCard(
+          isDark,
+          children: [
+            DropdownButtonFormField<ServiceInfo>(
+              value: _selectedService,
+              dropdownColor:
+                  isDark ? AppTheme.darkSurfaceColor : AppTheme.surface,
+              style: TextStyle(
+                  fontSize: 13,
+                  color: isDark
+                      ? AppTheme.darkTextPrimaryColor
+                      : AppTheme.textPrimary),
+              decoration: const InputDecoration(
+                labelText: "Xizmat turi",
+                prefixIcon: Icon(LucideIcons.package, size: 18),
+              ),
+              items: _services.map((s) {
+                return DropdownMenuItem<ServiceInfo>(
+                  value: s,
+                  child: Text(
+                      "${s.nameUz} (${s.price.toStringAsFixed(0)} so'm / ${s.measurementUnit})",
+                      overflow: TextOverflow.ellipsis),
+                );
+              }).toList(),
+              onChanged: (val) {
+                setState(() {
+                  _selectedService = val;
+                  if (val != null) {
+                    _priceController.text =
+                        val.price.toStringAsFixed(0);
+                  }
+                });
+              },
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _priceController,
+              keyboardType: TextInputType.number,
+              style: TextStyle(
+                  fontSize: 13,
+                  color: isDark
+                      ? AppTheme.darkTextPrimaryColor
+                      : AppTheme.textPrimary),
+              onChanged: (_) => setState(() {}),
+              decoration: const InputDecoration(
+                labelText: "Umumiy narx (so'm)",
+                prefixIcon: Icon(LucideIcons.wallet, size: 18),
+                suffixText: "so'm",
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _descriptionController,
+              maxLines: 3,
+              style: TextStyle(
+                  fontSize: 13,
+                  color: isDark
+                      ? AppTheme.darkTextPrimaryColor
+                      : AppTheme.textPrimary),
+              decoration: const InputDecoration(
+                labelText: "Izoh (ixtiyoriy)",
+                prefixIcon:
+                    Icon(LucideIcons.fileText, size: 18),
+                alignLabelWithHint: true,
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  // ---- STEP 3: Manzil ----
+  Widget _buildLocationStep(bool isDark) {
+    return ListView(
+      children: [
+        _stepHeader('Manzil', 'Buyurtma yetkaziladigan joy'),
+        const SizedBox(height: 16),
+        _sectionCard(
+          isDark,
+          children: [
+            TextField(
+              controller: _addressController,
+              maxLines: 2,
+              style: TextStyle(
+                  fontSize: 13,
+                  color: isDark
+                      ? AppTheme.darkTextPrimaryColor
+                      : AppTheme.textPrimary),
+              onChanged: (_) => setState(() {}),
+              decoration: const InputDecoration(
+                labelText: "To'liq manzil",
+                prefixIcon: Icon(LucideIcons.mapPin, size: 18),
+                alignLabelWithHint: true,
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  // ---- STEP 4: Tasdiqlash ----
+  Widget _buildConfirmStep(bool isDark) {
+    final clientName = _createNewClient
+        ? _clientNameController.text.trim()
+        : _selectedClient?.fullName ?? '';
+    final clientPhone = _createNewClient
+        ? _clientPhoneController.text.trim()
+        : _selectedClient?.phone ?? '';
+
+    return ListView(
+      children: [
+        _stepHeader(
+            'Tasdiqlash', 'Ma\'lumotlarni tekshirib chiqing'),
+        const SizedBox(height: 16),
+        _sectionCard(
+          isDark,
+          children: [
+            _confirmRow(LucideIcons.user, 'Mijoz', clientName),
+            _confirmRow(LucideIcons.phone, 'Telefon', clientPhone),
+            _confirmRow(LucideIcons.package, 'Xizmat',
+                _selectedService?.nameUz ?? ''),
+            _confirmRow(
+                LucideIcons.wallet,
+                'Narx',
+                _priceController.text.isEmpty
+                    ? '-'
+                    : '${_priceController.text} so\'m'),
+            _confirmRow(LucideIcons.mapPin, 'Manzil',
+                _addressController.text.trim()),
+            if (_descriptionController.text.trim().isNotEmpty)
+              _confirmRow(LucideIcons.fileText, 'Izoh',
+                  _descriptionController.text.trim()),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _confirmRow(IconData icon, String label, String value) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 32,
+            height: 32,
+            decoration: BoxDecoration(
+              color: AppTheme.primary.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Icon(icon, size: 16, color: AppTheme.primary),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(label,
+                    style: TextStyle(
+                        fontSize: 11,
+                        color: isDark ? AppTheme.darkTextMutedColor : AppTheme.textMuted,
+                        fontWeight: FontWeight.w600)),
+                const SizedBox(height: 2),
+                Text(value,
+                    style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: isDark ? AppTheme.darkTextPrimaryColor : AppTheme.textPrimary)),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ---- Helper widgets ----
+  Widget _stepHeader(String title, String subtitle) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(title,
+            style: AppTheme.display(18, weight: FontWeight.w700)),
+        const SizedBox(height: 4),
+        Text(subtitle,
+            style: AppTheme.text(12,
+                color: Theme.of(context).brightness == Brightness.dark
+                    ? AppTheme.darkTextSecondaryColor
+                    : AppTheme.textSecondary)),
+      ],
+    );
+  }
+
+  Widget _sectionCard(bool isDark, {required List<Widget> children}) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: isDark ? AppTheme.darkSurfaceColor : AppTheme.surface,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(
+          color: isDark ? AppTheme.darkBorderColor : AppTheme.borderColor,
+        ),
+      ),
+      child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: children),
+    );
+  }
+
+  Widget _buildBottomNav(bool isDark) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+      decoration: BoxDecoration(
+        color: isDark ? AppTheme.darkSurfaceColor : AppTheme.surface,
+        border: Border(
+          top: BorderSide(
+            color: isDark ? AppTheme.darkBorderColor : AppTheme.borderColor,
+          ),
+        ),
+      ),
+      child: Row(
+        children: [
+          if (_currentStep > 0)
+            Expanded(
+              child: OutlinedButton(
+                onPressed:
+                    _loading ? null : () => setState(() => _currentStep--),
+                style: OutlinedButton.styleFrom(
+                  side: BorderSide(
+                    color: isDark ? AppTheme.darkBorderColor : AppTheme.borderColor,
+                  ),
+                  foregroundColor: isDark
+                      ? AppTheme.darkTextPrimaryColor
+                      : AppTheme.textPrimary,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14)),
+                ),
+                child: const Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(LucideIcons.arrowLeft, size: 18),
+                    SizedBox(width: 6),
+                    Text("Orqaga",
+                        style: TextStyle(fontWeight: FontWeight.w600)),
+                  ],
+                ),
+              ),
+            ),
+          if (_currentStep > 0) const SizedBox(width: 12),
+          Expanded(
+            child: FilledButton(
+              onPressed: _loading
+                  ? null
+                  : (_canGoNext
+                      ? () {
+                          if (_currentStep == 3) {
+                            _submitForm();
+                          } else {
+                            setState(() => _currentStep++);
+                          }
+                        }
+                      : null),
+              style: FilledButton.styleFrom(
+                backgroundColor: AppTheme.primary,
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14)),
+              ),
+              child: _loading
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2.5,
+                        color: Colors.white,
+                      ),
+                    )
+                  : Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(
+                          _currentStep == 3 ? "Buyurtma yaratish" : "Davom etish",
+                          style: const TextStyle(fontWeight: FontWeight.w700),
+                        ),
+                        if (_currentStep < 3) ...[
+                          const SizedBox(width: 6),
+                          const Icon(LucideIcons.arrowRight, size: 18),
+                        ],
+                      ],
+                    ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }

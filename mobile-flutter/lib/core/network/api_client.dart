@@ -68,17 +68,67 @@ class ApiClient {
   ApiException _mapError(DioException e) {
     final statusCode = e.response?.statusCode;
     final data = e.response?.data;
-    String message = "Server bilan aloqa o'rnatib bo'lmadi";
+    final statusMessage = e.response?.statusMessage;
 
+    // 1. Agar server 'message' fieldi bilan JSON qaytargan bo'lsa - shuni ishlat
     if (data is Map && data['message'] is String) {
-      message = data['message'] as String;
-    } else if (e.type == DioExceptionType.connectionTimeout ||
-        e.type == DioExceptionType.receiveTimeout) {
-      message = 'Server javob bermadi. Internet aloqasini tekshiring.';
-    } else if (e.type == DioExceptionType.connectionError) {
-      message = "Serverga ulanib bo'lmadi. Internetni tekshiring.";
+      return ApiException(data['message'] as String, statusCode: statusCode);
     }
 
-    return ApiException(message, statusCode: statusCode);
+    // 2. Turiga qarab aniq xabarlar
+    switch (e.type) {
+      case DioExceptionType.connectionTimeout:
+      case DioExceptionType.receiveTimeout:
+        return ApiException(
+          "Server juda sekin javob bermoqda. Internet aloqasini tekshiring.",
+          statusCode: statusCode,
+        );
+      case DioExceptionType.connectionError:
+        return ApiException(
+          "Internet aloqasi yo'q. Wi-Fi yoki mobil internetni tekshiring.",
+          statusCode: statusCode,
+        );
+      case DioExceptionType.badCertificate:
+        return ApiException(
+          "Server xavfsizlik sertifikati bilan bog'liq muammo. "
+          "Telefoningiz sanasini tekshiring yoki ilovani yangilang.",
+          statusCode: statusCode,
+        );
+      case DioExceptionType.badResponse:
+        // Server javob qaytargan, lekin 'message' fieldisiz
+        final kodStr = statusCode?.toString() ?? "noma'lum";
+        final detail = statusMessage != null ? ' - $statusMessage' : '';
+        return ApiException(
+          "Server xatolik qaytardi (kod: $kodStr$detail). "
+          "Iltimos, administrator bilan bog'laning.",
+          statusCode: statusCode,
+        );
+      case DioExceptionType.cancel:
+        return ApiException("So'rov bekor qilindi.", statusCode: statusCode);
+      case DioExceptionType.sendTimeout:
+        return ApiException(
+          "Ma'lumot yubolmayapti. Internetni tekshiring.",
+          statusCode: statusCode,
+        );
+      case DioExceptionType.unknown:
+      default:
+        // Agar sertifikat xatosi bo'lsa (Android'da keng tarqalgan)
+        final socketMsg = e.message?.toString() ?? '';
+        if (socketMsg.contains('CERTIFICATE') ||
+            socketMsg.contains('certificate') ||
+            socketMsg.contains('SSL') ||
+            socketMsg.contains('ssl')) {
+          return ApiException(
+            "Server sertifikatini tekshirib bo'lmadi. "
+            "Telefoningiz sanasi va vaqtini tekshiring.",
+            statusCode: statusCode,
+          );
+        }
+        return ApiException(
+          "Server bilan aloqa o'rnatib bo'lmadi. Internetni tekshirib, "
+          "qaytadan urinib ko'ring.",
+          statusCode: statusCode,
+        );
+    }
   }
 }

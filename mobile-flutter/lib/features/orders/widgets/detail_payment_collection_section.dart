@@ -8,8 +8,13 @@ import '../bloc/orders_cubit.dart';
 
 class DetailPaymentCollectionSection extends StatelessWidget {
   final Order order;
+  final bool isReadOnly;
 
-  const DetailPaymentCollectionSection({super.key, required this.order});
+  const DetailPaymentCollectionSection({
+    super.key,
+    required this.order,
+    this.isReadOnly = false,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -73,6 +78,33 @@ class DetailPaymentCollectionSection extends StatelessWidget {
                   fontSize: 10,
                   fontWeight: FontWeight.bold,
                   color: AppTheme.successColor,
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    if (isReadOnly) {
+      return Container(
+        padding: const EdgeInsets.all(10),
+        decoration: BoxDecoration(
+          color: Colors.blue.withOpacity(0.08),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.blue.withOpacity(0.2)),
+        ),
+        child: Row(
+          children: const [
+            Icon(LucideIcons.info, size: 16, color: Colors.blue),
+            SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                "To'lov holati: Kutilmoqda (Faqat ko'rish)",
+                style: TextStyle(
+                  fontSize: 10,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.blue,
                 ),
               ),
             ),

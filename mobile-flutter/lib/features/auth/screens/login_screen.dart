@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:lucide_icons/lucide_icons.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import '../../../core/constants.dart';
 import '../../../core/theme.dart';
 import '../bloc/auth_bloc.dart';
@@ -12,13 +14,25 @@ class LoginScreen extends StatefulWidget {
   State<LoginScreen> createState() => _LoginScreenState();
 }
 
-class _LoginScreenState extends State<LoginScreen> {
+class _LoginScreenState extends State<LoginScreen>
+    with SingleTickerProviderStateMixin {
   final TextEditingController _subdomainController = TextEditingController();
   final TextEditingController _usernameController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
+  late AnimationController _pulseController;
+
+  @override
+  void initState() {
+    super.initState();
+    _pulseController = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 2),
+    )..repeat(reverse: true);
+  }
 
   @override
   void dispose() {
+    _pulseController.dispose();
     _subdomainController.dispose();
     _usernameController.dispose();
     _passwordController.dispose();
@@ -27,154 +41,306 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Scaffold(
-      body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16.0),
-          child: BlocConsumer<AuthBloc, AuthState>(
-            listener: (context, state) {
-              if (state is AuthError) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(state.message),
-                    backgroundColor: AppTheme.dangerColor,
-                  ),
-                );
-              }
-            },
-            builder: (context, state) {
-              return Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  const Spacer(),
-                  // Branding & Title
-                  Center(
-                    child: Container(
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: AppTheme.primaryColor.withOpacity(0.1),
-                        shape: BoxShape.circle,
-                        border: Border.all(
-                          color: AppTheme.primaryColor.withOpacity(0.2),
+      body: Container(
+        height: double.infinity,
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: isDark
+                ? [
+                    const Color(0xFF0D1117),
+                    const Color(0xFF161B22),
+                    const Color(0xFF0B6B4F).withOpacity(0.3),
+                  ]
+                : [
+                    const Color(0xFF0B6B4F),
+                    const Color(0xFF08543E),
+                    const Color(0xFF0A7A56),
+                  ],
+          ),
+        ),
+        child: SafeArea(
+          child: Center(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.symmetric(horizontal: 28),
+              child: BlocConsumer<AuthBloc, AuthState>(
+                listener: (context, state) {
+                  if (state is AuthError) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Row(
+                          children: [
+                            const Icon(LucideIcons.alertCircle,
+                                color: Colors.white, size: 18),
+                            const SizedBox(width: 10),
+                            Expanded(child: Text(state.message)),
+                          ],
+                        ),
+                        backgroundColor: AppTheme.dangerColor,
+                        behavior: SnackBarBehavior.floating,
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12)),
+                      ),
+                    );
+                  }
+                },
+                builder: (context, state) {
+                  return Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      // --- Brand Section ---
+                      _buildBrand(isDark),
+                      const SizedBox(height: 40),
+
+                      // --- Form Section ---
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(24),
+                        decoration: BoxDecoration(
+                          color: isDark
+                              ? const Color(0xFF161B22).withOpacity(0.95)
+                              : Colors.white.withOpacity(0.95),
+                          borderRadius: BorderRadius.circular(24),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.15),
+                              blurRadius: 40,
+                              offset: const Offset(0, 20),
+                            ),
+                          ],
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            if (state is AuthInitial ||
+                                state is SubdomainChecking ||
+                                state is SubdomainInvalid ||
+                                state is Unauthenticated)
+                              _buildSubdomainForm(context, state, isDark)
+                            else
+                              _buildCredentialForm(
+                                  context, state, isDark),
+                          ],
+                        ),
+                      ).animate().fadeIn(duration: 600.ms).slideY(begin: 0.1),
+
+                      const SizedBox(height: 24),
+                      // --- Version ---
+                      Text(
+                        'v2.1.0  •  SaaS ERP Mobile Console',
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: isDark
+                              ? AppTheme.darkTextMutedColor
+                              : Colors.white.withOpacity(0.7),
+                          letterSpacing: 0.5,
                         ),
                       ),
-                      child: const Icon(
-                        LucideIcons.layers,
-                        size: 48,
-                        color: AppTheme.primaryColor,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  const Center(
-                    child: Text(
-                      'ServiceCore',
-                      style: TextStyle(
-                        fontFamily: 'Outfit',
-                        fontSize: 28,
-                        fontWeight: FontWeight.bold,
-                        color: AppTheme.textPrimary,
-                        letterSpacing: 0.5,
-                      ),
-                    ),
-                  ),
-                  const Center(
-                    child: Text(
-                      'SaaS ERP Mobile Console',
-                      style: TextStyle(
-                        fontFamily: 'Inter',
-                        fontSize: 12,
-                        fontWeight: FontWeight.w500,
-                        color: AppTheme.textSecondary,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 48),
-
-                  // Dynamic Forms depending on Auth State
-                  if (state is AuthInitial ||
-                      state is SubdomainChecking ||
-                      state is SubdomainInvalid ||
-                      state is Unauthenticated)
-                    _buildSubdomainForm(context, state)
-                  else
-                    _buildCredentialForm(context, state),
-
-                  const Spacer(),
-                  const Center(
-                    child: Text(
-                      'v1.0.0 • Xavfsiz tizim',
-                      style: TextStyle(
-                        fontSize: 10,
-                        color: AppTheme.textSecondary,
-                      ),
-                    ),
-                  ),
-                ],
-              );
-            },
+                      const SizedBox(height: 40),
+                    ],
+                  );
+                },
+              ),
+            ),
           ),
         ),
       ),
     );
   }
 
-  Widget _buildSubdomainForm(BuildContext context, AuthState state) {
+  Widget _buildBrand(bool isDark) {
+    return Column(
+      children: [
+        // Animated logo
+        AnimatedBuilder(
+          animation: _pulseController,
+          builder: (context, child) {
+            return Transform.scale(
+              scale: 1 + (_pulseController.value * 0.05),
+              child: child,
+            );
+          },
+          child: Container(
+            width: 80,
+            height: 80,
+            decoration: BoxDecoration(
+              color: isDark
+                  ? const Color(0xFF21262D)
+                  : Colors.white.withOpacity(0.2),
+              shape: BoxShape.circle,
+              border: Border.all(
+                color: isDark
+                    ? AppTheme.primary.withOpacity(0.5)
+                    : Colors.white.withOpacity(0.3),
+                width: 2,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: AppTheme.primary.withOpacity(0.4),
+                  blurRadius: 30,
+                  spreadRadius: 5,
+                ),
+              ],
+            ),
+            child: Icon(
+              LucideIcons.layers,
+              size: 36,
+              color: isDark ? AppTheme.primary : Colors.white,
+            ),
+          ),
+        ).animate().fadeIn(duration: 800.ms).scaleXY(begin: 0.5),
+        const SizedBox(height: 16),
+        Text(
+          'ServiceCore',
+          style: GoogleFonts.outfit(
+            fontSize: 32,
+            fontWeight: FontWeight.w800,
+            color: isDark ? AppTheme.darkTextPrimaryColor : Colors.white,
+            letterSpacing: -0.5,
+          ),
+        ).animate().fadeIn(duration: 600.ms).slideX(begin: -0.2),
+        const SizedBox(height: 4),
+        Text(
+          'SaaS ERP Mobile Console',
+          style: TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w500,
+            color: isDark ? AppTheme.darkTextSecondaryColor : Colors.white.withOpacity(0.8),
+            letterSpacing: 1,
+          ),
+        ).animate().fadeIn(duration: 600.ms, delay: 200.ms).slideX(begin: 0.2),
+      ],
+    );
+  }
+
+  Widget _buildSubdomainForm(
+      BuildContext context, AuthState state, bool isDark) {
     final isChecking = state is SubdomainChecking;
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
-          'Kompaniya kodi (Subdomain)',
-          style: TextStyle(
-            fontSize: 12,
-            fontWeight: FontWeight.w600,
-            color: AppTheme.textSecondary,
-          ),
+        Row(
+          children: [
+            Container(
+              width: 32,
+              height: 32,
+              decoration: BoxDecoration(
+                color: AppTheme.primary.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Icon(LucideIcons.building2,
+                  size: 16, color: AppTheme.primary),
+            ),
+            const SizedBox(width: 10),
+            Text(
+              'Kompaniya kodi',
+              style: TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.w700,
+                color: isDark ? AppTheme.darkTextPrimaryColor : AppTheme.textPrimary,
+              ),
+            ),
+          ],
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: 16),
         TextField(
           controller: _subdomainController,
           enabled: !isChecking,
-          style: const TextStyle(color: AppTheme.textPrimary),
+          style: TextStyle(
+            color: isDark ? AppTheme.darkTextPrimaryColor : AppTheme.textPrimary,
+            fontSize: 14,
+          ),
           decoration: InputDecoration(
             hintText: 'masalan: expressmail',
-            prefixIcon: const Icon(
+            hintStyle: TextStyle(
+              color: isDark ? AppTheme.darkTextMutedColor : AppTheme.textMuted,
+            ),
+            prefixIcon: Icon(
               LucideIcons.globe,
               size: 18,
-              color: AppTheme.textSecondary,
+              color: isDark ? AppTheme.darkTextMutedColor : AppTheme.textMuted,
+            ),
+            suffixText: '.' + AppConstants.companyDomainSuffix,
+            suffixStyle: TextStyle(
+              color: isDark ? AppTheme.darkTextMutedColor : AppTheme.textMuted,
+              fontSize: 12,
             ),
             errorText: state is SubdomainInvalid ? state.message : null,
+            filled: true,
+            fillColor: isDark
+                ? const Color(0xFF21262D)
+                : const Color(0xFFF7F9F7),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(14),
+              borderSide: BorderSide(
+                color: isDark
+                    ? const Color(0xFF30363D)
+                    : const Color(0xFFE4E9E5),
+              ),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(14),
+              borderSide: BorderSide(
+                color: isDark
+                    ? const Color(0xFF30363D)
+                    : const Color(0xFFE4E9E5),
+              ),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(14),
+              borderSide:
+                  const BorderSide(color: AppTheme.primary, width: 1.5),
+            ),
           ),
           onSubmitted: (_) => _submitSubdomain(context),
         ),
         const SizedBox(height: 24),
-        ElevatedButton(
-          onPressed: isChecking ? null : () => _submitSubdomain(context),
-          child: isChecking
-              ? const SizedBox(
-                  height: 18,
-                  width: 18,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2.5,
-                    color: Colors.white,
+        SizedBox(
+          width: double.infinity,
+          height: 50,
+          child: FilledButton(
+            onPressed: isChecking ? null : () => _submitSubdomain(context),
+            style: FilledButton.styleFrom(
+              backgroundColor: AppTheme.primary,
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14)),
+            ),
+            child: isChecking
+                ? const SizedBox(
+                    height: 20,
+                    width: 20,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2.5,
+                      color: Colors.white,
+                    ),
+                  )
+                : Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Text('Davom etish',
+                          style: TextStyle(
+                              fontWeight: FontWeight.w700, fontSize: 15)),
+                      const SizedBox(width: 8),
+                      const Icon(LucideIcons.arrowRight, size: 18),
+                    ],
                   ),
-                )
-              : const Text('Davom etish'),
+          ),
         ),
       ],
     );
   }
 
-  Widget _buildCredentialForm(BuildContext context, AuthState state) {
+  Widget _buildCredentialForm(
+      BuildContext context, AuthState state, bool isDark) {
     String companyName = 'Kompaniya';
     String subdomain = '';
     if (state is SubdomainValid) {
       companyName = state.companyName;
       subdomain = state.subdomain;
     } else if (state is AuthLoading || state is AuthError) {
-      // Keep previous subdomain parameters if in error state
       final bloc = context.read<AuthBloc>();
       if (bloc.state is SubdomainValid) {
         companyName = (bloc.state as SubdomainValid).companyName;
@@ -185,104 +351,218 @@ class _LoginScreenState extends State<LoginScreen> {
     final isLoading = state is AuthLoading;
 
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  companyName,
-                  style: const TextStyle(
-                    fontFamily: 'Outfit',
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: AppTheme.primaryColor,
-                  ),
+        // Company header
+        Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: AppTheme.primary.withOpacity(0.08),
+            borderRadius: BorderRadius.circular(14),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: AppTheme.primary.withOpacity(0.15),
+                  borderRadius: BorderRadius.circular(10),
                 ),
-                Text(
-                  '$subdomain.${AppConstants.companyDomainSuffix}',
-                  style: const TextStyle(
-                    fontSize: 11,
-                    color: AppTheme.textSecondary,
-                  ),
-                ),
-              ],
-            ),
-            IconButton(
-              icon: const Icon(
-                LucideIcons.edit2,
-                size: 16,
-                color: AppTheme.textSecondary,
+                child: const Icon(LucideIcons.building2,
+                    size: 20, color: AppTheme.primary),
               ),
-              onPressed: () {
-                context.read<AuthBloc>().add(ResetSubdomainEvent());
-              },
-            ),
-          ],
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      companyName,
+                      style: TextStyle(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 15,
+                        color: isDark
+                            ? AppTheme.darkTextPrimaryColor
+                            : AppTheme.textPrimary,
+                      ),
+                    ),
+                    Text(
+                      '$subdomain.${AppConstants.companyDomainSuffix}',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: isDark
+                            ? AppTheme.darkTextSecondaryColor
+                            : AppTheme.textSecondary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              IconButton(
+                icon: Icon(
+                  LucideIcons.edit2,
+                  size: 16,
+                  color: isDark
+                      ? AppTheme.darkTextMutedColor
+                      : AppTheme.textMuted,
+                ),
+                onPressed: () {
+                  context.read<AuthBloc>().add(ResetSubdomainEvent());
+                },
+              ),
+            ],
+          ),
         ),
         const SizedBox(height: 20),
-        const Text(
+
+        // Username
+        Text(
           'Login',
           style: TextStyle(
             fontSize: 12,
             fontWeight: FontWeight.w600,
-            color: AppTheme.textSecondary,
+            color: isDark ? AppTheme.darkTextSecondaryColor : AppTheme.textSecondary,
           ),
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: 6),
         TextField(
           controller: _usernameController,
           enabled: !isLoading,
-          style: const TextStyle(color: AppTheme.textPrimary),
-          decoration: const InputDecoration(
+          style: TextStyle(
+            color: isDark ? AppTheme.darkTextPrimaryColor : AppTheme.textPrimary,
+            fontSize: 14,
+          ),
+          decoration: InputDecoration(
             hintText: 'Foydalanuvchi nomi',
+            hintStyle: TextStyle(
+              color: isDark ? AppTheme.darkTextMutedColor : AppTheme.textMuted,
+            ),
             prefixIcon: Icon(
               LucideIcons.user,
               size: 18,
-              color: AppTheme.textSecondary,
+              color: isDark ? AppTheme.darkTextMutedColor : AppTheme.textMuted,
+            ),
+            filled: true,
+            fillColor: isDark
+                ? const Color(0xFF21262D)
+                : const Color(0xFFF7F9F7),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(14),
+              borderSide: BorderSide(
+                color: isDark
+                    ? const Color(0xFF30363D)
+                    : const Color(0xFFE4E9E5),
+              ),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(14),
+              borderSide: BorderSide(
+                color: isDark
+                    ? const Color(0xFF30363D)
+                    : const Color(0xFFE4E9E5),
+              ),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(14),
+              borderSide:
+                  const BorderSide(color: AppTheme.primary, width: 1.5),
             ),
           ),
         ),
-        const SizedBox(height: 16),
-        const Text(
+        const SizedBox(height: 14),
+
+        // Password
+        Text(
           'Parol',
           style: TextStyle(
             fontSize: 12,
             fontWeight: FontWeight.w600,
-            color: AppTheme.textSecondary,
+            color: isDark ? AppTheme.darkTextSecondaryColor : AppTheme.textSecondary,
           ),
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: 6),
         TextField(
           controller: _passwordController,
           enabled: !isLoading,
           obscureText: true,
-          style: const TextStyle(color: AppTheme.textPrimary),
-          decoration: const InputDecoration(
+          style: TextStyle(
+            color: isDark ? AppTheme.darkTextPrimaryColor : AppTheme.textPrimary,
+            fontSize: 14,
+          ),
+          decoration: InputDecoration(
             hintText: '••••••••',
+            hintStyle: TextStyle(
+              color: isDark ? AppTheme.darkTextMutedColor : AppTheme.textMuted,
+            ),
             prefixIcon: Icon(
               LucideIcons.lock,
               size: 18,
-              color: AppTheme.textSecondary,
+              color: isDark ? AppTheme.darkTextMutedColor : AppTheme.textMuted,
+            ),
+            filled: true,
+            fillColor: isDark
+                ? const Color(0xFF21262D)
+                : const Color(0xFFF7F9F7),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(14),
+              borderSide: BorderSide(
+                color: isDark
+                    ? const Color(0xFF30363D)
+                    : const Color(0xFFE4E9E5),
+              ),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(14),
+              borderSide: BorderSide(
+                color: isDark
+                    ? const Color(0xFF30363D)
+                    : const Color(0xFFE4E9E5),
+              ),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(14),
+              borderSide:
+                  const BorderSide(color: AppTheme.primary, width: 1.5),
             ),
           ),
+          onSubmitted: (_) {
+            if (!isLoading) _submitCredentials(context);
+          },
         ),
         const SizedBox(height: 24),
-        ElevatedButton(
-          onPressed: isLoading ? null : () => _submitCredentials(context),
-          child: isLoading
-              ? const SizedBox(
-                  height: 18,
-                  width: 18,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2.5,
-                    color: Colors.white,
+
+        SizedBox(
+          width: double.infinity,
+          height: 50,
+          child: FilledButton(
+            onPressed: isLoading ? null : () => _submitCredentials(context),
+            style: FilledButton.styleFrom(
+              backgroundColor: AppTheme.primary,
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14)),
+              elevation: 0,
+            ),
+            child: isLoading
+                ? const SizedBox(
+                    height: 20,
+                    width: 20,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2.5,
+                      color: Colors.white,
+                    ),
+                  )
+                : Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(LucideIcons.logIn, size: 18),
+                      const SizedBox(width: 8),
+                      const Text('Kirish',
+                          style: TextStyle(
+                              fontWeight: FontWeight.w700, fontSize: 15)),
+                    ],
                   ),
-                )
-              : const Text('Kirish'),
+          ),
         ),
       ],
     );

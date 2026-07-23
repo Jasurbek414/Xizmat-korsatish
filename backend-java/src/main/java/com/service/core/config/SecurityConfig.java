@@ -3,7 +3,7 @@ package com.service.core.config;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.security.access.expression.method.DefaultMethodSecurityExpressionHandler;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
@@ -45,6 +45,11 @@ public class SecurityConfig {
                 // oshiriladi - shuning uchun bu yerda ham ruxsat berilishi kerak, lekin
                 // haqiqiy autentifikatsiya interceptor darajasida majburiy.
                 .requestMatchers("/ws/telephony", "/ws/telephony/**").permitAll()
+                // URL darajasida qo'shimcha himoya (PreAuthorize bilan birgalikda).
+                // Order itemlarni o'chirishga barcha autentifikatsiyalangan foydalanuvchilar ruxsat oladi
+                .requestMatchers(HttpMethod.DELETE, "/api/v1/orders/*/items/*").authenticated()
+                .requestMatchers(HttpMethod.DELETE, "/api/v1/employees/**").hasAnyRole("ADMIN", "SUPERADMIN")
+                .requestMatchers(HttpMethod.DELETE, "/api/v1/**").hasAnyRole("ADMIN", "SUPERADMIN", "MANAGER")
                 .anyRequest().authenticated()
             )
             .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);

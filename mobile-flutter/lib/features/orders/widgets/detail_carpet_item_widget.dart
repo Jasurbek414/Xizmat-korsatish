@@ -8,12 +8,14 @@ class DetailCarpetItemWidget extends StatelessWidget {
   final Order order;
   final List<OrderStatusInfo> statuses;
   final OrderItemInfo item;
+  final bool isReadOnly;
 
   const DetailCarpetItemWidget({
     super.key,
     required this.order,
     required this.statuses,
     required this.item,
+    this.isReadOnly = false,
   });
 
   String _getStatusLabel(String targetStep, String defaultValue) {
@@ -89,7 +91,7 @@ class DetailCarpetItemWidget extends StatelessWidget {
               _CheckboxStep(
                 label: _getStatusLabel('ACCEPTED', "Qabul"),
                 checked: _isAtLeast(item.status, 'ACCEPTED'),
-                onChanged: (val) {
+                onChanged: isReadOnly ? null : (val) {
                   if (val == true) {
                     context.read<OrdersCubit>().changeOrderItemStatus(order, item, 'ACCEPTED');
                   }
@@ -98,21 +100,21 @@ class DetailCarpetItemWidget extends StatelessWidget {
               _CheckboxStep(
                 label: _getStatusLabel('WASHED', "Yuvildi"),
                 checked: _isAtLeast(item.status, 'WASHED'),
-                onChanged: (val) {
+                onChanged: isReadOnly ? null : (val) {
                   context.read<OrdersCubit>().changeOrderItemStatus(order, item, val == true ? 'WASHED' : 'ACCEPTED');
                 },
               ),
               _CheckboxStep(
                 label: _getStatusLabel('DRIED', "Quritish"),
                 checked: _isAtLeast(item.status, 'DRIED'),
-                onChanged: (val) {
+                onChanged: isReadOnly ? null : (val) {
                   context.read<OrdersCubit>().changeOrderItemStatus(order, item, val == true ? 'DRIED' : 'WASHED');
                 },
               ),
               _CheckboxStep(
                 label: _getStatusLabel('READY', "Tayyor"),
                 checked: _isAtLeast(item.status, 'READY'),
-                onChanged: (val) {
+                onChanged: isReadOnly ? null : (val) {
                   context.read<OrdersCubit>().changeOrderItemStatus(order, item, val == true ? 'READY' : 'DRIED');
                 },
               ),
@@ -134,12 +136,12 @@ class DetailCarpetItemWidget extends StatelessWidget {
 class _CheckboxStep extends StatelessWidget {
   final String label;
   final bool checked;
-  final ValueChanged<bool?> onChanged;
+  final ValueChanged<bool?>? onChanged;
 
   const _CheckboxStep({
     required this.label,
     required this.checked,
-    required this.onChanged,
+    this.onChanged,
   });
 
   @override

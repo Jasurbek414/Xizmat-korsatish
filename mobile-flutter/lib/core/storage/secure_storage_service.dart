@@ -55,4 +55,18 @@ class SecureStorageService {
       _storage.delete(key: AppConstants.keyPermissions),
     ]);
   }
+
+  /// Dark/light mode holatini saqlash va o'qish
+  Future<void> saveThemeMode(bool isDark) async {
+    await _storage.write(
+      key: AppConstants.keyDarkMode,
+      value: isDark.toString(),
+    );
+  }
+
+  Future<bool?> readThemeMode() async {
+    final raw = await _storage.read(key: AppConstants.keyDarkMode);
+    if (raw == null) return null;
+    return raw == 'true';
+  }
 }

@@ -61,7 +61,13 @@ bool _onIosBackground(ServiceInstance service) {
 @pragma('vm:entry-point')
 void _onStart(ServiceInstance service) async {
   DartPluginRegistrant.ensureInitialized();
-  await Hive.initFlutter();
+
+  // Hive allaqachon main() da ishga tushirilgan - init xatolik bersa ham davom etamiz
+  try {
+    await Hive.initFlutter();
+  } catch (_) {
+    // Hive allaqachon init qilingan - bu xatolik emas
+  }
 
   if (service is AndroidServiceInstance) {
     service.setForegroundNotificationInfo(

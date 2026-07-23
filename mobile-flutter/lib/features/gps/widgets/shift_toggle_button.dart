@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import '../../../core/theme.dart';
 import '../services/background_gps_service.dart';
@@ -22,10 +23,44 @@ class _ShiftToggleButtonState extends State<ShiftToggleButton> {
     try {
       if (_isOnline) {
         await BackgroundGpsService.stop();
+        setState(() => _isOnline = false);
       } else {
+        // GPS ruxsatini tekshirish va so'rash
+        final permission = await Geolocator.checkPermission();
+        if (permission == LocationPermission.denied) {
+          final requested = await Geolocator.requestPermission();
+          if (requested == LocationPermission.denied ||
+              requested == LocationPermission.deniedForever) {
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: const Text('GPS ruxsati talab qilinadi'),
+                  backgroundColor: AppTheme.dangerColor,
+                  behavior: SnackBarBehavior.floating,
+                ),
+              );
+            }
+            return;
+          }
+        }
+
+        if (permission == LocationPermission.deniedForever) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: const Text('GPS ruxsati doimiy ravishda bloklangan. Ilova sozlamalaridan ruxsat bering.'),
+                backgroundColor: AppTheme.dangerColor,
+                behavior: SnackBarBehavior.floating,
+                duration: const Duration(seconds: 4),
+              ),
+            );
+          }
+          return;
+        }
+
         await BackgroundGpsService.start();
+        setState(() => _isOnline = true);
       }
-      setState(() => _isOnline = !_isOnline);
     } finally {
       if (mounted) setState(() => _busy = false);
     }

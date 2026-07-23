@@ -28,6 +28,11 @@ class PushNotificationService {
   static bool _initialized = false;
   static bool _available = false;
 
+  /// Foreground'da push kelganda chaqiriladi - ilova (dashboard) buni
+  /// buyurtmalar ro'yxatini DARHOL jimgina yangilash uchun ishlatadi (webdan
+  /// yangi buyurtma tayinlanishi bilan haydovchi telefonida paydo bo'lishi uchun).
+  static void Function(RemoteMessage message)? onMessageReceived;
+
   static Future<void> initialize() async {
     if (_initialized) return;
     _initialized = true;
@@ -62,6 +67,11 @@ class PushNotificationService {
   }
 
   static void _showForegroundNotification(RemoteMessage message) {
+    // Ilovaga xabar beramiz - buyurtmalar ro'yxati darhol yangilanadi.
+    try {
+      onMessageReceived?.call(message);
+    } catch (_) {}
+
     final notification = message.notification;
     if (notification == null) return;
 
@@ -80,6 +90,30 @@ class PushNotificationService {
         ),
       ),
     );
+  }
+
+  /// Yangi buyurtma aniqlanganda (masalan davriy poll orqali, FCM sozlanmagan
+  /// bo'lsa ham) ovozli lokal bildirishnoma ko'rsatadi - haydovchi ekranga
+  /// qaramayotgan bo'lsa ham eshitadi.
+  static Future<void> showNewOrderAlert({int count = 1}) async {
+    if (!_available) return;
+    try {
+      await _localNotifications.show(
+        DateTime.now().millisecondsSinceEpoch ~/ 1000,
+        count > 1 ? '$count ta yangi buyurtma' : 'Yangi buyurtma',
+        'Sizga yangi buyurtma tayinlandi',
+        NotificationDetails(
+          android: AndroidNotificationDetails(
+            _ordersChannel.id,
+            _ordersChannel.name,
+            channelDescription: _ordersChannel.description,
+            importance: Importance.high,
+            priority: Priority.high,
+            playSound: true,
+          ),
+        ),
+      );
+    } catch (_) {}
   }
 
   /// Login'dan so'ng chaqiriladi - FCM tokenini olib, backend'ga saqlaydi

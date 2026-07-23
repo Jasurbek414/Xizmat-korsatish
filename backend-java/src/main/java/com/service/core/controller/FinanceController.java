@@ -19,7 +19,7 @@ import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/v1/finance")
-@PreAuthorize("hasAnyRole('SUPERADMIN','ADMIN','MANAGER','DISPATCHER','WORKER_DRIVER','WORKER_FACTORY')")
+@PreAuthorize("hasAnyRole('SUPERADMIN','ADMIN','MANAGER','DISPATCHER','WORKER_DRIVER','WORKER_FACTORY','WORKER_SEH')")
 public class FinanceController {
 
     private final TransactionRepository transactionRepository;
@@ -51,7 +51,7 @@ public class FinanceController {
 
         UUID companyId = UUID.fromString(tenantId);
         List<Transaction> transactions;
-        if ("WORKER_DRIVER".equalsIgnoreCase(currentUser.getRole()) || "WORKER_FACTORY".equalsIgnoreCase(currentUser.getRole())) {
+        if ("WORKER_DRIVER".equalsIgnoreCase(currentUser.getRole()) || "WORKER_FACTORY".equalsIgnoreCase(currentUser.getRole()) || "WORKER_SEH".equalsIgnoreCase(currentUser.getRole())) {
             transactions = transactionRepository.findByCompanyIdAndWorkerId(companyId, currentUser.getId());
         } else {
             transactions = transactionRepository.findByCompanyIdAndStatus(companyId, "CONFIRMED");
@@ -84,7 +84,7 @@ public class FinanceController {
         Company company = companyRepository.findById(UUID.fromString(tenantId))
                 .orElseThrow(() -> new RuntimeException("Kompaniya topilmadi"));
 
-        boolean isWorker = "WORKER_DRIVER".equalsIgnoreCase(currentUser.getRole()) || "WORKER_FACTORY".equalsIgnoreCase(currentUser.getRole());
+        boolean isWorker = "WORKER_DRIVER".equalsIgnoreCase(currentUser.getRole()) || "WORKER_FACTORY".equalsIgnoreCase(currentUser.getRole()) || "WORKER_SEH".equalsIgnoreCase(currentUser.getRole());
         String status = isWorker ? "PENDING" : "CONFIRMED";
 
         Transaction tx = Transaction.builder()
@@ -115,7 +115,7 @@ public class FinanceController {
 
         UUID companyId = UUID.fromString(tenantId);
         List<Transaction> txs;
-        if ("WORKER_DRIVER".equalsIgnoreCase(currentUser.getRole()) || "WORKER_FACTORY".equalsIgnoreCase(currentUser.getRole())) {
+        if ("WORKER_DRIVER".equalsIgnoreCase(currentUser.getRole()) || "WORKER_FACTORY".equalsIgnoreCase(currentUser.getRole()) || "WORKER_SEH".equalsIgnoreCase(currentUser.getRole())) {
             txs = transactionRepository.findByCompanyIdAndWorkerId(companyId, currentUser.getId());
         } else {
             txs = transactionRepository.findByCompanyIdAndStatus(companyId, "CONFIRMED");

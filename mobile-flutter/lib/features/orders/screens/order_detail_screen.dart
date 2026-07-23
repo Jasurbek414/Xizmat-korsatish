@@ -44,6 +44,11 @@ class OrderDetailScreen extends StatelessWidget {
 
         final formatter = NumberFormat.decimalPattern('uz');
 
+        final sorted = [...state.statuses]..sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
+        final currentIndex = sorted.indexWhere((s) => s.id == order.status?.id);
+        final isLastStatus = sorted.isNotEmpty && currentIndex == sorted.length - 1;
+        final isPastOrder = (order.paymentStatus == 'HANDED_OVER') || (isLastStatus && order.paymentStatus != 'PENDING');
+
         return Scaffold(
           backgroundColor: AppTheme.darkBackground,
           appBar: AppBar(
@@ -88,6 +93,30 @@ class OrderDetailScreen extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                if (isPastOrder)
+                  Container(
+                    width: double.infinity,
+                    margin: const EdgeInsets.only(bottom: 16),
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                    decoration: BoxDecoration(
+                      color: Colors.blue.withOpacity(0.12),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.blue.withOpacity(0.3)),
+                    ),
+                    child: Row(
+                      children: const [
+                        Icon(LucideIcons.lock, size: 16, color: Colors.blue),
+                        SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            "Tarixdagi buyurtma (Faqat ko'rish rejimida)",
+                            style: TextStyle(color: Colors.blue, fontWeight: FontWeight.bold, fontSize: 12),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
                 // 1. Client Card
                 Container(
                   padding: const EdgeInsets.all(16),
@@ -140,19 +169,20 @@ class OrderDetailScreen extends StatelessWidget {
                               fontSize: 13,
                             ),
                           ),
-                          TextButton.icon(
-                            onPressed: () => _showAddCarpetDialog(context, order),
-                            icon: const Icon(LucideIcons.plus, size: 14, color: AppTheme.accentColor),
-                            label: const Text(
-                              "Qo'shish",
-                              style: TextStyle(color: AppTheme.accentColor, fontSize: 11, fontWeight: FontWeight.bold),
+                          if (!isLastStatus && !isPastOrder)
+                            TextButton.icon(
+                              onPressed: () => _showAddCarpetDialog(context, order),
+                              icon: const Icon(LucideIcons.plus, size: 14, color: AppTheme.accentColor),
+                              label: const Text(
+                                "Qo'shish",
+                                style: TextStyle(color: AppTheme.accentColor, fontSize: 11, fontWeight: FontWeight.bold),
+                              ),
+                              style: TextButton.styleFrom(
+                                padding: EdgeInsets.zero,
+                                minimumSize: Size.zero,
+                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                              ),
                             ),
-                            style: TextButton.styleFrom(
-                              padding: EdgeInsets.zero,
-                              minimumSize: Size.zero,
-                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                            ),
-                          ),
                         ],
                       ),
                       const SizedBox(height: 10),
@@ -166,7 +196,12 @@ class OrderDetailScreen extends StatelessWidget {
                         )
                       else
                         Column(
-                          children: order.items.map((item) => DetailCarpetItemWidget(order: order, statuses: state.statuses, item: item)).toList(),
+                          children: order.items.map((item) => DetailCarpetItemWidget(
+                            order: order,
+                            statuses: state.statuses,
+                            item: item,
+                            isReadOnly: isPastOrder || isLastStatus,
+                          )).toList(),
                         ),
                     ],
                   ),
@@ -204,7 +239,7 @@ class OrderDetailScreen extends StatelessWidget {
                         ],
                       ),
                       const SizedBox(height: 12),
-                      DetailPaymentCollectionSection(order: order),
+                      DetailPaymentCollectionSection(order: order, isReadOnly: isPastOrder),
                     ],
                   ),
                 ),
@@ -235,7 +270,7 @@ class OrderDetailScreen extends StatelessWidget {
     final currentIndex = sorted.indexWhere((s) => s.id == order.status?.id);
     final isLastStatus = sorted.isNotEmpty && currentIndex == sorted.length - 1;
 
-    if (isLastStatus) {
+    if (isLastStatus || order.paymentStatus == 'HANDED_OVER') {
       if (order.paymentStatus == 'PENDING') {
         return SizedBox(
           width: double.infinity,
