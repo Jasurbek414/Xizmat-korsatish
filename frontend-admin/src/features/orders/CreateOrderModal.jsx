@@ -2,7 +2,7 @@ import React from 'react';
 import { X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
-const CreateOrderModal = ({ isOpen, onClose, clients, services, workers, newOrder, setNewOrder, onSubmit, companySettings }) => {
+const CreateOrderModal = ({ isOpen, onClose, clients, services, workers, newOrder, setNewOrder, onSubmit, companySettings, error }) => {
   const { t } = useTranslation();
 
   if (!isOpen) return null;
@@ -21,6 +21,11 @@ const CreateOrderModal = ({ isOpen, onClose, clients, services, workers, newOrde
         </div>
 
         <form onSubmit={onSubmit} className="space-y-4 text-xs font-semibold">
+          {error && (
+            <div className="bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/20 text-red-600 dark:text-red-400 rounded-xl px-3 py-2 font-semibold">
+              {error}
+            </div>
+          )}
           <div>
             <label className="block text-slate-500 dark:text-gray-400 mb-1">Mijoz Telefon Raqami</label>
             <input 

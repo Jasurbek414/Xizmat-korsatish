@@ -24,6 +24,7 @@ const Orders = ({ tab }) => {
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [editingOrder, setEditingOrder] = useState(null);
   const [smsToast, setSmsToast] = useState(null);
+  const [createOrderError, setCreateOrderError] = useState(null);
   
   // Filters
   const [search, setSearch] = useState('');
@@ -134,6 +135,7 @@ const Orders = ({ tab }) => {
   const handleCreateOrder = async (e) => {
     e.preventDefault();
     if (!newOrder.client_phone || !newOrder.client_name || !newOrder.service_id) return;
+    setCreateOrderError(null);
 
     try {
       // Find client in current loaded list (matching phone)
@@ -146,7 +148,7 @@ const Orders = ({ tab }) => {
       if (!client) {
         // Create new client in backend
         const createdClient = await api.createClient({
-          fullName: newOrder.client_name,
+          full_name: newOrder.client_name,
           phone: newOrder.client_phone,
           address: newOrder.address
         });
@@ -218,6 +220,7 @@ const Orders = ({ tab }) => {
       });
     } catch (err) {
       console.error("Failed to create order:", err);
+      setCreateOrderError(err.message || "Buyurtma yaratib bo'lmadi. Qaytadan urinib ko'ring.");
     }
   };
 
@@ -349,16 +352,17 @@ const Orders = ({ tab }) => {
       />
 
       {/* Create Order Modal */}
-      <CreateOrderModal 
-        isOpen={showCreateModal} 
-        onClose={() => { setShowCreateModal(false); setEditingOrder(null); }} 
-        clients={clients} 
-        services={services} 
-        workers={workers} 
-        newOrder={newOrder} 
-        setNewOrder={setNewOrder} 
-        onSubmit={handleCreateOrder} 
+      <CreateOrderModal
+        isOpen={showCreateModal}
+        onClose={() => { setShowCreateModal(false); setEditingOrder(null); setCreateOrderError(null); }}
+        clients={clients}
+        services={services}
+        workers={workers}
+        newOrder={newOrder}
+        setNewOrder={setNewOrder}
+        onSubmit={handleCreateOrder}
         companySettings={companySettings}
+        error={createOrderError}
       />
 
       {/* SMS Toast simulation popup */}
