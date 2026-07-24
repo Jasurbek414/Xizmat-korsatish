@@ -10,6 +10,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -62,6 +63,7 @@ public class GpsController {
             // Update user current position
             user.setLatitude(latitude);
             user.setLongitude(longitude);
+            user.setLastLocationAt(LocalDateTime.now());
             userRepository.save(user);
 
             return ResponseEntity.ok(Map.of("message", "GPS log saved successfully"));

@@ -5,6 +5,22 @@ import { useTranslation } from 'react-i18next';
 import { Search, MapPin, Navigation, RefreshCw, Info, Phone, Compass, Layers } from 'lucide-react';
 import { api } from '../services/api';
 
+// Haydovchi shu vaqt ichida GPS yubormasa "OFFLINE" deb hisoblanadi (mobil
+// ilova har 15 soniyada bir marta yuboradi - 45s ~ 3 marta ketma-ket
+// o'tkazib yuborilsa, haqiqatan ham signal yo'qolgan deb hisoblaymiz).
+const GPS_STALE_MS = 45_000;
+
+const formatLastSeen = (lastSeenMs) => {
+  if (!lastSeenMs) return 'Hech qachon';
+  const diffSec = Math.max(0, Math.floor((Date.now() - lastSeenMs) / 1000));
+  if (diffSec < 60) return 'Hozirgina';
+  const diffMin = Math.floor(diffSec / 60);
+  if (diffMin < 60) return `${diffMin} daqiqa oldin`;
+  const diffHour = Math.floor(diffMin / 60);
+  if (diffHour < 24) return `${diffHour} soat oldin`;
+  return `${Math.floor(diffHour / 24)} kun oldin`;
+};
+
 const LeafletMap = ({ tab }) => {
   const { t, i18n } = useTranslation();
   const mapRef = useRef(null);
@@ -41,8 +57,12 @@ const LeafletMap = ({ tab }) => {
         role: d.role,
         phone: d.phone,
         status: d.status,
-        lat: d.latitude || 41.311081,
-        lng: d.longitude || 69.240562
+        // Haqiqiy GPS ma'lumoti bo'lmasa null qoldiramiz - Toshkent markaziga
+        // "soxta" joylashtirib, hali hech qachon signal yubormagan haydovchini
+        // xaritada "onlayn"dek ko'rsatib yubormaslik uchun.
+        lat: d.latitude ?? null,
+        lng: d.longitude ?? null,
+        lastSeenMs: d.lastLocationAt ? new Date(d.lastLocationAt).getTime() : null
       }));
 
       const mappedOrders = allOrders.map(o => ({
@@ -55,13 +75,17 @@ const LeafletMap = ({ tab }) => {
         price: o.price
       }));
 
+      const now = Date.now();
       const enrichedDrivers = driverUsers.map(driver => {
         const activeOrder = mappedOrders.find(o =>
           o.worker_name === driver.full_name && o.status_id !== completedStatusId
         );
 
+        const hasLocation = driver.lat != null && driver.lng != null;
+        const isStale = !driver.lastSeenMs || (now - driver.lastSeenMs) > GPS_STALE_MS;
+
         let status = 'FREE';
-        if (driver.status === 'BLOCKED') {
+        if (driver.status === 'BLOCKED' || !hasLocation || isStale) {
           status = 'OFFLINE';
         } else if (activeOrder) {
           status = 'BUSY';
@@ -70,6 +94,7 @@ const LeafletMap = ({ tab }) => {
         return {
           ...driver,
           status,
+          hasLocation,
           activeOrder
         };
       });
@@ -249,6 +274,7 @@ const LeafletMap = ({ tab }) => {
               ${driver.status === 'FREE' ? 'Online / Bo\'sh' : driver.status === 'BUSY' ? 'Buyurtmada' : 'Offline'}
             </span>
           </div>
+          <div style="margin-top: 4px; color: #94a3b8; font-size: 9px;">So'nggi signal: ${formatLastSeen(driver.lastSeenMs)}</div>
           ${driver.activeOrder ? `
             <div style="margin-top: 8px; border-top: 1px dashed #e2e8f0; padding-top: 6px; font-size: 10px;">
               <span style="font-weight: bold; color: #4f46e5; display: block; font-size: 8px; text-transform: uppercase; letter-spacing: 0.5px;">Faol Buyurtma:</span>
@@ -392,6 +418,13 @@ const LeafletMap = ({ tab }) => {
                         <Phone className="w-3 h-3 text-slate-400" />
                         <span>{driver.phone || '—'}</span>
                       </div>
+
+                      {/* Last GPS signal - especially useful when OFFLINE */}
+                      {driver.status === 'OFFLINE' && (
+                        <div className="text-[9px] text-rose-400 dark:text-rose-400/80 font-medium">
+                          So'nggi signal: {formatLastSeen(driver.lastSeenMs)}
+                        </div>
+                      )}
 
                       {/* Order info details */}
                       {driver.activeOrder && (

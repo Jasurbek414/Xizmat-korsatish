@@ -49,7 +49,12 @@ public class SecurityConfig {
                 // Order itemlarni o'chirishga barcha autentifikatsiyalangan foydalanuvchilar ruxsat oladi
                 .requestMatchers(HttpMethod.DELETE, "/api/v1/orders/*/items/*").authenticated()
                 .requestMatchers(HttpMethod.DELETE, "/api/v1/employees/**").hasAnyRole("ADMIN", "SUPERADMIN")
-                .requestMatchers(HttpMethod.DELETE, "/api/v1/**").hasAnyRole("ADMIN", "SUPERADMIN", "MANAGER")
+                // MUHIM: bu ro'yxat pastdagi controllerlarning o'z @PreAuthorize
+                // (masalan ServiceController, OrderStatusController) ro'yxati bilan
+                // BIR XIL bo'lishi shart - aks holda bu URL darajasidagi qoida ular
+                // ochib bergan rolni (masalan DISPATCHER) "o'lik kod"ga aylantirib,
+                // amalda hech qachon ishlamaydigan qilib qo'yadi (avval shunday bo'lgan).
+                .requestMatchers(HttpMethod.DELETE, "/api/v1/**").hasAnyRole("ADMIN", "SUPERADMIN", "MANAGER", "DISPATCHER")
                 .anyRequest().authenticated()
             )
             .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);

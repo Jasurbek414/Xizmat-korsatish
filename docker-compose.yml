@@ -34,13 +34,9 @@ services:
       - FREESWITCH_ESL_PASSWORD=${FREESWITCH_ESL_PASSWORD:-changeme_esl_password_dev_only}
       # SIP hisob parollarini bazada shifrlash uchun (SipPasswordConverter).
       - SIP_CREDENTIALS_KEY=${SIP_CREDENTIALS_KEY:-}
-    # Push bildirishnomani yoqish uchun: Firebase Console'dan service account JSON kalitini
-    # backend-java/firebase-service-account.json sifatida saqlang, keyin quyidagi qatorni
-    # va yuqoridagi FIREBASE_SERVICE_ACCOUNT_PATH qiymatini ("/app/firebase-service-account.json")
-    # .env faylida faollashtiring:
-    # volumes:
-    #   - ./backend-java/firebase-service-account.json:/app/firebase-service-account.json:ro
     volumes:
+      # Push bildirishnoma uchun Firebase Admin SDK service account kaliti (read-only).
+      - ./backend-java/firebase-service-account.json:/app/firebase-service-account.json:ro
       # SipAccount yaratilganda FreeSwitchGatewayFileWriter shu papkaga gateway
       # XML fayli yozadi - freeswitch xizmati buni sip_profiles/external ostida
       # ko'rishi uchun ikkalasi ham SHU umumiy volume'ni ulashi kerak.

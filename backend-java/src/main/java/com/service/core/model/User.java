@@ -42,8 +42,14 @@ public class User implements UserDetails {
     private String phone;
 
     private Double latitude;
-    
+
     private Double longitude;
+
+    // Oxirgi marta GPS koordinatasi qachon kelganini bildiradi - shu orqali
+    // web-admin xaritasida haydovchi haqiqatan ONLINE (yaqinda signal yuborgan)
+    // yoki uzoq vaqt signal kelmagani uchun OFFLINE ekanligi aniqlanadi.
+    @Column(name = "last_location_at")
+    private LocalDateTime lastLocationAt;
 
     @Column(nullable = false, length = 50)
     private String role; // SUPERADMIN, ADMIN, DISPATCHER, MANAGER, WORKER_DRIVER

@@ -18,29 +18,32 @@ const LoginPage = ({ setAuth }) => {
     });
   }, []);
 
+  // MUHIM: superadmin ham, oddiy foydalanuvchilar ham AYNAN shu haqiqiy
+  // api.login() orqali autentifikatsiyadan o'tishi SHART - avval superadmin
+  // uchun backend'ga umuman ulanmaydigan, faqat brauzer xotirasida "soxta"
+  // sessiya yaratadigan yo'l bor edi (parol ham noto'g'ri edi). Shu sabab
+  // butun SuperAdmin paneli (kompaniyalarni boshqarish) ishlamas edi - har bir
+  // so'rov "Authorization" headerisiz haqiqiy JWT'siz yuborilib, backend
+  // tomonidan 401/403 bilan rad etilardi.
   const handleLogin = async (e) => {
     e.preventDefault();
     setError('');
 
-    if (username === 'superadmin' && password === 'admin') {
-      const user = { username: 'superadmin', role: 'SUPERADMIN', full_name: 'Super Admin' };
-      localStorage.setItem('auth_user', JSON.stringify(user));
-      setAuth(user);
-      navigate('/spd');
-    } else {
-      try {
-        const data = await api.login(username, password);
-        const user = data.user;
-        
-        if (user.role !== 'WORKER_DRIVER') {
-          setAuth(user);
-          navigate('/');
-        } else {
-          setError('Kuryerlar uchun mobil ilova orqali kirish tavsiya etiladi.');
-        }
-      } catch (err) {
-        setError(err.message || 'Foydalanuvchi nomi yoki parol xato!');
+    try {
+      const data = await api.login(username, password);
+      const user = data.user;
+
+      if (user.role === 'SUPERADMIN') {
+        setAuth(user);
+        navigate('/spd');
+      } else if (['WORKER_DRIVER', 'WORKER', 'WORKER_SEH'].includes(user.role)) {
+        setError('Bu hisob uchun mobil ilova orqali kirish tavsiya etiladi.');
+      } else {
+        setAuth(user);
+        navigate('/');
       }
+    } catch (err) {
+      setError(err.message || 'Foydalanuvchi nomi yoki parol xato!');
     }
   };
 
@@ -110,7 +113,6 @@ const LoginPage = ({ setAuth }) => {
 
         <div className="border-t border-slate-100 dark:border-white/5 pt-4 text-center">
           <p className="text-[9px] text-slate-400 dark:text-gray-500 font-mono tracking-wide leading-relaxed">
-            Superadmin: superadmin / admin <br/>
             Admin: admin / admin
           </p>
         </div>

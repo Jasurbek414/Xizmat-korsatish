@@ -8,7 +8,11 @@ const ServicesCatalog = () => {
   const [services, setServices] = useState([]);
   const [search, setSearch] = useState('');
   const [selectedCat, setSelectedCat] = useState('all');
-  
+  // "Umumiy Sozlamalar" bo'limida boshqariladigan kompaniya o'lchov birliklari -
+  // shu yerda ham AYNAN o'sha ro'yxat ishlatiladi (ikkalasi bir-biridan uzilib
+  // qolmasligi uchun), qattiq (hardcoded) ro'yxat emas.
+  const [units, setUnits] = useState(['m²']);
+
   // Modals / Editing state
   const [newService, setNewService] = useState({ name_uz: '', name_ru: '', name_en: '', price: '', category: '', measurement_unit: 'm²' });
   const [editingService, setEditingService] = useState(null);
@@ -31,7 +35,18 @@ const ServicesCatalog = () => {
         console.error("Failed to load services:", err);
       }
     };
+    const loadUnits = async () => {
+      try {
+        const company = await api.getCompanySettings();
+        if (company.measurementUnits && company.measurementUnits.length > 0) {
+          setUnits(company.measurementUnits);
+        }
+      } catch (err) {
+        console.error("Failed to load measurement units:", err);
+      }
+    };
     loadServices();
+    loadUnits();
   }, []);
 
   const handleAddService = async (e) => {
@@ -228,11 +243,9 @@ const ServicesCatalog = () => {
                 }
                 className="w-full glass-input rounded-xl px-3 py-2 text-slate-800 dark:text-white focus:outline-none bg-white dark:bg-[#1f2937]"
               >
-                <option value="m²">Kvadrat metr (m²)</option>
-                <option value="dona">Dona (dona)</option>
-                <option value="kg">Kilogram (kg)</option>
-                <option value="metr">Metr (m)</option>
-                <option value="litr">Litr (l)</option>
+                {units.map(unit => (
+                  <option key={unit} value={unit}>{unit}</option>
+                ))}
               </select>
             </div>
             <div className="flex gap-2">

@@ -4,6 +4,8 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import jakarta.persistence.*;
 import lombok.*;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 
 @Entity
@@ -78,6 +80,15 @@ public class Company {
 
     @Column(name = "sms_template_completed", length = 500)
     private String smsTemplateCompleted;
+
+    // Xizmatlar katalogida (ServiceEntity.measurementUnit) tanlash uchun ishlatiladigan,
+    // kompaniya o'zi boshqaradigan o'lchov birliklari ro'yxati (masalan: dona, kv. metr, kg).
+    @ElementCollection
+    @CollectionTable(name = "company_measurement_units", joinColumns = @JoinColumn(name = "company_id"))
+    @Column(name = "unit", length = 50)
+    @OrderColumn(name = "position")
+    @Builder.Default
+    private List<String> measurementUnits = new ArrayList<>(List.of("dona", "kv. metr", "kg", "litr", "metr"));
 
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;

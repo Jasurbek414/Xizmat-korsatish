@@ -185,7 +185,7 @@ public class OrderController {
         Order saved = orderRepository.save(order);
 
         if (worker != null) {
-            pushNotificationService.notifyOrderAssigned(worker, saved.getAddress(), saved.getPrice().toString());
+            pushNotificationService.notifyOrderAssigned(saved);
         }
 
         return ResponseEntity.status(HttpStatus.CREATED).body(saved);
@@ -245,7 +245,7 @@ public class OrderController {
 
         order.setWorker(worker);
         orderRepository.save(order);
-        pushNotificationService.notifyOrderAssigned(worker, order.getAddress(), order.getPrice().toString());
+        pushNotificationService.notifyOrderAssigned(order);
 
         return ResponseEntity.ok(order);
     }

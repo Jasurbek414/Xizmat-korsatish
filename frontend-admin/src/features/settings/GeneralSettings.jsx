@@ -34,7 +34,9 @@ const GeneralSettings = () => {
           driver_kpi_percent: data.driverKpiPercent || 10,
           work_start_time: data.workStartTime || '08:00',
           work_end_time: data.workEndTime || '22:00',
-          measurement_units: ['dona', 'kv. metr', 'kg', 'litr', 'metr']
+          measurement_units: (data.measurementUnits && data.measurementUnits.length > 0)
+            ? data.measurementUnits
+            : ['dona', 'kv. metr', 'kg', 'litr', 'metr']
         });
       } catch (err) {
         console.error("Failed to load company settings:", err);
@@ -42,6 +44,24 @@ const GeneralSettings = () => {
     };
     loadSettings();
   }, []);
+
+  // Boshqa maydonlardan farqli o'laroq (ular faqat pastdagi umumiy "Saqlash"
+  // bosilganda yuboriladi), o'lchov birligini qo'shish/o'chirish DARHOL serverga
+  // saqlanadi - aks holda foydalanuvchi X tugmasini bosib "o'chirdim" deb o'ylaydi,
+  // lekin asosiy formani saqlamasdan sahifani tark etsa, o'zgarish yo'qolib,
+  // eski ro'yxat qaytib chiqadi (aynan shu holat "o'chirilgan narsa qayta paydo
+  // bo'lyapti" degan shikoyatga sabab bo'lgan edi).
+  const persistUnits = async (updated) => {
+    const previous = settings.measurement_units;
+    setSettings(prev => ({ ...prev, measurement_units: updated }));
+    try {
+      await api.updateCompanySettings({ measurementUnits: updated });
+    } catch (err) {
+      console.error("Failed to update measurement units:", err);
+      setSettings(prev => ({ ...prev, measurement_units: previous }));
+      alert(err.message || "O'lchov birligini saqlashda xatolik yuz berdi.");
+    }
+  };
 
   const handleSave = async (e) => {
     e.preventDefault();
@@ -54,12 +74,14 @@ const GeneralSettings = () => {
         minOrderPrice: settings.min_order_price,
         driverKpiPercent: settings.driver_kpi_percent,
         workStartTime: settings.work_start_time,
-        workEndTime: settings.work_end_time
+        workEndTime: settings.work_end_time,
+        measurementUnits: settings.measurement_units
       });
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
     } catch (err) {
       console.error("Failed to update company settings:", err);
+      alert(err.message || "Sozlamalarni saqlashda xatolik yuz berdi.");
     }
   };
 
@@ -147,11 +169,11 @@ const GeneralSettings = () => {
                     className="inline-flex items-center gap-1 bg-indigo-500/10 border border-indigo-500/20 text-indigo-650 dark:text-indigo-400 px-2 py-0.5 rounded-lg text-[10px] font-bold"
                   >
                     <span>{unit}</span>
-                    <button 
-                      type="button" 
+                    <button
+                      type="button"
                       onClick={() => {
                         const updated = (settings.measurement_units || ['dona', 'kv. metr', 'kg', 'litr', 'metr']).filter((_, i) => i !== index);
-                        setSettings({ ...settings, measurement_units: updated });
+                        persistUnits(updated);
                       }}
                       className="text-slate-400 hover:text-rose-500 cursor-pointer font-bold ml-0.5 text-[8px]"
                     >
@@ -175,7 +197,7 @@ const GeneralSettings = () => {
                       if (val) {
                         const current = settings.measurement_units || ['dona', 'kv. metr', 'kg', 'litr', 'metr'];
                         if (!current.includes(val)) {
-                          setSettings({ ...settings, measurement_units: [...current, val] });
+                          persistUnits([...current, val]);
                         }
                         setNewUnit('');
                       }
@@ -189,7 +211,7 @@ const GeneralSettings = () => {
                     if (val) {
                       const current = settings.measurement_units || ['dona', 'kv. metr', 'kg', 'litr', 'metr'];
                       if (!current.includes(val)) {
-                        setSettings({ ...settings, measurement_units: [...current, val] });
+                        persistUnits([...current, val]);
                       }
                       setNewUnit('');
                     }
@@ -229,9 +251,9 @@ const GeneralSettings = () => {
                 <input
                   type="text"
                   value={settings.currency}
-                  onChange={(e) => setSettings({ ...settings, currency: e.target.value })}
-                  className="w-full glass-input rounded-xl px-3 py-2.5 text-slate-800 dark:text-white focus:outline-none"
-                  required
+                  disabled
+                  title="Hozircha faqat O'zbekiston so'mi qo'llab-quvvatlanadi"
+                  className="w-full glass-input rounded-xl px-3 py-2.5 text-slate-400 dark:text-gray-500 bg-slate-50 dark:bg-white/5 cursor-not-allowed focus:outline-none"
                 />
               </div>
             </div>

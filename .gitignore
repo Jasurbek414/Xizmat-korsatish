@@ -24,6 +24,10 @@
 **/*.deb
 **/*.dmg
 
+# Firebase (push bildirishnoma) maxfiy kalitlari
+backend-java/firebase-service-account.json
+mobile-flutter/android/app/google-services.json
+
 # Misc
 .DS_Store
 *.pem

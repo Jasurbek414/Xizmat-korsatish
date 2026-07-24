@@ -7,8 +7,11 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/v1/company")
@@ -61,6 +64,23 @@ public class CompanyController {
         }
         if (request.containsKey("workStartTime")) company.setWorkStartTime((String) request.get("workStartTime"));
         if (request.containsKey("workEndTime")) company.setWorkEndTime((String) request.get("workEndTime"));
+
+        if (request.containsKey("measurementUnits")) {
+            Object raw = request.get("measurementUnits");
+            if (raw instanceof List<?> rawList) {
+                // MUHIM: Hibernate @ElementCollection'ni yangilashda kolleksiyani ICHKARIDAN
+                // clear() qiladi - shu sabab .toList() qaytaradigan O'ZGARMAS (immutable)
+                // ro'yxatni emas, albatta O'ZGARUVCHAN (mutable) ArrayList berish kerak,
+                // aks holda UnsupportedOperationException bilan saqlash butunlay barbod bo'ladi.
+                List<String> units = rawList.stream()
+                        .map(Object::toString)
+                        .map(String::trim)
+                        .filter(s -> !s.isBlank())
+                        .distinct()
+                        .collect(Collectors.toCollection(ArrayList::new));
+                company.setMeasurementUnits(units);
+            }
+        }
 
         if (request.containsKey("smsEnabled")) {
             company.setSmsEnabled((Boolean) request.get("smsEnabled"));
