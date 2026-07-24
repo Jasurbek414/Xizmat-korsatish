@@ -476,6 +476,69 @@ export const api = {
     return handleResponse(res);
   },
 
+  async getCompanyDetail(id) {
+    const res = await fetch(`${API_BASE_URL}/superadmin/companies/${id}`, {
+      headers: getHeaders()
+    });
+    return handleResponse(res);
+  },
+
+  async updateCompany(id, data) {
+    const res = await fetch(`${API_BASE_URL}/superadmin/companies/${id}`, {
+      method: 'PUT',
+      headers: getHeaders(),
+      body: JSON.stringify(data)
+    });
+    return handleResponse(res);
+  },
+
+  async getCompanyUsers(id) {
+    const res = await fetch(`${API_BASE_URL}/superadmin/companies/${id}/users`, {
+      headers: getHeaders()
+    });
+    return handleResponse(res);
+  },
+
+  async resetCompanyUserPassword(id, userId) {
+    const res = await fetch(`${API_BASE_URL}/superadmin/companies/${id}/users/${userId}/password`, {
+      method: 'PUT',
+      headers: getHeaders()
+    });
+    return handleResponse(res);
+  },
+
+  async getCompanySubscriptions(id) {
+    const res = await fetch(`${API_BASE_URL}/superadmin/companies/${id}/subscriptions`, {
+      headers: getHeaders()
+    });
+    return handleResponse(res);
+  },
+
+  async createCompanySubscription(id, data) {
+    const res = await fetch(`${API_BASE_URL}/superadmin/companies/${id}/subscriptions`, {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify(data)
+    });
+    return handleResponse(res);
+  },
+
+  async updateCompanySubscription(id, subscriptionId, data) {
+    const res = await fetch(`${API_BASE_URL}/superadmin/companies/${id}/subscriptions/${subscriptionId}`, {
+      method: 'PUT',
+      headers: getHeaders(),
+      body: JSON.stringify(data)
+    });
+    return handleResponse(res);
+  },
+
+  async getSuperadminStats() {
+    const res = await fetch(`${API_BASE_URL}/superadmin/stats`, {
+      headers: getHeaders()
+    });
+    return handleResponse(res);
+  },
+
   async getSipAccounts() {
     const res = await fetch(`${API_BASE_URL}/sip-accounts`, {
       headers: getHeaders()

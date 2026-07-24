@@ -9,4 +9,5 @@ import java.util.UUID;
 @Repository
 public interface SubscriptionRepository extends JpaRepository<Subscription, UUID> {
     List<Subscription> findByCompanyId(UUID companyId);
+    List<Subscription> findByCompanyIdOrderByStartDateDesc(UUID companyId);
 }

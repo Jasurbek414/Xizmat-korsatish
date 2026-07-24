@@ -11,7 +11,7 @@ const Sidebar = ({ currentTab, setCurrentTab, role, roleLabel, perms = {}, handl
   const menuItems = role === 'SUPERADMIN'
     ? [
       { id: 'dashboard', label: t('menu.dashboard'), icon: LayoutDashboard },
-      { id: 'companies', label: 'Kompaniyalar', icon: Building2 },
+      { id: 'companies', label: t('superadmin.menu_companies'), icon: Building2 },
     ]
     : (() => {
       const items = [
@@ -41,7 +41,7 @@ const Sidebar = ({ currentTab, setCurrentTab, role, roleLabel, perms = {}, handl
               Service<span className="text-indigo-500 dark:text-indigo-400">Core</span>
             </h1>
             <span className="text-[9px] text-slate-400 dark:text-gray-500 font-semibold tracking-wider uppercase mt-1 block">
-              {role === 'SUPERADMIN' ? 'Super Admin' : (roleLabel || role)}
+              {role === 'SUPERADMIN' ? t('superadmin.role_label') : (roleLabel || role)}
             </span>
           </div>
         </div>

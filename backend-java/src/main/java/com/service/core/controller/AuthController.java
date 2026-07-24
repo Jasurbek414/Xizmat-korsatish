@@ -64,6 +64,10 @@ public class AuthController {
                     return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of("message", "Foydalanuvchi hisobi faol emas"));
                 }
 
+                if (user.getCompany() != null && "BLOCKED".equalsIgnoreCase(user.getCompany().getStatus())) {
+                    return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of("message", "Kompaniya bloklangan. Administrator bilan bog'laning."));
+                }
+
                 String companyId = user.getCompany() != null ? user.getCompany().getId().toString() : null;
                 String token = jwtTokenProvider.generateToken(user.getUsername(), user.getRole(), companyId);
 

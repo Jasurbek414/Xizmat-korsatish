@@ -176,7 +176,7 @@ const SuperadminPortal = ({ auth, setAuth, theme, toggleTheme }) => {
       <div className="flex-1 flex flex-col h-screen overflow-hidden">
         <header className="h-16 shrink-0 border-b border-slate-200 dark:border-white/5 bg-white/95 dark:bg-[#111827]/80 backdrop-blur-md px-8 flex items-center justify-between z-30 transition-colors duration-200">
           <div>
-            <h2 className="text-sm font-bold text-slate-800 dark:text-white">Xush kelibsiz, Super Admin!</h2>
+            <h2 className="text-sm font-bold text-slate-800 dark:text-white">{t('superadmin.welcome_title')}</h2>
             <p className="text-[10px] text-slate-500 dark:text-gray-500">{t('common.today')}: {new Date().toLocaleDateString()}</p>
           </div>
           <div className="flex items-center gap-3">
@@ -184,7 +184,7 @@ const SuperadminPortal = ({ auth, setAuth, theme, toggleTheme }) => {
             <LanguageSelector />
 
             {/* Theme Toggle */}
-            <button 
+            <button
               onClick={toggleTheme}
               className="p-2 rounded-xl bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/5 text-slate-700 dark:text-gray-300 hover:bg-slate-200 dark:hover:bg-white/10 transition cursor-pointer"
             >
