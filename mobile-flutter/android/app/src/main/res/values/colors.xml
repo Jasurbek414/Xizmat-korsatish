@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- AppColors.primary (lib/core/theme.dart) bilan bir xil - push bildirishnoma
+         ikonkasi va status-bar aksenti shu rangda ko'rinishi uchun. -->
+    <color name="notification_color">#0B6B4F</color>
+</resources>

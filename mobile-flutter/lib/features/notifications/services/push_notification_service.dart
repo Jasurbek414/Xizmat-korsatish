@@ -1,8 +1,13 @@
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:flutter/material.dart' show Color;
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
 import '../repository/notification_repository.dart';
+
+/// AppColors.primary (core/theme.dart) bilan bir xil - bildirishnoma ikonkasi
+/// aksenti ilovaning asosiy rangida ko'rinishi uchun.
+const _brandColor = Color(0xFF0B6B4F);
 
 const _ordersChannel = AndroidNotificationChannel(
   'orders_channel',
@@ -45,7 +50,7 @@ class PushNotificationService {
       return;
     }
 
-    const androidInit = AndroidInitializationSettings('@mipmap/ic_launcher');
+    const androidInit = AndroidInitializationSettings('@drawable/ic_stat_notify');
     await _localNotifications.initialize(
       const InitializationSettings(android: androidInit),
     );
@@ -87,6 +92,11 @@ class PushNotificationService {
           importance: Importance.high,
           priority: Priority.high,
           playSound: true,
+          color: _brandColor,
+          styleInformation: BigTextStyleInformation(
+            notification.body ?? '',
+            contentTitle: notification.title,
+          ),
         ),
       ),
     );
@@ -110,6 +120,7 @@ class PushNotificationService {
             importance: Importance.high,
             priority: Priority.high,
             playSound: true,
+            color: _brandColor,
           ),
         ),
       );

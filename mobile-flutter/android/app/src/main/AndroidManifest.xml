@@ -9,7 +9,7 @@
     <uses-permission android:name="android.permission.WAKE_LOCK"/>
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
     <application
-        android:label="mobile_flutter"
+        android:label="ServiceCore"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity
@@ -41,8 +41,30 @@
             android:value="2" />
 
         <!-- flutter_background_service paketining o'zi BackgroundService
-             xizmatini o'z manifestida ro'yxatdan o'tkazadi (fon GPS uchun) -
-             bu yerda qayta e'lon qilish shart emas. -->
+             xizmatini o'z manifestida ro'yxatdan o'tkazadi (fon GPS uchun),
+             LEKIN android:foregroundServiceType'ni e'lon qilmaydi. Android 14
+             (API 34+)da bu turni FAQAT kodda (runtime) berish YETARLI EMAS -
+             manifestda ham AYNAN shu tur e'lon qilinishi SHART, aks holda
+             tizim MissingForegroundServiceTypeException bilan servisni EMAS,
+             BUTUN ILOVANI yiqitadi (ONLINE bosilganda ilova o'chib qolishining
+             sababi shu edi). Shu sabab shu yerda qayta e'lon qilib, kerakli
+             turni ("location") qo'shamiz. -->
+        <service
+            android:name="id.flutter.flutter_background_service.BackgroundService"
+            android:foregroundServiceType="location"
+            android:exported="true" />
+
+        <!-- Ilova background/yopiq holatda bo'lganda FCM push'ni OS o'zi ko'rsatadi -
+             shu holatlarda ham to'g'ri ikonka/rang/kanal ishlatilishi uchun. -->
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_icon"
+            android:resource="@drawable/ic_stat_notify" />
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_color"
+            android:resource="@color/notification_color" />
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_channel_id"
+            android:value="orders_channel" />
     </application>
     <!-- Required to query activities that can process text, see:
          https://developer.android.com/training/package-visibility and

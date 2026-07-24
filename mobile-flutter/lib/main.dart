@@ -23,6 +23,7 @@ void main() async {
   }
 
   await BackgroundGpsService.initialize();
+  await BackgroundGpsService.warmUp();
   await PushNotificationService.initialize();
   runApp(const MyApp());
 }

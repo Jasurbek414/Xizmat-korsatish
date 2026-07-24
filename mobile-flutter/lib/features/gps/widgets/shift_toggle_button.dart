@@ -26,11 +26,13 @@ class _ShiftToggleButtonState extends State<ShiftToggleButton> {
         setState(() => _isOnline = false);
       } else {
         // GPS ruxsatini tekshirish va so'rash
-        final permission = await Geolocator.checkPermission();
+        var permission = await Geolocator.checkPermission();
+        var justRequested = false;
         if (permission == LocationPermission.denied) {
-          final requested = await Geolocator.requestPermission();
-          if (requested == LocationPermission.denied ||
-              requested == LocationPermission.deniedForever) {
+          permission = await Geolocator.requestPermission();
+          justRequested = true;
+          if (permission == LocationPermission.denied ||
+              permission == LocationPermission.deniedForever) {
             if (mounted) {
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
@@ -58,8 +60,30 @@ class _ShiftToggleButtonState extends State<ShiftToggleButton> {
           return;
         }
 
-        await BackgroundGpsService.start();
-        setState(() => _isOnline = true);
+        if (justRequested) {
+          // Android'da ruxsat dialogi yopilgandan DARHOL keyin foreground GPS
+          // xizmatini ishga tushirish xavfli - OS ba'zan ilovani hali ham
+          // "fonda" deb noto'g'ri hisoblab, xizmatni boshlashni butunlay rad
+          // etib native darajada halokatga uchratishi mumkin (Android 12+,
+          // ForegroundServiceStartNotAllowedException). UI barqarorlashishi
+          // uchun qisqa pauza berib, shu xavfni kamaytiramiz.
+          await Future.delayed(const Duration(milliseconds: 400));
+        }
+
+        try {
+          await BackgroundGpsService.start();
+          setState(() => _isOnline = true);
+        } catch (e) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('GPS xizmatini ishga tushirib bo\'lmadi: $e'),
+                backgroundColor: AppTheme.dangerColor,
+                behavior: SnackBarBehavior.floating,
+              ),
+            );
+          }
+        }
       }
     } finally {
       if (mounted) setState(() => _busy = false);
