@@ -103,6 +103,12 @@ class _FactoryOrdersScreenState extends State<FactoryOrdersScreen> {
 
         // Qidiruv filtri
         final q = _searchQuery.toLowerCase();
+        // MUHIM (audit'da topilgan xato, tuzatildi): avval buyurtma YARATILGAN
+        // vaqti (createdAt) bo'yicha ENG YANGISI birinchi (descending) - shu
+        // sabab birinchi olib kelingan gilamlar ro'yxat tagiga tushib
+        // "qolib ketardi", keyin kelganlar esa tepada, birinchi bo'lib
+        // yuvilardi. Endi HAQIQIY sexga kirish vaqti (workshopArrivalTime)
+        // bo'yicha ESKISI BIRINCHI (ascending, FIFO) saralanadi.
         final filtered = workshopOrders.where((o) {
           return q.isEmpty ||
               o.client.fullName.toLowerCase().contains(q) ||
@@ -110,7 +116,16 @@ class _FactoryOrdersScreenState extends State<FactoryOrdersScreen> {
               o.address.toLowerCase().contains(q) ||
               o.serviceName.toLowerCase().contains(q);
         }).toList()
-          ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+          ..sort((a, b) => a.workshopArrivalTime.compareTo(b.workshopArrivalTime));
+
+        // Navbat raqami (audit: "tartib raqam yo'q" muammosi) - FIFO
+        // tartibidagi HAR BIR buyurtmaga, ishlov bosqichidan qat'i nazar,
+        // bitta umumiy ketma-ket raqam beriladi. Shu sabab "Keldi" bo'limidagi
+        // #1 har doim "Bajarilmoqda"dagi #3'dan OLDIN kelgan degani -
+        // xodim qaysi bosqichda bo'lishidan qat'i nazar navbatni bila oladi.
+        final queueNumber = <String, int>{
+          for (var i = 0; i < filtered.length; i++) filtered[i].id: i,
+        };
 
         final keldi = filtered.where((o) => _stageOf(o) == _WorkshopStage.keldi).toList();
         final bajarilmoqda = filtered.where((o) => _stageOf(o) == _WorkshopStage.bajarilmoqda).toList();
@@ -190,15 +205,15 @@ class _FactoryOrdersScreenState extends State<FactoryOrdersScreen> {
               else ...[
                 if (showKeldi && keldi.isNotEmpty) ...[
                   SliverToBoxAdapter(child: _sectionHeader('🆕  Keldi', keldi.length, AppTheme.amber)),
-                  _orderList(keldi, statuses, currentUserId),
+                  _orderList(keldi, statuses, currentUserId, queueNumber),
                 ],
                 if (showBajarilmoqda && bajarilmoqda.isNotEmpty) ...[
                   SliverToBoxAdapter(child: _sectionHeader('🧺  Bajarilmoqda', bajarilmoqda.length, AppTheme.blue)),
-                  _orderList(bajarilmoqda, statuses, currentUserId),
+                  _orderList(bajarilmoqda, statuses, currentUserId, queueNumber),
                 ],
                 if (showTugatilmoqda && tugatilmoqda.isNotEmpty) ...[
                   SliverToBoxAdapter(child: _sectionHeader('✅  Tugatilmoqda', tugatilmoqda.length, AppTheme.teal)),
-                  _orderList(tugatilmoqda, statuses, currentUserId),
+                  _orderList(tugatilmoqda, statuses, currentUserId, queueNumber),
                 ],
                 const SliverToBoxAdapter(child: SizedBox(height: 80)),
               ],
@@ -209,7 +224,8 @@ class _FactoryOrdersScreenState extends State<FactoryOrdersScreen> {
     );
   }
 
-  Widget _orderList(List<Order> list, List<OrderStatusInfo> statuses, String currentUserId) {
+  Widget _orderList(List<Order> list, List<OrderStatusInfo> statuses, String currentUserId,
+      Map<String, int> queueNumber) {
     return SliverPadding(
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
       sliver: SliverList(
@@ -218,7 +234,10 @@ class _FactoryOrdersScreenState extends State<FactoryOrdersScreen> {
             order: list[i],
             statuses: statuses,
             currentUserId: currentUserId,
-            index: i,
+            // Bo'lim ichidagi lokal o'rin (0,1,2...) EMAS - butun sex
+            // navbatidagi FIFO tartib raqami, shunda xodim qaysi bosqichda
+            // bo'lishidan qat'i nazar "bu qaysi navbatda" ekanini ko'radi.
+            index: queueNumber[list[i].id] ?? i,
           ),
           childCount: list.length,
         ),

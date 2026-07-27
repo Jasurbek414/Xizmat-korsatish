@@ -103,6 +103,8 @@ services:
       - 8.8.8.8
     volumes:
       - ./proxy-nginx.conf:/etc/nginx/conf.d/default.conf
+      # Mobil APK va shunga o'xshash yuklab olinadigan fayllar uchun (/downloads/ location).
+      - ./downloads:/usr/share/nginx/downloads:ro
     depends_on:
       - frontend
       - backend

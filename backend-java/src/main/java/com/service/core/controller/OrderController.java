@@ -228,9 +228,36 @@ public class OrderController {
                 .orElseThrow(() -> new RuntimeException("Status topilmadi"));
 
         order.setStatus(status);
+        stampWorkshopEntryIfNeeded(order, status);
         orderRepository.save(order);
 
         return ResponseEntity.ok(order);
+    }
+
+    /**
+     * MUHIM (audit: "sexda birinchi kelgan gilam oxirga qolib ketadi" muammosi
+     * uchun): mobil ilova (FactoryOrdersScreen) sex navbatini buyurtma
+     * YARATILGAN vaqti (createdAt) bo'yicha saralardi - lekin bu chaqiruv
+     * qabul qilingan payt, haydovchi gilamni HAQIQATDA sexga olib kelgan payt
+     * emas (ular orasida soatlab, hatto kunlab farq bo'lishi mumkin). Endi
+     * buyurtma statusi birinchi marta "sex zonasi"ga (barcha statuslarning
+     * o'rtadagi 1/3 qismi - xuddi mobil FactoryOrdersScreen/DriverOrdersScreen
+     * ishlatadigan formula bilan BIR XIL) o'tganda workshopEnteredAt BIR
+     * MARTA qayd etiladi - bu esa haqiqiy jismoniy kelish tartibini
+     * ifodalaydi va navbatni to'g'ri (FIFO) saralash imkonini beradi.
+     */
+    private void stampWorkshopEntryIfNeeded(Order order, OrderStatus newStatus) {
+        if (order.getWorkshopEnteredAt() != null) {
+            return;
+        }
+        List<OrderStatus> sorted = orderStatusRepository.findByCompanyIdOrderBySortOrderAsc(order.getCompany().getId());
+        if (sorted.size() < 3) {
+            return;
+        }
+        int lowerBoundSortOrder = sorted.get(sorted.size() / 3).getSortOrder();
+        if (newStatus.getSortOrder() >= lowerBoundSortOrder) {
+            order.setWorkshopEnteredAt(java.time.LocalDateTime.now());
+        }
     }
 
     @PutMapping("/{id}/worker")

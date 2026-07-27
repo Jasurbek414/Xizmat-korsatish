@@ -224,7 +224,31 @@ class OrderCard extends StatelessWidget {
         highlight: isNew,
         onTap: () => _openDetail(context),
         child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          CarpetThumb(size: 72, id: '#$shortId', variant: index),
+          Stack(clipBehavior: Clip.none, children: [
+            CarpetThumb(size: 72, id: '#$shortId', variant: index),
+            // MUHIM (audit: "tartib raqami yo'q" muammosi) - sex navbatidagi
+            // FIFO tartib raqami (butun navbat bo'yicha, faqat shu bo'lim
+            // ichida emas) - xodim qaysi gilamni birinchi ishlashi kerakligini
+            // aniq ko'radi.
+            Positioned(
+              top: -6,
+              left: -6,
+              child: Container(
+                width: 22,
+                height: 22,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: AppTheme.primary,
+                  shape: BoxShape.circle,
+                  border: Border.all(color: Theme.of(context).cardColor, width: 2),
+                ),
+                child: Text(
+                  '${index + 1}',
+                  style: AppTheme.text(11, weight: FontWeight.w800, color: Colors.white),
+                ),
+              ),
+            ),
+          ]),
           const SizedBox(width: 11),
           Expanded(
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [

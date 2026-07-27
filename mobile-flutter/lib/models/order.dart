@@ -98,6 +98,11 @@ class Order {
   final String paymentStatus;
   final List<OrderItemInfo> items;
   final String measurementUnit;
+  // Buyurtma statusi birinchi marta "sex zonasi"ga o'tgan payt (backend
+  // birinchi safar o'zi qayd etadi) - sexdagi navbatni HAQIQIY jismoniy
+  // kelish tartibi bo'yicha saralash uchun (createdAt - buyurtma yaratilgan
+  // payt, sexga kelgan payt bilan bir xil emas).
+  final DateTime? workshopEnteredAt;
 
   Order({
     required this.id,
@@ -116,6 +121,7 @@ class Order {
     required this.paymentStatus,
     required this.items,
     required this.measurementUnit,
+    this.workshopEnteredAt,
   });
 
   factory Order.fromJson(Map<String, dynamic> json) {
@@ -143,6 +149,15 @@ class Order {
               .toList() ??
           [],
       measurementUnit: service?['measurementUnit'] ?? 'm²',
+      workshopEnteredAt: json['workshopEnteredAt'] != null
+          ? DateTime.tryParse(json['workshopEnteredAt'] as String)
+          : null,
     );
   }
+
+  /// Sex navbatida saralash uchun HAQIQIY kelish vaqti - agar backend hali
+  /// workshopEnteredAt'ni qayd etmagan bo'lsa (masalan eski, bu maydon
+  /// qo'shilishidan oldin sexga kirgan buyurtmalar) createdAt'ga tushadi.
+  DateTime get workshopArrivalTime =>
+      workshopEnteredAt ?? DateTime.tryParse(createdAt) ?? DateTime.now();
 }

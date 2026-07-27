@@ -73,6 +73,13 @@ public class Order {
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
 
+    // Buyurtma statusi birinchi marta "sex zonasi"ga o'tgan payt (bir marta
+    // qayd etiladi, OrderController.stampWorkshopEntryIfNeeded orqali) -
+    // sex navbatini HAQIQIY jismoniy kelish tartibi bo'yicha (createdAt -
+    // buyurtma yaratilgan payt emas) saralash uchun ishlatiladi.
+    @Column(name = "workshop_entered_at")
+    private LocalDateTime workshopEnteredAt;
+
     @PrePersist
     protected void onCreate() {
         createdAt = LocalDateTime.now();
