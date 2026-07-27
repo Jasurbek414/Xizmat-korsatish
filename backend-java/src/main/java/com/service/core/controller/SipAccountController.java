@@ -67,10 +67,15 @@ public class SipAccountController {
         }
     }
 
-    // Ro'yxat (parolsiz) - istalgan autentifikatsiya qilingan foydalanuvchi
-    // (jumladan DISPATCHER) ko'ra oladi, chunki chiquvchi qo'ng'iroq qilish
-    // uchun ularga trunk ID kerak (sirlar emas).
+    // Ro'yxat (parolsiz) - telefoniya bilan ishlaydigan xodimlar (ADMIN/
+    // MANAGER/DISPATCHER, 'telephony' huquqi) ko'ra oladi, chunki chiquvchi
+    // qo'ng'iroq qilish uchun ularga trunk ID kerak (sirlar emas).
+    // MUHIM (xavfsizlik, audit'da topilgan): avval @PreAuthorize yo'q edi -
+    // istalgan autentifikatsiya qilingan foydalanuvchi (mobil haydovchi ham)
+    // trunk server manzili/username'ini ko'ra olardi (jonli sinovda driver
+    // tokeni bilan 200 sifatida tasdiqlangan).
     @GetMapping
+    @PreAuthorize("@perm.has('telephony')")
     public ResponseEntity<?> getSipAccounts() {
         String tenantId = TenantContext.getCurrentTenant();
         if (tenantId == null) {

@@ -38,7 +38,7 @@ public class ServiceController {
     }
 
     @PostMapping
-    @PreAuthorize("hasAnyRole('SUPERADMIN','ADMIN','MANAGER','DISPATCHER')")
+    @PreAuthorize("@perm.has('orders')")
     public ResponseEntity<?> createService(@RequestBody Map<String, Object> request) {
         String tenantId = TenantContext.getCurrentTenant();
         if (tenantId == null) {
@@ -75,7 +75,7 @@ public class ServiceController {
     }
 
     @PutMapping("/{id}")
-    @PreAuthorize("hasAnyRole('SUPERADMIN','ADMIN','MANAGER','DISPATCHER')")
+    @PreAuthorize("@perm.has('orders')")
     public ResponseEntity<?> updateService(@PathVariable UUID id, @RequestBody Map<String, Object> request) {
         String tenantId = TenantContext.getCurrentTenant();
         if (tenantId == null) {
@@ -99,7 +99,7 @@ public class ServiceController {
     }
 
     @DeleteMapping("/{id}")
-    @PreAuthorize("hasAnyRole('SUPERADMIN','ADMIN','MANAGER','DISPATCHER')")
+    @PreAuthorize("@perm.has('orders')")
     public ResponseEntity<?> deleteService(@PathVariable UUID id) {
         String tenantId = TenantContext.getCurrentTenant();
         if (tenantId == null) {

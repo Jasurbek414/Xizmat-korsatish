@@ -5,6 +5,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.authorization.AuthorizationDeniedException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
@@ -31,6 +32,20 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of(
                 "message", "Bu yozuvni o'chirib bo'lmaydi - unga bog'liq boshqa ma'lumotlar mavjud " +
                         "(masalan buyurtmalar yoki to'lovlar). Avval o'sha bog'liq yozuvlarni o'chiring."
+        ));
+    }
+
+    /**
+     * @PreAuthorize (shu jumladan @perm.has(...)) rad etganda Spring bu istisnoni
+     * tashlaydi - bu ham quyidagi generic Exception handler'ga tushib, noto'g'ri
+     * 500 ("kutilmagan server xatoligi") qaytarardi, garchi aslida 403 bo'lishi
+     * kerak bo'lsa ham (jonli aniqlangan: Bugalter rolidagi foydalanuvchi finance
+     * so'rovi yuborganda).
+     */
+    @ExceptionHandler(AuthorizationDeniedException.class)
+    public ResponseEntity<?> handleAuthorizationDenied(AuthorizationDeniedException e) {
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of(
+                "message", "Sizda bu amalni bajarish uchun huquq yo'q."
         ));
     }
 

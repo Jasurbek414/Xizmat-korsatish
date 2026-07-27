@@ -22,8 +22,12 @@ void main() async {
     isDarkMode.value = saved;
   }
 
+  // Faqat konfiguratsiyani ro'yxatdan o'tkazadi (arzon, native chaqiruv
+  // qilmaydi) - xizmatni haqiqatan ISHGA TUSHIRISH endi FAQAT foydalanuvchi
+  // ShiftToggleButton'da ONLINE bosganda sodir bo'ladi (quyida avtomatik
+  // warmUp/tiklash ATAYLAB olib tashlangan - sababi shu faylning pastki
+  // qismidagi izohda tushuntirilgan).
   await BackgroundGpsService.initialize();
-  await BackgroundGpsService.warmUp();
   await PushNotificationService.initialize();
   runApp(const MyApp());
 }
@@ -81,6 +85,14 @@ class AppNavigator extends StatelessWidget {
       listener: (context, state) {
         if (state is Authenticated) {
           PushNotificationService.registerTokenWithBackend();
+          // MUHIM: fon GPS xizmatiga tegishli HECH QANDAY chaqiruv (warmUp
+          // ham, avvalgi ONLINE holatini tiklash ham) endi login/ilova
+          // ochilishida AVTOMATIK ishlamaydi - bu ilovani har safar ochilishda
+          // yiqilib qolishiga sabab bo'lgan edi. Xizmat FAQAT foydalanuvchi
+          // ShiftToggleButton'ni qo'lda bosganda ishga tushadi (u o'zi
+          // kerak bo'lsa startService() chaqiradi). Bu haqiqiy sababni
+          // (native darajadagi yiqilish) to'liq tashxis qilmasdan qayta
+          // yoqmaslik kerak.
         }
       },
       builder: (context, state) {

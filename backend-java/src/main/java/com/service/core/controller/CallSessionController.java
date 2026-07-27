@@ -7,6 +7,7 @@ import com.service.core.repository.ClientRepository;
 import com.service.core.tenant.TenantContext;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -21,8 +22,14 @@ import java.util.stream.Collectors;
  * tarixini (CallSession) o'qish uchun. Bundan oldin bu yozuvlar faqat bazaga
  * saqlanardi-yu, ularni o'qish uchun hech qanday endpoint yo'q edi.
  */
+// MUHIM (xavfsizlik, audit'da topilgan): @PreAuthorize yo'qligi sababli
+// istalgan xodim (haydovchi ham) butun kompaniyaning qo'ng'iroqlar tarixini
+// (mijoz telefoni/ismi, davomiylik) ko'ra olardi. Telefoniya - veb-admin
+// (dispetcher/menejer) funksiyasi, shuning uchun 'orders' ruxsati talab
+// qilinadi (dispetcher rolida shu ruxsat bor - RoleSeedService.dispatcherPermissions).
 @RestController
 @RequestMapping("/api/v1/call-sessions")
+@PreAuthorize("@perm.has('orders')")
 public class CallSessionController {
 
     private final CallSessionRepository callSessionRepository;

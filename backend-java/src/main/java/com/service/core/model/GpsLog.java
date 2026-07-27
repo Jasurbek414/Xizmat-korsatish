@@ -35,8 +35,13 @@ public class GpsLog {
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
 
+    // Faqat oldindan berilmagan bo'lsa - GpsController mobil ilova yuborgan
+    // HAQIQIY yozib olingan vaqtni (offline navbatdan chiqqan eski nuqtalar
+    // uchun ham) o'rnatishi mumkin bo'lishi uchun.
     @PrePersist
     protected void onCreate() {
-        createdAt = LocalDateTime.now();
+        if (createdAt == null) {
+            createdAt = LocalDateTime.now();
+        }
     }
 }

@@ -26,7 +26,8 @@
     "finance": "Бухгалтерия",
     "salaries": "Зарплаты",
     "settings": "Настройки",
-    "map": "Карта (OSM)"
+    "map": "Карта (OSM)",
+    "telephony": "Телефония"
   },
   "dashboard": {
     "orders": "Заказы",
@@ -220,6 +221,7 @@
     "perm_salaries": "Заработные Платы",
     "perm_settings": "Настройки",
     "perm_map": "Карта (OSM)",
+    "perm_telephony": "Телефония (SIP/Звонки)",
     "perm_mobile_orders": "Моб.: Заказы",
     "perm_mobile_gps": "Моб.: GPS слежение",
     "perm_mobile_finance_view": "Моб.: Просмотр финансов",
@@ -266,9 +268,17 @@
   "login_page": {
     "title": "Вход в Систему",
     "desc": "Введите учетные данные для доступа к платформе",
+    "company": "Компания",
+    "company_placeholder": "например: expressmail",
+    "company_required": "Введите код компании",
+    "company_blocked": "Эта компания заблокирована. Обратитесь к администратору.",
+    "company_mismatch": "Этот аккаунт принадлежит компании '{{company}}' - не совпадает с введённым кодом компании.",
     "username": "Имя пользователя",
     "password": "Пароль",
-    "login_btn": "Войти в Систему"
+    "login_btn": "Войти в Систему",
+    "login_error": "Неверное имя пользователя или пароль!",
+    "use_superadmin_page": "Для входа как суперадмин используйте страницу /spd.",
+    "use_mobile_app": "Для этого аккаунта рекомендуется вход через мобильное приложение."
   },
   "notifications_center": {
     "title": "Уведомления",
@@ -279,6 +289,8 @@
   },
   "superadmin": {
     "role_label": "Супер Админ",
+    "login_desc": "Вход в панель управления платформой",
+    "login_wrong_portal": "Это аккаунт компании - войдите через страницу /login.",
     "menu_companies": "Компании",
     "welcome_title": "Добро пожаловать, Супер Админ!",
     "analytics_title": "Superadmin Analytics",

@@ -71,6 +71,11 @@ public class AuthController {
                 String companyId = user.getCompany() != null ? user.getCompany().getId().toString() : null;
                 String token = jwtTokenProvider.generateToken(user.getUsername(), user.getRole(), companyId);
 
+                // companyName/companySubDomain - frontend login sahifasida foydalanuvchi
+                // qo'lda kiritgan kompaniya kodini HAQIQIY hisobning kompaniyasi bilan
+                // taqqoslab, "boshqa kompaniyaga tegishli hisob bilan kirish" holatini
+                // aniqlab bergani uchun kerak (bir nechta kompaniya bitta umumiy domenda
+                // ishlagani uchun bunday chalkashish xavfi bor).
                 return ResponseEntity.ok(Map.of(
                     "token", token,
                     "user", Map.of(
@@ -79,7 +84,9 @@ public class AuthController {
                         "fullName", user.getFullName(),
                         "phone", user.getPhone() != null ? user.getPhone() : "",
                         "role", user.getRole(),
-                        "status", user.getStatus()
+                        "status", user.getStatus(),
+                        "companyName", user.getCompany() != null ? user.getCompany().getName() : "",
+                        "companySubDomain", user.getCompany() != null ? user.getCompany().getSubDomain() : ""
                     )
                 ));
             }

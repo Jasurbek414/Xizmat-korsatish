@@ -26,7 +26,8 @@
     "finance": "Buxgalteriya",
     "salaries": "Ish Haqlari",
     "settings": "Sozlamalar",
-    "map": "Xarita (OSM)"
+    "map": "Xarita (OSM)",
+    "telephony": "Telefoniya"
   },
   "dashboard": {
     "orders": "Buyurtmalar",
@@ -220,6 +221,7 @@
     "perm_salaries": "Ish Haqlari",
     "perm_settings": "Sozlamalar",
     "perm_map": "Xarita (OSM)",
+    "perm_telephony": "Telefoniya (SIP/Qo'ng'iroqlar)",
     "perm_mobile_orders": "Mobil: Buyurtmalar",
     "perm_mobile_gps": "Mobil: GPS kuzatuv",
     "perm_mobile_finance_view": "Mobil: Moliyani ko'rish",
@@ -266,9 +268,17 @@
   "login_page": {
     "title": "Tizimga Kirish",
     "desc": "Platformaga kirish uchun hisob ma'lumotlarini kiriting",
+    "company": "Kompaniya",
+    "company_placeholder": "masalan: expressmail",
+    "company_required": "Kompaniya kodini kiriting",
+    "company_blocked": "Ushbu kompaniya bloklangan. Administrator bilan bog'laning.",
+    "company_mismatch": "Bu hisob '{{company}}' kompaniyasiga tegishli - kiritilgan kompaniya kodi bilan mos kelmadi.",
     "username": "Foydalanuvchi nomi",
     "password": "Parol",
-    "login_btn": "Tizimga Kirish"
+    "login_btn": "Tizimga Kirish",
+    "login_error": "Foydalanuvchi nomi yoki parol xato!",
+    "use_superadmin_page": "Superadmin sifatida kirish uchun /spd sahifasidan foydalaning.",
+    "use_mobile_app": "Bu hisob uchun mobil ilova orqali kirish tavsiya etiladi."
   },
   "notifications_center": {
     "title": "Bildirishnomalar",
@@ -279,6 +289,8 @@
   },
   "superadmin": {
     "role_label": "Super Admin",
+    "login_desc": "Platforma boshqaruv paneliga kirish",
+    "login_wrong_portal": "Bu hisob kompaniya foydalanuvchisi - /login sahifasidan kiring.",
     "menu_companies": "Kompaniyalar",
     "welcome_title": "Xush kelibsiz, Super Admin!",
     "analytics_title": "Superadmin Analytics",

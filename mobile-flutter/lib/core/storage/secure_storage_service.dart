@@ -69,4 +69,16 @@ class SecureStorageService {
     if (raw == null) return null;
     return raw == 'true';
   }
+
+  /// Haydovchi/ishchi ONLINE (GPS kuzatuv yoqilgan) holatda ekanini saqlaydi.
+  /// MUHIM: bu holat ilova ochilganda AVTOMATIK tiklanmaydi (bunday avtomatik
+  /// tiklash ilovani har safar ochilishda yiqilib qolishiga sabab bo'lgani
+  /// uchun ataylab o'chirilgan) - hozircha faqat UI'ning o'zi (ValueNotifier)
+  /// uchun yordamchi sifatida saqlanadi.
+  Future<void> saveShiftStatus(bool isOnline) async {
+    await _storage.write(
+      key: AppConstants.keyShiftStatus,
+      value: isOnline ? 'ONLINE' : 'OFFLINE',
+    );
+  }
 }

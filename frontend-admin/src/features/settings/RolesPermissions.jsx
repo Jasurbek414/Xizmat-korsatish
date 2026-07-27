@@ -319,7 +319,12 @@ const RolesPermissions = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {roles.map(role => {
                 const activePermsCount = Object.values(role.permissions).filter(Boolean).length;
-                const totalPermsCount = Object.keys(role.permissions).length;
+                // MUHIM: Object.keys(role.permissions).length EMAS - eski rollarning
+                // saqlangan xaritasida yangi qo'shilgan huquq kalitlari umuman
+                // yo'q bo'lishi mumkin (backfill qilinmagan), shu sabab noto'g'ri
+                // (masalan "13/13") son chiqarardi. Haqiqiy jami har doim backend
+                // PermissionKeys.ALL ro'yxati - permissionKeyList shundan keladi.
+                const totalPermsCount = permissionKeyList.length;
                 const userCount = getUserCountForRole(role.key);
                 const roleName = role[`name${i18n.language.charAt(0).toUpperCase()}${i18n.language.slice(1)}`] || role.nameUz;
 

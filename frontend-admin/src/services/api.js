@@ -2,16 +2,6 @@
 
 const API_BASE_URL = '/api/v1';
 
-export const getSubdomain = () => {
-  const host = window.location.hostname;
-  const parts = host.split('.');
-  // Fallback to namifor for localhost/IP development
-  if (parts.length <= 1 || host === 'localhost' || host === '127.0.0.1') {
-    return 'namifor';
-  }
-  return parts[0];
-};
-
 const getHeaders = () => {
   const headers = {
     'Content-Type': 'application/json',
@@ -44,8 +34,10 @@ const handleResponse = async (response) => {
 
 export const api = {
   // Auth
-  async checkSubdomain() {
-    const subdomain = getSubdomain();
+  // `subdomain` endi login formasida foydalanuvchi qo'lda kiritgan kompaniya
+  // kodi - bir nechta kompaniya BITTA umumiy domenda (namifor.ecos.uz) ishlagani
+  // uchun hostname'dan avtomatik aniqlash imkonsiz (barchasida bir xil host).
+  async checkSubdomain(subdomain) {
     const res = await fetch(`${API_BASE_URL}/auth/subdomain/${subdomain}`);
     const data = await handleResponse(res);
     localStorage.setItem('tenant_id', data.id);

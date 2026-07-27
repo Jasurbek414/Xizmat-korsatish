@@ -13,15 +13,12 @@ import Salaries from './features/Salaries';
 import Settings from './features/Settings';
 import LeafletMap from './features/LeafletMap';
 import LoginPage from './features/LoginPage';
+import SuperadminLoginPage from './features/SuperadminLoginPage';
 import Telephony from './features/Telephony';
 import { initMockDb, addNotification } from './store/mockDb';
 import NotificationCenter from './components/NotificationCenter';
 import { api } from './services/api';
-
-const DEFAULT_PERMS = {
-  clients: true, employees: true, orders: true, finance: true,
-  salaries: true, settings: true, map: true, telephony: true
-};
+import { getPerms, getRoleLabel } from './utils/modules';
 
 const App = () => {
   const [auth, setAuth] = useState(null);
@@ -61,28 +58,32 @@ const App = () => {
   return (
     <BrowserRouter>
       <Routes>
-        {/* Login Route */}
-        <Route 
-          path="/login" 
+        {/* Company Account Login Route - separate from superadmin login (/spd) */}
+        <Route
+          path="/login"
           element={
             auth ? (
               auth.role === 'SUPERADMIN' ? <Navigate to="/spd" replace /> : <Navigate to="/" replace />
             ) : (
               <LoginPage setAuth={setAuth} />
             )
-          } 
+          }
         />
 
-        {/* Superadmin Route */}
-        <Route 
-          path="/spd/*" 
+        {/* Superadmin Route - unauthenticated visitors get a dedicated superadmin
+            login page here (not /login); an authenticated non-superadmin is sent
+            back to their own portal instead of being shown this login form. */}
+        <Route
+          path="/spd/*"
           element={
             auth && auth.role === 'SUPERADMIN' ? (
               <SuperadminPortal auth={auth} setAuth={setAuth} theme={theme} toggleTheme={toggleTheme} />
+            ) : auth ? (
+              <Navigate to="/" replace />
             ) : (
-              <Navigate to="/login" replace />
+              <SuperadminLoginPage setAuth={setAuth} />
             )
-          } 
+          }
         />
 
         {/* Company Admin Route - mobile-only roles (driver/worker/workshop) have no web dashboard access */}
@@ -94,7 +95,7 @@ const App = () => {
             ) : (
               <Navigate to="/login" replace />
             )
-          } 
+          }
         />
       </Routes>
     </BrowserRouter>
@@ -162,7 +163,7 @@ const SuperadminPortal = ({ auth, setAuth, theme, toggleTheme }) => {
     localStorage.removeItem('auth_user');
     localStorage.removeItem('auth_token');
     setAuth(null);
-    navigate('/login');
+    navigate('/spd');
   };
 
   return (
@@ -220,14 +221,8 @@ const AdminPortal = ({ auth, setAuth, theme, toggleTheme }) => {
   // Dynamic permissions check - driven by the real backend Role/Permission model,
   // so an admin renaming a role or toggling a module takes effect without a code change.
   const roleObj = roles.find(r => r.key === auth.role);
-  const perms = roleObj ? {
-    ...DEFAULT_PERMS,
-    ...roleObj.permissions,
-    telephony: roleObj.permissions.telephony !== false
-  } : DEFAULT_PERMS;
-  const roleLabel = roleObj
-    ? (roleObj[`name${i18n.language.charAt(0).toUpperCase()}${i18n.language.slice(1)}`] || roleObj.nameUz)
-    : auth.role;
+  const perms = getPerms(roleObj);
+  const roleLabel = getRoleLabel(roleObj, auth.role, i18n.language);
 
   // Route / state guard to prevent unauthorized sub-tab access
   useEffect(() => {

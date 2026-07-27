@@ -130,7 +130,7 @@ public class OrderController {
     }
 
     @PostMapping
-    @PreAuthorize("hasAnyRole('SUPERADMIN','ADMIN','MANAGER','DISPATCHER','WORKER_DRIVER','WORKER_FACTORY','WORKER_SEH')")
+    @PreAuthorize("@perm.has('orders','mobile_orders')")
     public ResponseEntity<?> createOrder(@RequestBody Map<String, Object> request) {
         String tenantId = TenantContext.getCurrentTenant();
         if (tenantId == null) {
@@ -152,15 +152,25 @@ public class OrderController {
         Company company = companyRepository.findById(companyId)
                 .orElseThrow(() -> new RuntimeException("Kompaniya topilmadi"));
 
+        // MUHIM (xavfsizlik, audit'da topilgan IDOR): mijoz/xizmat/kuryer
+        // ID'lari mijozdan (request body) keladi - avval bular BOSHQA
+        // kompaniyaga tegishli bo'lsa ham findById muvaffaqiyatli bo'lib,
+        // boshqa tenant'ning ma'lumotlari shu buyurtmaga bog'lanib qolardi
+        // (masalan A kompaniya B kompaniyaning xodimini o'ziga "kuryer"
+        // sifatida biriktirishi mumkin edi). Har biri endi joriy JWT
+        // tenant'iga tegishli ekanligi aniq tekshiriladi.
         Client client = clientRepository.findById(UUID.fromString(clientIdStr))
+                .filter(c -> c.getCompany().getId().equals(companyId))
                 .orElseThrow(() -> new RuntimeException("Mijoz topilmadi"));
 
         ServiceEntity service = serviceRepository.findById(UUID.fromString(serviceIdStr))
+                .filter(s -> s.getCompany().getId().equals(companyId))
                 .orElseThrow(() -> new RuntimeException("Xizmat topilmadi"));
 
         User worker = null;
         if (workerIdStr != null && !workerIdStr.trim().isEmpty()) {
             worker = userRepository.findById(UUID.fromString(workerIdStr))
+                    .filter(w -> w.getCompany() != null && w.getCompany().getId().equals(companyId))
                     .orElseThrow(() -> new RuntimeException("Kuryer topilmadi"));
         }
 
@@ -214,6 +224,7 @@ public class OrderController {
         }
 
         OrderStatus status = orderStatusRepository.findById(UUID.fromString(statusIdStr))
+                .filter(s -> s.getCompany().getId().equals(UUID.fromString(tenantId)))
                 .orElseThrow(() -> new RuntimeException("Status topilmadi"));
 
         order.setStatus(status);
@@ -223,7 +234,7 @@ public class OrderController {
     }
 
     @PutMapping("/{id}/worker")
-    @PreAuthorize("hasAnyRole('SUPERADMIN','ADMIN','MANAGER','DISPATCHER')")
+    @PreAuthorize("@perm.has('orders')")
     public ResponseEntity<?> updateWorker(@PathVariable UUID id, @RequestBody Map<String, String> request) {
         String tenantId = TenantContext.getCurrentTenant();
         if (tenantId == null) {
@@ -241,6 +252,7 @@ public class OrderController {
         }
 
         User worker = userRepository.findById(UUID.fromString(workerIdStr))
+                .filter(w -> w.getCompany() != null && w.getCompany().getId().equals(UUID.fromString(tenantId)))
                 .orElseThrow(() -> new RuntimeException("Kuryer topilmadi"));
 
         order.setWorker(worker);
@@ -251,7 +263,7 @@ public class OrderController {
     }
 
     @PutMapping("/{id}")
-    @PreAuthorize("hasAnyRole('SUPERADMIN','ADMIN','MANAGER','DISPATCHER')")
+    @PreAuthorize("@perm.has('orders')")
     public ResponseEntity<?> updateOrder(@PathVariable UUID id, @RequestBody Map<String, Object> request) {
         String tenantId = TenantContext.getCurrentTenant();
         if (tenantId == null) {
@@ -271,6 +283,7 @@ public class OrderController {
 
         if (serviceIdStr != null) {
             ServiceEntity service = serviceRepository.findById(UUID.fromString(serviceIdStr))
+                    .filter(s -> s.getCompany().getId().equals(UUID.fromString(tenantId)))
                     .orElseThrow(() -> new RuntimeException("Xizmat topilmadi"));
             order.setService(service);
         }
@@ -289,6 +302,7 @@ public class OrderController {
 
         if (workerIdStr != null && !workerIdStr.trim().isEmpty()) {
             User worker = userRepository.findById(UUID.fromString(workerIdStr))
+                    .filter(w -> w.getCompany() != null && w.getCompany().getId().equals(UUID.fromString(tenantId)))
                     .orElseThrow(() -> new RuntimeException("Kuryer topilmadi"));
             order.setWorker(worker);
         } else if (request.containsKey("worker_id")) {
@@ -337,7 +351,7 @@ public class OrderController {
     }
 
     @DeleteMapping("/{id}")
-    @PreAuthorize("hasAnyRole('SUPERADMIN','ADMIN','MANAGER')")
+    @PreAuthorize("@perm.has('orders')")
     public ResponseEntity<?> deleteOrder(@PathVariable UUID id) {
         String tenantId = TenantContext.getCurrentTenant();
         if (tenantId == null) {
@@ -379,6 +393,23 @@ public class OrderController {
         return ResponseEntity.ok(saved);
     }
 
+    /**
+     * Haydovchi/ishchi mijozdan naqd pul yig'ib olganini belgilaydi (mobil).
+     * MUHIM (xavfsizlik va moliyaviy audit'da topilgan ikkita xato, tuzatildi):
+     * 1) Avval egalik tekshiruvi yo'q edi - istalgan xodim o'ziga
+     *    tayinlanmagan buyurtmaning "yig'ilgan summasi"ni o'zgartira olardi.
+     *    Endi faqat shu buyurtmaga tayinlangan xodimning o'zi chaqira oladi
+     *    (frontend'da bu endpoint faqat mobil haydovchi ekranidan
+     *    chaqiriladi - veb-admin panelida ishlatilmaydi).
+     * 2) Avval HANDED_OVER (kassaga topshirilgan, Transaction allaqachon
+     *    yozilgan) buyurtma uchun ham qayta chaqirish mumkin edi - bu
+     *    paymentStatus'ni "COLLECTED"ga qaytarib, confirm-handover'ni QAYTA
+     *    chaqirish orqali BIR XIL buyurtma uchun IKKINCHI marta INCOME
+     *    tranzaksiyasi yozilishiga (balansni sun'iy oshirishga) olib
+     *    kelardi. Boshqa shu turdagi endpointlar (updateStatus,
+     *    updateOrderPrice) qanday himoyalangan bo'lsa, shu yerda ham xuddi
+     *    shunday HANDED_OVER holatida rad etiladi.
+     */
     @PutMapping("/{id}/collect-payment")
     public ResponseEntity<?> collectPayment(@PathVariable UUID id, @RequestBody Map<String, Object> request) {
         String tenantId = TenantContext.getCurrentTenant();
@@ -390,12 +421,33 @@ public class OrderController {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("message", "Buyurtma topilmadi"));
         }
 
+        User currentUser = getCurrentUser();
+        boolean isAssignedWorker = currentUser != null && order.getWorker() != null
+                && order.getWorker().getId().equals(currentUser.getId());
+        if (!isAssignedWorker) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of("message", "Bu buyurtma sizga tayinlanmagan"));
+        }
+
+        if ("HANDED_OVER".equals(order.getPaymentStatus())) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(Map.of("message", "Tarixga o'tgan (kassaga topshirilgan) buyurtma uchun to'lov qayta qabul qilinmaydi"));
+        }
+
         Object amountObj = request.get("amount");
         if (amountObj == null) {
             return ResponseEntity.badRequest().body(Map.of("message", "Summa yuborilishi shart"));
         }
 
-        BigDecimal amount = new BigDecimal(amountObj.toString());
+        BigDecimal amount;
+        try {
+            amount = new BigDecimal(amountObj.toString());
+        } catch (NumberFormatException e) {
+            return ResponseEntity.badRequest().body(Map.of("message", "Noto'g'ri summa formati"));
+        }
+        if (amount.compareTo(BigDecimal.ZERO) < 0) {
+            return ResponseEntity.badRequest().body(Map.of("message", "Summa manfiy bo'lishi mumkin emas"));
+        }
+
         order.setCollectedPrice(amount);
         order.setPaymentStatus("COLLECTED");
         Order saved = orderRepository.save(order);
@@ -403,7 +455,7 @@ public class OrderController {
     }
 
     @PutMapping("/{id}/confirm-handover")
-    @PreAuthorize("hasAnyRole('SUPERADMIN','ADMIN','MANAGER','DISPATCHER')")
+    @PreAuthorize("@perm.has('orders')")
     public ResponseEntity<?> confirmHandover(@PathVariable UUID id, @RequestBody(required = false) Map<String, Object> request) {
         String tenantId = TenantContext.getCurrentTenant();
         if (tenantId == null) {
@@ -447,7 +499,7 @@ public class OrderController {
     }
 
     @GetMapping("/pending-handovers")
-    @PreAuthorize("hasAnyRole('SUPERADMIN','ADMIN','MANAGER')")
+    @PreAuthorize("@perm.has('orders')")
     public ResponseEntity<?> getPendingHandovers() {
         String tenantId = TenantContext.getCurrentTenant();
         if (tenantId == null) {

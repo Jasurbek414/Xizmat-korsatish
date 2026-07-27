@@ -17,8 +17,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
+// MUHIM (xavfsizlik, audit'da topilgan): @PreAuthorize yo'qligi sababli
+// istalgan autentifikatsiya qilingan xodim (masalan Bugalter) buyurtma
+// tarkibidagi mahsulotlarni (gilamlar, o'lchamlar) o'zgartira/o'chira olardi.
 @RestController
 @RequestMapping("/api/v1/orders/{orderId}/items")
+@PreAuthorize("@perm.has('orders','mobile_orders')")
 public class OrderItemController {
 
     private final OrderRepository orderRepository;

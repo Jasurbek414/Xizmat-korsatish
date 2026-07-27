@@ -1,7 +1,9 @@
 package com.service.core.service.telephony;
 
 import com.service.core.config.JwtTokenProvider;
+import com.service.core.model.Company;
 import com.service.core.model.User;
+import com.service.core.repository.CompanyRepository;
 import com.service.core.repository.UserRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -14,6 +16,7 @@ import org.springframework.web.util.UriComponentsBuilder;
 
 import java.util.Map;
 import java.util.Optional;
+import java.util.UUID;
 
 /**
  * /ws/telephony ulanishini JWT bilan tekshiradi. Bu handshake bosqichida ishlaydi
@@ -29,10 +32,13 @@ public class TelephonyHandshakeInterceptor implements HandshakeInterceptor {
 
     private final JwtTokenProvider jwtTokenProvider;
     private final UserRepository userRepository;
+    private final CompanyRepository companyRepository;
 
-    public TelephonyHandshakeInterceptor(JwtTokenProvider jwtTokenProvider, UserRepository userRepository) {
+    public TelephonyHandshakeInterceptor(JwtTokenProvider jwtTokenProvider, UserRepository userRepository,
+                                          CompanyRepository companyRepository) {
         this.jwtTokenProvider = jwtTokenProvider;
         this.userRepository = userRepository;
+        this.companyRepository = companyRepository;
     }
 
     @Override
@@ -66,7 +72,29 @@ public class TelephonyHandshakeInterceptor implements HandshakeInterceptor {
             return false;
         }
 
-        attributes.put("userId", userOpt.get().getId());
+        // MUHIM (xavfsizlik, audit'da topilgan): HTTP so'rovlar uchun
+        // JwtAuthenticationFilter har bir so'rovda kompaniya BLOCKED
+        // ekanligini tekshiradi (eski token muddati o'tmagan bo'lsa ham
+        // darhol rad etiladi), lekin bu WebSocket handshake interceptor
+        // o'sha filtr zanjiridan ALOHIDA ishlaydi va bu tekshiruvni
+        // takrorlamas edi - bloklangan kompaniya (yoki BLOCKED/nofaol
+        // foydalanuvchi) hali muddati o'tmagan eski token bilan
+        // /ws/telephony'ga ulanib, trunk orqali chiquvchi qo'ng'iroq qila
+        // olardi. Endi HTTP yo'li bilan bir xil tekshiruv shu yerda ham
+        // bajariladi.
+        User user = userOpt.get();
+        if (!user.isEnabled()) {
+            log.warn("Telephony WebSocket handshake rad etildi: foydalanuvchi faol emas (username={})", username);
+            response.setStatusCode(org.springframework.http.HttpStatus.FORBIDDEN);
+            return false;
+        }
+        if (isCompanyBlocked(companyId)) {
+            log.warn("Telephony WebSocket handshake rad etildi: kompaniya bloklangan (companyId={})", companyId);
+            response.setStatusCode(org.springframework.http.HttpStatus.FORBIDDEN);
+            return false;
+        }
+
+        attributes.put("userId", user.getId());
         attributes.put("companyId", companyId);
         attributes.put("role", role);
         return true;
@@ -76,5 +104,14 @@ public class TelephonyHandshakeInterceptor implements HandshakeInterceptor {
     public void afterHandshake(ServerHttpRequest request, ServerHttpResponse response,
                                 WebSocketHandler wsHandler, Exception exception) {
         // Hech narsa qilish shart emas.
+    }
+
+    private boolean isCompanyBlocked(String companyId) {
+        try {
+            Company company = companyRepository.findById(UUID.fromString(companyId)).orElse(null);
+            return company != null && "BLOCKED".equalsIgnoreCase(company.getStatus());
+        } catch (IllegalArgumentException e) {
+            return false;
+        }
     }
 }

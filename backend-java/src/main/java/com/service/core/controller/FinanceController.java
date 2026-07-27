@@ -19,7 +19,7 @@ import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/v1/finance")
-@PreAuthorize("hasAnyRole('SUPERADMIN','ADMIN','MANAGER','DISPATCHER','WORKER_DRIVER','WORKER_FACTORY','WORKER_SEH')")
+@PreAuthorize("@perm.has('finance','mobile_finance_view')")
 public class FinanceController {
 
     private final TransactionRepository transactionRepository;
@@ -141,7 +141,7 @@ public class FinanceController {
     }
 
     @GetMapping("/pending-transactions")
-    @PreAuthorize("hasAnyRole('SUPERADMIN','ADMIN','MANAGER','DISPATCHER')")
+    @PreAuthorize("@perm.has('finance')")
     public ResponseEntity<?> getPendingTransactions() {
         String tenantId = TenantContext.getCurrentTenant();
         if (tenantId == null) {
@@ -152,7 +152,7 @@ public class FinanceController {
     }
 
     @PutMapping("/transactions/{id}/confirm")
-    @PreAuthorize("hasAnyRole('SUPERADMIN','ADMIN','MANAGER','DISPATCHER')")
+    @PreAuthorize("@perm.has('finance')")
     public ResponseEntity<?> confirmTransaction(@PathVariable UUID id) {
         String tenantId = TenantContext.getCurrentTenant();
         if (tenantId == null) {

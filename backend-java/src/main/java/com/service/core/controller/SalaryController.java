@@ -24,7 +24,7 @@ import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/v1/salaries")
-@PreAuthorize("hasAnyRole('SUPERADMIN','ADMIN','MANAGER')")
+@PreAuthorize("@perm.has('salaries')")
 public class SalaryController {
 
     private final SalaryRepository salaryRepository;
@@ -106,7 +106,7 @@ public class SalaryController {
     }
 
     @PutMapping("/{id}/pay")
-    @PreAuthorize("hasAnyRole('SUPERADMIN','ADMIN')")
+    @PreAuthorize("@perm.has('salaries')")
     public ResponseEntity<?> paySalary(@PathVariable UUID id) {
         String tenantId = TenantContext.getCurrentTenant();
         if (tenantId == null) {
@@ -147,7 +147,7 @@ public class SalaryController {
     }
 
     @PutMapping("/{id}/deduction")
-    @PreAuthorize("hasAnyRole('SUPERADMIN','ADMIN')")
+    @PreAuthorize("@perm.has('salaries')")
     public ResponseEntity<?> addDeduction(@PathVariable UUID id, @RequestBody Map<String, Object> request) {
         String tenantId = TenantContext.getCurrentTenant();
         if (tenantId == null) {

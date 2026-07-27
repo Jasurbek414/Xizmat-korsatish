@@ -7,14 +7,23 @@ import com.service.core.repository.CompanyRepository;
 import com.service.core.tenant.TenantContext;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
+// MUHIM (xavfsizlik, audit'da topilgan): bu kontrollerda hech qanday
+// @PreAuthorize bo'lmagani uchun istalgan autentifikatsiya qilingan
+// foydalanuvchi (jumladan WORKER_DRIVER) kompaniyaning BARCHA mijozlarini
+// o'qiy, yarata, tahrirlay va o'chira olardi (jonli sinovda haydovchi
+// tokeni bilan GET /clients -> 200 sifatida tasdiqlangan). Sinf darajasida
+// 'clients' (veb-admin) yoki 'mobile_orders' (mobil - buyurtma yaratishda
+// mijoz tanlash/yaratish uchun kerak) ruxsatlaridan biri talab qilinadi.
 @RestController
 @RequestMapping("/api/v1/clients")
+@PreAuthorize("@perm.has('clients','mobile_orders')")
 public class ClientController {
 
     private final ClientRepository clientRepository;

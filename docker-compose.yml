@@ -1,15 +1,32 @@
 version: '3.8'
 
+# MUHIM (audit'da topilgan): standart Docker json-file log drayveri hech
+# qanday chegarasiz - TRACE darajasidagi loglash (endi o'chirilgan) bilan
+# birga disk vaqt o'tishi bilan to'lib ketishi mumkin edi. Har bir xizmatga
+# shu standart cheklovni qo'llaymiz (3 fayl x 20MB = xizmat boshiga max 60MB).
+x-logging: &default-logging
+  driver: "json-file"
+  options:
+    max-size: "20m"
+    max-file: "3"
+
 services:
   db:
     image: postgres:16-alpine
     container_name: service-core-db
+    logging: *default-logging
     environment:
       - POSTGRES_DB=service_db
       - POSTGRES_USER=${DB_USER:-postgres}
       - POSTGRES_PASSWORD=${DB_PASSWORD:-postgres}
     ports:
-      - "5437:5432"
+      # MUHIM (xavfsizlik, audit'da topilgan): avval "5437:5432" - bu portni
+      # BARCHA tarmoq interfeyslariga (0.0.0.0) ochib, standart "postgres"
+      # foydalanuvchi nomi bilan butun internetdan ulanish imkonini berardi
+      # (.env'dagi DB_PASSWORD ham ishlab chiqarish uchun zaif). Endi faqat
+      # shu serverning o'zidan (127.0.0.1) kirish mumkin - masofadan DB
+      # kerak bo'lsa SSH tunnel orqali oching.
+      - "127.0.0.1:5437:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     restart: always
@@ -17,6 +34,7 @@ services:
   backend:
     build: ./backend-java
     container_name: service-core-backend
+    logging: *default-logging
     ports:
       - "8082:8080"
     environment:
@@ -52,6 +70,7 @@ services:
   frontend:
     build: ./frontend-admin
     container_name: service-core-frontend
+    logging: *default-logging
     ports:
       - "3005:80"
     restart: always
@@ -59,6 +78,7 @@ services:
   tunnel:
     image: cloudflare/cloudflared:latest
     container_name: service-core-tunnel
+    logging: *default-logging
     restart: always
     network_mode: "service:proxy"
     user: "root"
@@ -76,6 +96,7 @@ services:
   proxy:
     image: nginx:alpine
     container_name: service-core-proxy
+    logging: *default-logging
     restart: always
     dns:
       - 1.1.1.1
@@ -89,6 +110,7 @@ services:
   freeswitch:
     image: safarov/freeswitch:latest
     container_name: service-core-freeswitch
+    logging: *default-logging
     ports:
       - "5060:5060/udp"
       - "5060:5060/tcp"
@@ -154,6 +176,31 @@ services:
         # ikkalasini ham qamrab oladigan maxsus ACL qo'shamiz.
         sed -i 's|<network-lists>|<network-lists>\n    <list name="esl_internal" default="deny">\n      <node type="allow" cidr="127.0.0.0/8"/>\n      <node type="allow" cidr="10.0.0.0/8"/>\n      <node type="allow" cidr="172.16.0.0/12"/>\n      <node type="allow" cidr="192.168.0.0/16"/>\n    </list>|' /etc/freeswitch/autoload_configs/acl.conf.xml
         sed -i 's|<!--<param name="apply-inbound-acl" value="loopback.auto"/>-->|<param name="apply-inbound-acl" value="esl_internal"/>|' /etc/freeswitch/autoload_configs/event_socket.conf.xml
+        # MUHIM (xavfsizlik, audit'da topilgan): "external" profilda
+        # auth-calls=false VA hech qanday inbound ACL yo'q edi - bu SIP porti
+        # (5060, docker-compose'da 0.0.0.0'ga ochiq) butun internetga ochiq
+        # qoldirardi. Istalgan skaner/hujumchi destination_number'ni trunk
+        # hisob username'iga ("101") moslab INVITE yuborsa, backend buni
+        # haqiqiy UzTelecom qo'ng'irog'i deb qabul qilib, kompaniyaning
+        # onlayn operatorlarining brauzerini jiringlatardi (dialplan/backend
+        # KIM qo'ng'iroq qilayotganini emas, faqat KIMGA qilinayotganini
+        # tekshiradi). Endi faqat UzTelecom trunk serverining HAQIQIY
+        # IP'sidan (sip_accounts.sip_server bazada - hozircha 84.54.75.26)
+        # kelgan INVITE qabul qilinadi.
+        # `grep -q` bilan o'ralgan - script HAR restart'da qayta ishlaydi
+        # (butun /etc/freeswitch volume emas), shuning uchun idempotent
+        # bo'lishi shart (aks holda ro'yxat/parametr har safar takrorlanib
+        # qoladi).
+        # ESLATMA: agar UzTelecom bir nechta SBC/zaxira IP orqali qo'ng'iroq
+        # yuborsa, kiruvchi qo'ng'iroqlar kutilmaganda "Rejected by acl" bilan
+        # rad etila boshlaydi - shu holatda freeswitch konteyner logidan
+        # haqiqiy manba IP'ni topib, pastdagi ro'yxatga qo'shing.
+        if ! grep -q 'name="trunk_inbound"' /etc/freeswitch/autoload_configs/acl.conf.xml; then
+          sed -i 's|<network-lists>|<network-lists>\n    <list name="trunk_inbound" default="deny">\n      <node type="allow" cidr="84.54.75.26/32"/>\n    </list>|' /etc/freeswitch/autoload_configs/acl.conf.xml
+        fi
+        if ! grep -q 'apply-inbound-acl" value="trunk_inbound"' /etc/freeswitch/sip_profiles/external.xml; then
+          sed -i 's|<param name="auth-calls" value="false"/>|<param name="auth-calls" value="false"/>\n      <param name="apply-inbound-acl" value="trunk_inbound"/>|' /etc/freeswitch/sip_profiles/external.xml
+        fi
         # MUHIM (WebRTC media/NAT): FreeSWITCH SDP'da o'zining media manzili
         # sifatida standart holatda Docker ichki IP'sini (172.20.0.5) e'lon
         # qiladi - brauzer bunga yeta olmaydi. Serverning HAQIQIY ochiq IP'sini
@@ -215,6 +262,7 @@ services:
   coturn:
     image: coturn/coturn:latest
     container_name: service-core-coturn
+    logging: *default-logging
     restart: always
     ports:
       - "3478:3478/tcp"

@@ -26,7 +26,8 @@
     "finance": "Finance",
     "salaries": "Salaries",
     "settings": "Settings",
-    "map": "Map (OSM)"
+    "map": "Map (OSM)",
+    "telephony": "Telephony"
   },
   "dashboard": {
     "orders": "Orders",
@@ -220,6 +221,7 @@
     "perm_salaries": "Salaries (Payroll)",
     "perm_settings": "Settings",
     "perm_map": "Map (OSM)",
+    "perm_telephony": "Telephony (SIP/Calls)",
     "perm_mobile_orders": "Mobile: Orders",
     "perm_mobile_gps": "Mobile: GPS Tracking",
     "perm_mobile_finance_view": "Mobile: Finance View",
@@ -266,9 +268,17 @@
   "login_page": {
     "title": "System Login",
     "desc": "Enter credentials to access the platform",
+    "company": "Company",
+    "company_placeholder": "e.g. expressmail",
+    "company_required": "Enter your company code",
+    "company_blocked": "This company is blocked. Contact your administrator.",
+    "company_mismatch": "This account belongs to the '{{company}}' company - it doesn't match the entered company code.",
     "username": "Username",
     "password": "Password",
-    "login_btn": "Login to System"
+    "login_btn": "Login to System",
+    "login_error": "Incorrect username or password!",
+    "use_superadmin_page": "To log in as superadmin, use the /spd page.",
+    "use_mobile_app": "Login via the mobile app is recommended for this account."
   },
   "notifications_center": {
     "title": "Notifications",
@@ -279,6 +289,8 @@
   },
   "superadmin": {
     "role_label": "Super Admin",
+    "login_desc": "Sign in to the platform admin panel",
+    "login_wrong_portal": "This is a company account - sign in at the /login page.",
     "menu_companies": "Companies",
     "welcome_title": "Welcome, Super Admin!",
     "analytics_title": "Superadmin Analytics",

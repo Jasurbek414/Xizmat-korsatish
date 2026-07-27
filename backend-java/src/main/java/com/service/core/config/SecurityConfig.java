@@ -3,7 +3,6 @@ package com.service.core.config;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
@@ -45,16 +44,12 @@ public class SecurityConfig {
                 // oshiriladi - shuning uchun bu yerda ham ruxsat berilishi kerak, lekin
                 // haqiqiy autentifikatsiya interceptor darajasida majburiy.
                 .requestMatchers("/ws/telephony", "/ws/telephony/**").permitAll()
-                // URL darajasida qo'shimcha himoya (PreAuthorize bilan birgalikda).
-                // Order itemlarni o'chirishga barcha autentifikatsiyalangan foydalanuvchilar ruxsat oladi
-                .requestMatchers(HttpMethod.DELETE, "/api/v1/orders/*/items/*").authenticated()
-                .requestMatchers(HttpMethod.DELETE, "/api/v1/employees/**").hasAnyRole("ADMIN", "SUPERADMIN")
-                // MUHIM: bu ro'yxat pastdagi controllerlarning o'z @PreAuthorize
-                // (masalan ServiceController, OrderStatusController) ro'yxati bilan
-                // BIR XIL bo'lishi shart - aks holda bu URL darajasidagi qoida ular
-                // ochib bergan rolni (masalan DISPATCHER) "o'lik kod"ga aylantirib,
-                // amalda hech qachon ishlamaydigan qilib qo'yadi (avval shunday bo'lgan).
-                .requestMatchers(HttpMethod.DELETE, "/api/v1/**").hasAnyRole("ADMIN", "SUPERADMIN", "MANAGER", "DISPATCHER")
+                // MUHIM: DELETE uchun aniq rol nomlari URL darajasida QAYTA tekshirilmaydi -
+                // buni endi har bir kontrollerning o'z @PreAuthorize("@perm.has(...)")
+                // annotatsiyasi (Rollar va Huquqlar sahifasidagi HAQIQIY ruxsatlar asosida,
+                // dinamik) bajaradi. Bu yerda qattiq rol ro'yxati qoldirilsa, u pastdagi
+                // dinamik tekshiruvdan OLDIN ishlab, har qanday yangi/moslashtirilgan rolni
+                // (masalan Bugalter) "o'lik kod"ga aylantirib qo'yardi (avval shunday bo'lgan).
                 .anyRequest().authenticated()
             )
             .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);

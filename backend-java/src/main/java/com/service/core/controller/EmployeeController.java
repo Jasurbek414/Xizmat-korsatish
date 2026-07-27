@@ -53,8 +53,14 @@ public class EmployeeController {
         return normalized;
     }
 
+    // MUHIM (audit'da topilgan xato, tuzatildi): avval faqat 'employees'
+    // (veb-admin) ruxsati tekshirilardi - mobil "Jamoa" ekrani (TeamCubit)
+    // ham aynan shu endpoint'ni chaqiradi, lekin mobil rollarga hech qachon
+    // 'employees' berilmaydi (faqat 'mobile_team_view') - natijada "Jamoa"
+    // bo'limi mobil_team_view huquqi berilgan xodimlar uchun ham doim 403
+    // bilan ishlamas edi.
     @GetMapping
-    @PreAuthorize("hasAnyRole('SUPERADMIN','ADMIN','MANAGER')")
+    @PreAuthorize("@perm.has('employees','mobile_team_view')")
     public ResponseEntity<?> getEmployees() {
         String tenantId = TenantContext.getCurrentTenant();
         if (tenantId == null) {
@@ -66,7 +72,7 @@ public class EmployeeController {
     }
 
     @GetMapping("/drivers")
-    @PreAuthorize("hasAnyRole('SUPERADMIN','ADMIN','MANAGER','DISPATCHER')")
+    @PreAuthorize("@perm.has('orders')")
     public ResponseEntity<?> getDrivers() {
         String tenantId = TenantContext.getCurrentTenant();
         if (tenantId == null) {
@@ -78,7 +84,7 @@ public class EmployeeController {
     }
 
     @PostMapping
-    @PreAuthorize("hasAnyRole('SUPERADMIN','ADMIN')")
+    @PreAuthorize("@perm.has('employees')")
     public ResponseEntity<?> createEmployee(@RequestBody Map<String, String> request) {
         String tenantId = TenantContext.getCurrentTenant();
         if (tenantId == null) {
@@ -129,7 +135,7 @@ public class EmployeeController {
     }
 
     @PutMapping("/{id}")
-    @PreAuthorize("hasAnyRole('SUPERADMIN','ADMIN')")
+    @PreAuthorize("@perm.has('employees')")
     public ResponseEntity<?> updateEmployee(@PathVariable UUID id, @RequestBody Map<String, String> request) {
         String tenantId = TenantContext.getCurrentTenant();
         if (tenantId == null) {
@@ -166,7 +172,7 @@ public class EmployeeController {
     }
 
     @DeleteMapping("/{id}")
-    @PreAuthorize("hasAnyRole('SUPERADMIN','ADMIN')")
+    @PreAuthorize("@perm.has('employees')")
     public ResponseEntity<?> deleteEmployee(@PathVariable UUID id) {
         String tenantId = TenantContext.getCurrentTenant();
         if (tenantId == null) {
@@ -183,7 +189,7 @@ public class EmployeeController {
     }
 
     @PutMapping("/{id}/password")
-    @PreAuthorize("hasAnyRole('SUPERADMIN','ADMIN')")
+    @PreAuthorize("@perm.has('employees')")
     public ResponseEntity<?> resetPassword(@PathVariable UUID id, @RequestBody Map<String, String> request) {
         String tenantId = TenantContext.getCurrentTenant();
         if (tenantId == null) {

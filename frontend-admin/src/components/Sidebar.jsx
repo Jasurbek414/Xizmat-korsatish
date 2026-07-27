@@ -1,9 +1,7 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
-import { 
-  LayoutDashboard, Building2, Users, UserCog, ShoppingCart, 
-  DollarSign, Wallet, Settings2, Map, Languages, LogOut, PhoneCall
-} from 'lucide-react';
+import { LayoutDashboard, Building2, LogOut } from 'lucide-react';
+import { MODULE_DEFS } from '../utils/modules';
 
 const Sidebar = ({ currentTab, setCurrentTab, role, roleLabel, perms = {}, handleLogout }) => {
   const { t } = useTranslation();
@@ -13,20 +11,12 @@ const Sidebar = ({ currentTab, setCurrentTab, role, roleLabel, perms = {}, handl
       { id: 'dashboard', label: t('menu.dashboard'), icon: LayoutDashboard },
       { id: 'companies', label: t('superadmin.menu_companies'), icon: Building2 },
     ]
-    : (() => {
-      const items = [
-        { id: 'dashboard', label: t('menu.dashboard'), icon: LayoutDashboard }
-      ];
-      if (perms.clients) items.push({ id: 'clients', label: t('menu.clients'), icon: Users });
-      if (perms.orders) items.push({ id: 'orders', label: t('menu.orders'), icon: ShoppingCart });
-      if (perms.finance) items.push({ id: 'finance', label: t('menu.finance'), icon: DollarSign });
-      if (perms.employees) items.push({ id: 'employees', label: t('menu.employees'), icon: UserCog });
-      if (perms.salaries) items.push({ id: 'salaries', label: t('menu.salaries'), icon: Wallet });
-      if (perms.map) items.push({ id: 'map', label: t('menu.map'), icon: Map });
-      if (perms.telephony) items.push({ id: 'telephony', label: 'Telefoniya', icon: PhoneCall });
-      if (perms.settings) items.push({ id: 'settings', label: t('menu.settings'), icon: Settings2 });
-      return items;
-    })();
+    : [
+      { id: 'dashboard', label: t('menu.dashboard'), icon: LayoutDashboard },
+      ...MODULE_DEFS
+        .filter(m => perms[m.id])
+        .map(m => ({ id: m.id, label: t(m.labelKey), icon: m.icon }))
+    ];
 
   return (
     <aside className="w-64 bg-white dark:bg-[#111827]/80 border-r border-slate-200 dark:border-white/5 flex flex-col justify-between h-screen sticky top-0 shrink-0 z-40 transition-colors duration-200 shadow-sm dark:shadow-none">

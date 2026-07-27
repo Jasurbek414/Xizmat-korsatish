@@ -33,6 +33,7 @@ public class RoleSeedService {
         createIfMissing(company, "ADMIN", "Administrator", "Администратор", "Administrator", true, allPermissions(true));
         createIfMissing(company, "MANAGER", "Menejer", "Менеджер", "Manager", false, managerPermissions());
         createIfMissing(company, "DISPATCHER", "Dispetcher", "Диспетчер", "Dispatcher", false, dispatcherPermissions());
+        createIfMissing(company, "BUGALTER", "Bugalter", "Бухгалтер", "Accountant", false, accountantPermissions());
         createIfMissing(company, "WORKER_DRIVER", "Haydovchi", "Водитель", "Driver", false, driverPermissions());
         createIfMissing(company, "WORKER", "Ishchi", "Рабочий", "Worker", false, workerPermissions());
         createIfMissing(company, "WORKER_SEH", "Sex hodimi", "Сотрудник цеха", "Workshop Employee", false, workshopPermissions());
@@ -75,6 +76,7 @@ public class RoleSeedService {
         perms.put(PermissionKeys.FINANCE, true);
         perms.put(PermissionKeys.SALARIES, true);
         perms.put(PermissionKeys.MAP, true);
+        perms.put(PermissionKeys.TELEPHONY, true);
         perms.put(PermissionKeys.MOBILE_FINANCE_VIEW, true);
         perms.put(PermissionKeys.MOBILE_TEAM_VIEW, true);
         perms.put(PermissionKeys.MOBILE_CHAT, true);
@@ -86,6 +88,23 @@ public class RoleSeedService {
         perms.put(PermissionKeys.CLIENTS, true);
         perms.put(PermissionKeys.ORDERS, true);
         perms.put(PermissionKeys.MAP, true);
+        perms.put(PermissionKeys.TELEPHONY, true);
+        // Dispetcher haydovchidan naqd pulni qabul qilib, kassaga topshirishni
+        // tasdiqlaydi (FinanceController pending-transactions/confirm) - bu
+        // huquq avval faqat qattiq yozilgan rol tekshiruvi orqali berilgan edi.
+        perms.put(PermissionKeys.FINANCE, true);
+        return perms;
+    }
+
+    // Bugalter: faqat moliya bilan bog'liq bo'limlar - mijozlar/buyurtmalar/xodimlar
+    // ro'yxatlariga (va ularni tahrirlashga) kirish yo'q, faqat kirim-chiqim va oyliklar.
+    private Map<String, Boolean> accountantPermissions() {
+        Map<String, Boolean> perms = allPermissions(false);
+        perms.put(PermissionKeys.FINANCE, true);
+        perms.put(PermissionKeys.SALARIES, true);
+        perms.put(PermissionKeys.RECORD_INCOME, true);
+        perms.put(PermissionKeys.RECORD_EXPENSE, true);
+        perms.put(PermissionKeys.MOBILE_FINANCE_VIEW, true);
         return perms;
     }
 

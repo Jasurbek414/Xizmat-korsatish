@@ -18,6 +18,14 @@ public final class PermissionKeys {
     public static final String SALARIES = "salaries";
     public static final String SETTINGS = "settings";
     public static final String MAP = "map";
+    // MUHIM (audit'da topilgan): frontend (modules.js) va SipAccount/telephony
+    // endpointlari bu kalitga ilgari ham murojaat qilardi, lekin u shu
+    // ro'yxatda mavjud emas edi - RoleController.extractPermissions() faqat
+    // ALL ro'yxatidagi kalitlarni saqlagani uchun admin panelda "telephony"
+    // huquqini yoqib/o'chirish HECH QACHON saqlanmasdi, va shu boshqacha
+    // "!== false" tekshiruvi tufayli menyu bo'limi HAMMAGA (haydovchilarga
+    // ham) doim ko'rinardi. Endi haqiqiy, boshqariladigan ruxsat.
+    public static final String TELEPHONY = "telephony";
 
     // Mobil ilova modullari (yangi)
     public static final String MOBILE_ORDERS = "mobile_orders";
@@ -36,7 +44,7 @@ public final class PermissionKeys {
     public static final String RECORD_EXPENSE = "record_expense";
 
     public static final List<String> ALL = List.of(
-            CLIENTS, EMPLOYEES, ORDERS, FINANCE, SALARIES, SETTINGS, MAP,
+            CLIENTS, EMPLOYEES, ORDERS, FINANCE, SALARIES, SETTINGS, MAP, TELEPHONY,
             MOBILE_ORDERS, MOBILE_GPS, MOBILE_FINANCE_VIEW, MOBILE_TEAM_VIEW, MOBILE_CHAT, MOBILE_SALARY_VIEW,
             ASSIGN_MEASUREMENT_UNIT, UPDATE_ORDER_STATUS, WRITE_ORDER_NOTES, SET_ORDER_PRICE, RECORD_INCOME, RECORD_EXPENSE
     );

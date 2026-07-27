@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:ui';
 
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_background_service/flutter_background_service.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:hive_flutter/hive_flutter.dart';
@@ -16,6 +17,12 @@ import 'gps_offline_queue.dart';
 /// va tarmoq tiklanganda navbat bilan yuboriladi.
 class BackgroundGpsService {
   static const Duration interval = Duration(seconds: 15);
+
+  /// Joriy ONLINE/OFFLINE holati - `ShiftToggleButton`ning BARCHA nusxalari
+  /// (AppBar'da ham, Bosh sahifa sarlavhasida ham) shu BITTA notifier'ni
+  /// tinglaydi, shu sabab ikkalasi doim bir xil holatni ko'rsatadi va bir-biri
+  /// bilan sinxron ishlaydi.
+  static final ValueNotifier<bool> isOnline = ValueNotifier<bool>(false);
 
   static Future<void> initialize() async {
     final service = FlutterBackgroundService();
@@ -66,7 +73,21 @@ class BackgroundGpsService {
     }
     // Servis allaqachon jonli (warmUp orqali isitilgan yoki hozir ishga
     // tushirilgan) - foreground holatga o'tkazib, kuzatuvni boshlaymiz.
+    // MUHIM: bu chaqiruv vaqtini ATAYLAB o'zgartirmaymiz (kechiktirmaymiz) -
+    // Android'da foreground xizmatga o'tish o'z vaqti-vaqti bilan chambarchas
+    // bog'liq va bu yerdagi kechikish avvalgi versiyada ilovaning yiqilishiga
+    // (native darajada) sabab bo'lgan edi.
     service.invoke('resume');
+    // Zaxira (xavfsiz, ikkilamchi): agar servis ENDI ishga tushayotgan bo'lsa,
+    // `_onStart` ichidagi `on('resume')` tinglovchisi hali ro'yxatdan
+    // o'tmagan bo'lishi mumkin - shu holda yuqoridagi signal yo'qolib ketadi va
+    // UI "ONLINE" ko'rsatsa ham haqiqiy kuzatuv boshlanmaydi. Buni asl
+    // vaqtlashga TEGMASDAN tuzatish uchun, bir oz keyin (tinglovchi allaqachon
+    // tayyor bo'lgach) ZARARSIZ (idempotent) qayta yuboramiz - agar birinchisi
+    // yetib borgan bo'lsa, bu shunchaki hech narsani o'zgartirmaydi.
+    Future.delayed(const Duration(milliseconds: 2000), () => service.invoke('resume'));
+    isOnline.value = true;
+    await SecureStorageService().saveShiftStatus(true);
   }
 
   /// MUHIM: servisni butunlay o'chirish uchun (Android'da) `stopSelf()` chaqirish
@@ -82,6 +103,8 @@ class BackgroundGpsService {
     if (await service.isRunning()) {
       service.invoke('pause');
     }
+    isOnline.value = false;
+    await SecureStorageService().saveShiftStatus(false);
   }
 }
 
@@ -154,12 +177,18 @@ void _onStart(ServiceInstance service) async {
       );
 
       // Avval navbatda qolgan eski nuqtalarni yuborishga urinib ko'ramiz.
+      // MUHIM: har bir nuqtaning O'ZI yozilgan payt (timestamp) ham yuboriladi -
+      // aks holda backend soatlab oldin yig'ilib qolgan nuqtalarni "hozirgi
+      // joylashuv" deb noto'g'ri qabul qilib olardi.
       final pending = await queue.readAll();
       for (final entry in pending) {
+        final recordedAt = DateTime.tryParse(entry.value['timestamp'] as String? ?? '') ??
+            DateTime.now();
         final sent = await _sendPosition(
           token,
           entry.value['latitude'] as double,
           entry.value['longitude'] as double,
+          recordedAt,
         );
         if (sent) {
           await queue.remove(entry.key);
@@ -172,6 +201,7 @@ void _onStart(ServiceInstance service) async {
         token,
         position.latitude,
         position.longitude,
+        position.timestamp,
       );
       if (!sent) {
         await queue.enqueue(position.latitude, position.longitude);
@@ -182,12 +212,21 @@ void _onStart(ServiceInstance service) async {
   });
 }
 
-Future<bool> _sendPosition(String token, double latitude, double longitude) async {
+Future<bool> _sendPosition(
+  String token,
+  double latitude,
+  double longitude,
+  DateTime recordedAt,
+) async {
   try {
     final dio = Dio(BaseOptions(baseUrl: AppConstants.baseApiUrl));
     await dio.post(
       '/gps/log',
-      data: {'latitude': latitude, 'longitude': longitude},
+      data: {
+        'latitude': latitude,
+        'longitude': longitude,
+        'timestamp': recordedAt.toIso8601String(),
+      },
       options: Options(headers: {'Authorization': 'Bearer $token'}),
     );
     return true;

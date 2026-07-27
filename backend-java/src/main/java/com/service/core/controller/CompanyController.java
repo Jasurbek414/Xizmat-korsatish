@@ -39,7 +39,7 @@ public class CompanyController {
     }
 
     @PutMapping
-    @PreAuthorize("hasAnyRole('SUPERADMIN','ADMIN')")
+    @PreAuthorize("@perm.has('settings')")
     public ResponseEntity<?> updateCompanySettings(@RequestBody Map<String, Object> request) {
         String tenantId = TenantContext.getCurrentTenant();
         if (tenantId == null) {

@@ -8,6 +8,7 @@ class TeamMember {
   final String status;
   final double? latitude;
   final double? longitude;
+  final DateTime? lastLocationAt;
 
   TeamMember({
     required this.id,
@@ -17,7 +18,18 @@ class TeamMember {
     required this.status,
     this.latitude,
     this.longitude,
+    this.lastLocationAt,
   });
+
+  /// Oxirgi GPS signali shu vaqtdan eski bo'lsa, joylashuv "eskirgan" (haydovchi
+  /// haqiqatan hozir o'sha yerda emas) deb hisoblanadi. Fon xizmati har 15
+  /// soniyada yuboradi - tarmoq kechikishlari uchun keng zaxira bilan 2 daqiqa.
+  static const staleAfter = Duration(minutes: 2);
+
+  bool get isLocationStale {
+    if (lastLocationAt == null) return true;
+    return DateTime.now().difference(lastLocationAt!) > staleAfter;
+  }
 
   factory TeamMember.fromJson(Map<String, dynamic> json) {
     return TeamMember(
@@ -28,6 +40,9 @@ class TeamMember {
       status: json['status'] ?? 'ACTIVE',
       latitude: (json['latitude'] as num?)?.toDouble(),
       longitude: (json['longitude'] as num?)?.toDouble(),
+      lastLocationAt: json['lastLocationAt'] != null
+          ? DateTime.tryParse(json['lastLocationAt'] as String)
+          : null,
     );
   }
 }
