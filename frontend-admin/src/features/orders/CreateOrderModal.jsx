@@ -18,6 +18,20 @@ const CreateOrderModal = ({ isOpen, onClose, clients, services, workers, newOrde
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen]);
 
+  // Haydovchi HAR DOIM tanlangan turishi kerak - <select> da bo'sh variant
+  // yo'q, shuning uchun hech biri tanlanmagan bo'lsa brauzer birinchisini
+  // ko'rsatadi-yu, formaning holatida worker_id bo'sh qolib ketardi (va
+  // buyurtma haydovchisiz yaratilardi). Shu sabab birinchi haydovchini
+  // holatga ham aniq yozib qo'yamiz.
+  useEffect(() => {
+    if (!isOpen || workers.length === 0) return;
+    const exists = workers.some(w => w.id === newOrder.worker_id);
+    if (!exists) {
+      setNewOrder(prev => ({ ...prev, worker_id: workers[0].id }));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, workers]);
+
   if (!isOpen) return null;
 
   return (
@@ -108,13 +122,23 @@ const CreateOrderModal = ({ isOpen, onClose, clients, services, workers, newOrde
             </select>
           </div>
           <div>
-            <label className="block text-slate-500 dark:text-gray-400 mb-1">{t('orders_page.worker')} (Ixtiyoriy)</label>
-            <select 
+            <label className="block text-slate-500 dark:text-gray-400 mb-1">{t('orders_page.worker')}</label>
+            {/* Haydovchi tanlash MAJBURIY - avval "-- Kuryer biriktirilmasin --"
+                varianti bor edi va u standart tanlangan holatda turardi, shu
+                sabab buyurtmalar ko'pincha haydovchisiz yaratilib, mobil
+                ilovada "egasiz" qolib ketardi. Endi ro'yxatda faqat haqiqiy
+                haydovchilar bo'ladi va bittasi doim tanlangan turadi. */}
+            <select
               value={newOrder.worker_id || ''}
               onChange={(e) => setNewOrder({...newOrder, worker_id: e.target.value})}
               className="w-full glass-input rounded-xl px-3 py-2 text-slate-800 dark:text-white focus:outline-none cursor-pointer"
+              required
             >
-              <option value="" className="bg-white dark:bg-[#111827] text-slate-400">-- Kuryer biriktirilmasin --</option>
+              {workers.length === 0 && (
+                <option value="" className="bg-white dark:bg-[#111827] text-slate-400">
+                  -- Avval xodim qo'shing --
+                </option>
+              )}
               {workers.map(w => (
                 <option key={w.id} value={w.id} className="bg-white dark:bg-[#111827] text-slate-800 dark:text-gray-200">
                   {w.fullName || w.full_name}

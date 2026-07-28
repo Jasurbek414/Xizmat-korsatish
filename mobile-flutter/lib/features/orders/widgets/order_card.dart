@@ -169,6 +169,37 @@ class OrderCard extends StatelessWidget {
 
   Widget _mainAction(BuildContext context) {
     if (!_isMine) {
+      // MUHIM (audit'da topilgan xato, tuzatildi): avval BOSHQA haydovchiga
+      // biriktirilgan buyurtmada ham "Qabul qilish" tugmasi ko'rsatilardi va
+      // tasdiqlash oynasi hatto «Bu buyurtma "X"ga biriktirilgan. O'zingizga
+      // olasizmi?» deb taklif qilardi - lekin backend buni HAR DOIM 409
+      // ("allaqachon boshqa haydovchiga biriktirilgan") bilan rad etardi.
+      // Ya'ni tugma hech qachon ishlamaydigan, faqat chalkash xato
+      // beradigan tugma edi. Endi biriktirilgan buyurtmada tugma o'rniga
+      // kim bajarayotgani ko'rsatiladi; qayta biriktirishni faqat dispetcher
+      // veb-panel orqali qila oladi.
+      if (order.workerId != null) {
+        return Container(
+          height: 40,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: AppTheme.borderColor.withOpacity(0.35),
+            borderRadius: BorderRadius.circular(AppTheme.rMd),
+          ),
+          child: Row(mainAxisSize: MainAxisSize.min, children: [
+            const Icon(LucideIcons.userCheck, size: 14, color: AppTheme.textSecondary),
+            const SizedBox(width: 5),
+            Flexible(
+              child: Text(
+                order.workerName ?? 'Biriktirilgan',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: AppTheme.text(12, weight: FontWeight.w700, color: AppTheme.textSecondary),
+              ),
+            ),
+          ]),
+        );
+      }
       return AppButton('Qabul qilish', icon: LucideIcons.check, height: 40, onTap: () => _confirmAccept(context));
     }
     final next = _nextStatus;

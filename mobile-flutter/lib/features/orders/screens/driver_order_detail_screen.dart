@@ -790,8 +790,41 @@ class _DriverOrderDetailScreenState extends State<DriverOrderDetailScreen> {
       ];
     }
 
-    // Case 1: Not my order - Accept button
+    // Case 1: Not my order
     if (!_isMine) {
+      // MUHIM (audit'da topilgan xato, tuzatildi): avval BOSHQA haydovchiga
+      // biriktirilgan buyurtmada ham "Olib ketish" tugmasi chiqardi, lekin
+      // backend uni har doim 409 bilan rad etardi - foydalanuvchi bosib,
+      // faqat tushunarsiz xato olardi. Endi biriktirilgan buyurtmada tugma
+      // yo'q, faqat kim bajarayotgani ko'rsatiladi. Qayta biriktirish -
+      // dispetcherning veb-panel orqali bajaradigan ishi.
+      if (order.workerId != null) {
+        return [
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(vertical: 16),
+            decoration: BoxDecoration(
+              color: AppTheme.borderColor.withOpacity(0.3),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+              const Icon(LucideIcons.userCheck, size: 18, color: AppTheme.textSecondary),
+              const SizedBox(width: 8),
+              Flexible(
+                child: Text(
+                  'Bajarmoqda: ${order.workerName ?? "boshqa xodim"}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                      color: AppTheme.textSecondary,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700),
+                ),
+              ),
+            ]),
+          ),
+        ];
+      }
       return [
         SizedBox(
           width: double.infinity,
@@ -807,14 +840,6 @@ class _DriverOrderDetailScreenState extends State<DriverOrderDetailScreen> {
             label: const Text('Olib ketish',
                 style: TextStyle(
                     fontWeight: FontWeight.w700, fontSize: 16)),
-          ),
-        ),
-        const SizedBox(height: 10),
-        Center(
-          child: Text(
-            'Haydovchi: ${order.workerName ?? "Biriktirilmagan"}',
-            style: const TextStyle(
-                color: AppTheme.textSecondary, fontSize: 12),
           ),
         ),
       ];
