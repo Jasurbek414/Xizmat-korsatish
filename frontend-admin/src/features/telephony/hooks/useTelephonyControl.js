@@ -55,6 +55,14 @@ export default function useTelephonyControl({
         const cb = cbRef.current;
         if (data.type === 'INVITE' && data.payload && data.payload.callee === dialingNumberRef.current) {
           currentCallUuidRef.current = data.payload.callUuid;
+        } else if (data.type === 'INCOMING' && data.payload) {
+          // Kiruvchi qo'ng'iroq (audit'da topilgan xato, tuzatildi: avval
+          // backend hech qachon inbound uchun sessiya yaratmagani uchun bu
+          // hodisa umuman kelmasdi). Chiquvchidan farqli, "operator o'zi
+          // tergan raqam" solishtirish mezoni yo'q - shart-sharoitsiz
+          // o'rnatiladi (kompaniyaning barcha operator brauzerlari shu
+          // callUuid'ni biladi, kim javob bersa o'sha ANSWER yuboradi).
+          currentCallUuidRef.current = data.payload.callUuid;
         } else if (data.type === 'BYE') {
           // Tugagan sessiya AYNAN bizning joriy chaqiruvimizmi (masalan backend
           // javobsiz sessiyani TIMEOUT bilan tozalagan bo'lsa, JsSIP tomonida

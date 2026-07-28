@@ -97,6 +97,11 @@ public class AsteriskExtensionConfigWriter {
                 "dtls_auto_generate_cert=yes\n" +
                 "use_avpf=yes\n" +
                 "media_encryption=dtls\n" +
+                // Operator "Kutish"ga qo'yganda (JsSIP re-INVITE, sendonly SDP)
+                // Asterisk BUNI o'zi (B2BUA sifatida) avtomatik boshqaradi -
+                // ikkinchi tomon (mijoz/trunk) shu MOH klassini eshitadi.
+                // Maxsus ARI/Stasis kodi shart emas.
+                "moh_suggest=default\n" +
                 "auth=ext-" + extension + "-auth\n" +
                 "aors=" + extension + "\n";
     }

@@ -31,6 +31,7 @@ public class TelephonyService {
     private final AsteriskTrunkConfigWriter trunkConfigWriter;
     private final DeviceRepository deviceRepository;
     private final UserRepository userRepository;
+    private final CallQueueManager callQueueManager;
 
     public TelephonyService(SIPAdapter sipAdapter,
                             RegistrationManager registrationManager,
@@ -41,7 +42,8 @@ public class TelephonyService {
                             SipAccountRepository sipAccountRepository,
                             AsteriskTrunkConfigWriter trunkConfigWriter,
                             DeviceRepository deviceRepository,
-                            UserRepository userRepository) {
+                            UserRepository userRepository,
+                            CallQueueManager callQueueManager) {
         this.sipAdapter = sipAdapter;
         this.registrationManager = registrationManager;
         this.sessionManager = sessionManager;
@@ -52,6 +54,7 @@ public class TelephonyService {
         this.trunkConfigWriter = trunkConfigWriter;
         this.deviceRepository = deviceRepository;
         this.userRepository = userRepository;
+        this.callQueueManager = callQueueManager;
     }
 
     // Chaqiruvchi/chaqirilayotgan raqamlarda faqat raqamlar va SIP uchun odatiy
@@ -144,6 +147,7 @@ public class TelephonyService {
                 .sipAccountId(account.getId())
                 .userId(requestingUserId)
                 .state("INITIATED")
+                .direction("OUTBOUND")
                 .startTime(LocalDateTime.now())
                 .build();
 
@@ -166,15 +170,24 @@ public class TelephonyService {
     }
 
     /**
-     * KIRUVCHI qo'ng'iroq marshruti - ESL CHANNEL_PARK hodisasidan chaqiriladi.
-     * Tashqi mijoz kompaniya UzTelecom raqamiga qo'ng'iroq qildi, dialplan uni
-     * "public" kontekstда park qildi. Bu yerda:
+     * KIRUVCHI qo'ng'iroq marshruti - ARI StasisStart ("inbound-trunk")
+     * hodisasidan chaqiriladi. Tashqi mijoz kompaniya UzTelecom raqamiga
+     * qo'ng'iroq qildi, kanal Stasis ilovasida kutib turibdi. Bu yerda:
      *   1) destination_number (trunk hisob username'i, masalan "101") bo'yicha
      *      qaysi KOMPANIYA ekanini aniqlaymiz (SipAccount.company).
      *   2) o'sha kompaniyaning HOZIR ONLAYN operatorlarini topamiz.
-     *   3) ularning brauzeriga (user/<extension>) qo'ng'iroqni bridge qilamiz
-     *      (bir nechta bo'lsa - bir vaqtda jiringlaydi, birinchi javob bergan).
-     * Mos kompaniya yoki onlayn operator bo'lmasa - qo'ng'iroqni uzamiz.
+     *   3) ularning brauzeriga qo'ng'iroqni bridge qilamiz (bir nechta bo'lsa -
+     *      bir vaqtda jiringlaydi, birinchi javob bergan ulanadi).
+     * Mos kompaniya topilmasa - qo'ng'iroqni uzamiz. Onlayn operator bo'lmasa -
+     * ENDI darhol uzmasdan, mijozni musiqa bilan navbatga qo'yamiz (operator
+     * bo'shashi bilan avtomatik ulanadi - CallQueueManager/holdForQueue'ga qarang).
+     *
+     * MUHIM (audit'da topilgan xato, tuzatildi): avval bu metod hech qanday
+     * ActiveSession yaratmagani uchun backend kiruvchi qo'ng'iroqni "javob
+     * berildi"/"tugadi" deb hech qachon bilmasdi - CallHistory'ga yozilmasdi,
+     * va operator-leg javob berish hodisasi (AsteriskEventListener) uni
+     * sessiya sifatida topa olmasdi. Endi har bir kiruvchi qo'ng'iroq uchun
+     * ham ActiveSession yaratiladi (callUuid = trunk kanalining o'zi).
      */
     public void handleIncomingCall(String destinationNumber, String callerNumber, String channelUuid) {
         SipAccount account = sipAccountRepository.findFirstByUsername(destinationNumber).orElse(null);
@@ -184,12 +197,42 @@ public class TelephonyService {
             return;
         }
         UUID companyId = account.getCompany().getId();
+
+        ActiveSession session = ActiveSession.builder()
+                .callUuid(UUID.fromString(channelUuid))
+                .caller(callerNumber)
+                .callee(destinationNumber)
+                .companyId(companyId)
+                .sipAccountId(account.getId())
+                .state("RINGING")
+                .direction("INBOUND")
+                .startTime(LocalDateTime.now())
+                .build();
+        sessionManager.startSession(session);
+        // Kompaniyaning barcha ulangan operator brauzerlariga xabar beramiz -
+        // chiquvchi oqimdagi "INVITE"dan farqli, bu yerda "operator o'zi
+        // tergan raqam" solishtirish mezoni yo'q (hech kim hali tanlanmagan).
+        eventBus.publish(new TelephonyEvent("INCOMING", session, companyId));
+
         List<Device> operators = deviceRepository.findOnlineByCompany(companyId, "ONLINE", "WEBRTC");
         if (operators.isEmpty()) {
-            log.info("Kiruvchi qo'ng'iroq ({}dan -> {}): onlayn operator yo'q - uziladi", callerNumber, destinationNumber);
-            sipAdapter.hangupCall(channelUuid);
+            log.info("Kiruvchi qo'ng'iroq ({}dan -> {}): onlayn operator yo'q - navbatga qo'yilmoqda",
+                    callerNumber, destinationNumber);
+            callQueueManager.enqueue(companyId, CallQueueManager.QueuedCall.builder()
+                    .channelUuid(channelUuid)
+                    .sipAccountId(account.getId())
+                    .callerNumber(callerNumber)
+                    .destinationNumber(destinationNumber)
+                    .queuedAt(LocalDateTime.now())
+                    .build());
+            sipAdapter.holdForQueue(channelUuid);
+            eventBus.publish(new TelephonyEvent("QUEUED", session, companyId));
             return;
         }
+        bridgeToOperators(channelUuid, operators, callerNumber, destinationNumber);
+    }
+
+    private void bridgeToOperators(String channelUuid, List<Device> operators, String callerNumber, String destinationNumber) {
         // MUHIM: bu ro'yxat butunlay PBX'ga xos formatdan xoli (faqat raqamlar) -
         // FreeSWITCH "user/2001" yoki Asterisk "PJSIP/2001" kabi dial-string'ga
         // o'girishni endi har bir adapter o'zi, o'z ichida bajaradi (audit'da
@@ -201,6 +244,52 @@ public class TelephonyService {
         log.info("Kiruvchi qo'ng'iroq ({}dan -> {}): {} ta onlayn operatorga ulanmoqda: {}",
                 callerNumber, destinationNumber, operators.size(), extensionNumbers);
         sipAdapter.bridgeIncomingCall(channelUuid, extensionNumbers);
+    }
+
+    /**
+     * Operator ONLINE bo'lganda (TelephonyWebSocketHandler) chaqiriladi -
+     * shu kompaniya uchun navbatda eng uzoq kutgan qo'ng'iroq bo'lsa, hozir
+     * onlayn bo'lgan BARCHA operatorlarga qayta ulashga harakat qiladi
+     * (bitta yangi ulangan operatorga emas - agar bir nechtasi bir vaqtda
+     * onlayn bo'lsa ham, birinchi javob bergani yutadi).
+     */
+    public void tryServeQueuedCalls(UUID companyId) {
+        if (companyId == null) return;
+        CallQueueManager.QueuedCall queued = callQueueManager.dequeueOldest(companyId);
+        if (queued == null) return;
+
+        List<Device> operators = deviceRepository.findOnlineByCompany(companyId, "ONLINE", "WEBRTC");
+        if (operators.isEmpty()) {
+            // Operator yana OFFLINE bo'lib ulgurgan (masalan darhol uzilgan) -
+            // qo'ng'iroqni navbatga qaytaramiz, yo'qotmaymiz.
+            callQueueManager.enqueue(companyId, queued);
+            return;
+        }
+        log.info("Navbatdagi qo'ng'iroq ({}dan -> {}) onlayn operatorga ulanmoqda",
+                queued.getCallerNumber(), queued.getDestinationNumber());
+        bridgeToOperators(queued.getChannelUuid(), operators, queued.getCallerNumber(), queued.getDestinationNumber());
+    }
+
+    /**
+     * Juda uzoq kutgan navbatdagi qo'ng'iroqlarni uzadi - mijoz cheksiz
+     * musiqa eshitib turmasligi uchun (expireStaleSessions bilan bir xil
+     * naqsh, alohida sabab: bu yerda hali javob berilmagan/bridge qilinmagan,
+     * ActiveSession'ning umumiy "javobsiz sessiya" tozalagichiga tushmasdan
+     * oldin ANIQROQ va TEZROQ (~90s) tugatish uchun).
+     */
+    @org.springframework.scheduling.annotation.Scheduled(fixedRate = 30000)
+    public void expireStaleQueuedCalls() {
+        LocalDateTime cutoff = LocalDateTime.now().minusSeconds(90);
+        for (var entry : callQueueManager.getAllQueues().entrySet()) {
+            UUID companyId = entry.getKey();
+            for (CallQueueManager.QueuedCall call : List.copyOf(entry.getValue())) {
+                if (call.getQueuedAt().isBefore(cutoff)) {
+                    log.info("Navbatda 90s dan ko'p kutgan qo'ng'iroq uzilmoqda: {}", call.getChannelUuid());
+                    callQueueManager.remove(companyId, call.getChannelUuid());
+                    endCall(UUID.fromString(call.getChannelUuid()), "QUEUE_TIMEOUT");
+                }
+            }
+        }
     }
 
     /** ESL hodisa tinglovchisi (ishonchli, ichki manba) tomonidan chaqiriladi. */
@@ -255,14 +344,19 @@ public class TelephonyService {
             CallSession dbSession = CallSession.builder()
                     .sipAccount(sipAccountRepository.findById(session.getSipAccountId()).orElse(null))
                     .dispatcher(dispatcher)
-                    .clientPhone(session.getCallee())
-                    .direction("OUTBOUND")
+                    .clientPhone(session.getDirection().equals("INBOUND") ? session.getCaller() : session.getCallee())
+                    .direction(session.getDirection())
                     .status(reason != null ? reason : "SUCCESS")
                     .duration(seconds)
                     .build();
 
             callSessionRepository.save(dbSession);
             sessionManager.removeSession(sessionUuid);
+            // Mijoz navbatda turib o'zi trubkani qo'ysa ham (hali bridge
+            // qilinmagan) ro'yxatdan tozalanishi kerak - aks holda "o'lik"
+            // yozuv navbatda qolib, keyingi onlayn operatorga xato ulanishga
+            // urinilardi.
+            callQueueManager.remove(session.getCompanyId(), sessionUuid.toString());
             eventBus.publish(new TelephonyEvent("BYE", session, session.getCompanyId()));
         }
     }

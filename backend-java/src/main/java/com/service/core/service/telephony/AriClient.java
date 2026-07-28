@@ -134,6 +134,38 @@ public class AriClient {
         }
     }
 
+    /**
+     * "holding" turidagi bridge - navbatda kutayotgan qo'ng'iroq uchun
+     * (mixing bridge'dan farqli, faqat bitta kanalni "ushlab turish" uchun
+     * mo'ljallangan, MOH bilan birga ishlatiladi).
+     */
+    public void createHoldingBridge(String bridgeId) {
+        try {
+            restClient().post().uri(uriBuilder -> uriBuilder.path("/bridges")
+                            .queryParam("bridgeId", bridgeId)
+                            .queryParam("type", "holding")
+                            .build())
+                    .retrieve().toBodilessEntity();
+            log.info("ARI kutish (holding) bridge yaratildi: bridgeId={}", bridgeId);
+        } catch (Exception e) {
+            log.error("ARI kutish bridge yaratishda xato (bridgeId={}): {}", bridgeId, e.getMessage());
+            throw new RuntimeException(e);
+        }
+    }
+
+    /** Bridge'dagi barcha kanallarga musiqa (music-on-hold) chalishni boshlaydi. */
+    public void startMoh(String bridgeId, String mohClass) {
+        try {
+            restClient().post().uri(uriBuilder -> uriBuilder.path("/bridges/{bridgeId}/moh")
+                            .queryParam("mohClass", mohClass)
+                            .build(bridgeId))
+                    .retrieve().toBodilessEntity();
+            log.info("ARI MOH boshlandi: bridgeId={}, mohClass={}", bridgeId, mohClass);
+        } catch (Exception e) {
+            log.warn("ARI MOH boshlashda xato (bridgeId={}): {}", bridgeId, e.getMessage());
+        }
+    }
+
     public void destroyBridge(String bridgeId) {
         try {
             restClient().delete().uri("/bridges/{id}", bridgeId).retrieve().toBodilessEntity();

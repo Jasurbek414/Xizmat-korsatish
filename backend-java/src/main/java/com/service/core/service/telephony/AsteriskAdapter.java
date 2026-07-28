@@ -124,6 +124,23 @@ public class AsteriskAdapter implements SIPAdapter {
     }
 
     @Override
+    public void holdForQueue(String channelUuid) {
+        if (channelUuid == null || channelUuid.isBlank()) {
+            return;
+        }
+        // MUHIM: nomi ATAYIN "bridgeIncomingCall"dagi mixing bridge nomidan
+        // ("<channelUuid>-bridge") FARQLI ("-queue-bridge") - operator
+        // bo'shashi bilan bridgeIncomingCall YANGI mixing bridge yaratadi va
+        // kanalni shu yerga ko'chiradi, bu esa kanalni ushbu kutish
+        // bridge'idan AVTOMATIK chiqaradi (ARI: bir kanal bir vaqtda faqat
+        // bitta bridge'da bo'ladi) - shu bilan MOH ham o'z-o'zidan to'xtaydi.
+        String bridgeId = channelUuid + "-queue-bridge";
+        ariClient.createHoldingBridge(bridgeId);
+        ariClient.addChannelToBridge(bridgeId, channelUuid);
+        ariClient.startMoh(bridgeId, "default");
+    }
+
+    @Override
     public String getAdapterName() {
         return "Asterisk ARI Adapter";
     }

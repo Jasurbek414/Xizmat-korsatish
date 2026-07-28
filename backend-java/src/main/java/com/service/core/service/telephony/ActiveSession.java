@@ -20,6 +20,12 @@ public class ActiveSession {
     private UUID userId;
     private String extension;
     private String state; // INITIATED, RINGING, CONNECTED, FAILED, ENDED
+    // MUHIM (audit'da topilgan xato, tuzatildi): avval CallSession.direction
+    // hisobotda HAR DOIM qattiq yozilgan "OUTBOUND" edi - kiruvchi
+    // qo'ng'iroqlar ham "chiquvchi" sifatida tarixga yozilardi. Endi bu
+    // qiymat sessiya yaratilgan joyning o'zida (initiateCall/handleIncomingCall)
+    // aniq belgilanadi.
+    private String direction; // INBOUND, OUTBOUND
     private LocalDateTime startTime;
     private LocalDateTime answerTime;
     private LocalDateTime endTime;

@@ -97,6 +97,12 @@ public class AsteriskTrunkConfigWriter {
                 "rtp_symmetric=yes\n" +
                 "force_rport=yes\n" +
                 "rewrite_contact=yes\n" +
+                // Operator qo'ng'iroqni "Kutish"ga qo'yganda mijoz (trunk orqali)
+                // MOH eshitishi uchun - ikkala tomonga ham qo'yilgan (Asterisk'ning
+                // aniq qaysi endpoint tomonini "held" deb hisoblashi jonli sinovda
+                // tekshirilishi kerak, shuning uchun ikkala endpoint konfiguratsiyasida
+                // ham mavjud - ext-*.conf'dagi moh_suggest'ga qarang).
+                "moh_suggest=default\n" +
                 "\n" +
                 // MUHIM (xavfsizlik): FreeSWITCH'da "trunk_inbound" ACL bilan faqat
                 // UzTelecom'ning HAQIQIY IP'sidan (sip_server) kelgan INVITE qabul

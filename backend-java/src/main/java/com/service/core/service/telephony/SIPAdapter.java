@@ -41,6 +41,17 @@ public interface SIPAdapter {
      *                         hech qanday PBX'ga xos formatni bilmaydi.
      */
     void bridgeIncomingCall(String channelUuid, List<String> extensionNumbers);
+
+    /**
+     * Onlayn operator topilmagan kiruvchi qo'ng'iroqni "kutish" holatiga
+     * o'tkazadi (musiqa bilan) - darhol uzish o'rniga. Operator bo'shashi
+     * bilan {@link #bridgeIncomingCall} shu channelUuid bilan QAYTA
+     * chaqiriladi - alohida "navbatdan chiqarish" metodi shart emas, chunki
+     * kanalni yangi bridge'ga qo'shish uni eskisidan (kutish bridge'i)
+     * avtomatik chiqaradi.
+     */
+    void holdForQueue(String channelUuid);
+
     String getAdapterName();
 
     /**

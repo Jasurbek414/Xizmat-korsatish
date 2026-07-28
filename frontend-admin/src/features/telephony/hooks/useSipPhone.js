@@ -51,6 +51,7 @@ export default function useSipPhone({
   onOutboundMediaError,
 }) {
   const [bridgeStatus, setBridgeStatus] = useState('DISCONNECTED');
+  const [isOnHold, setIsOnHold] = useState(false);
   const uaRef = useRef(null);
   const sessionRef = useRef(null);
   // Operator CHIQUVCHI qo'ng'iroq boshlagan VAQT (timestamp). Chiquvchi oqimda
@@ -84,6 +85,7 @@ export default function useSipPhone({
 
   // Bitta sessiya (kiruvchi yoki bridge oyog'i) uchun hodisa tinglovchilarni o'rnatadi.
   const attachSessionHandlers = useCallback((session) => {
+    setIsOnHold(false); // Yangi sessiya - eski chaqiruvdan qolgan "hold" holati tozalanadi.
     session.on('peerconnection', (e) => {
       e.peerconnection.addEventListener('track', (event) => {
         const stream = event.streams[0];
@@ -115,7 +117,13 @@ export default function useSipPhone({
     session.on('ended', () => {
       cbRef.current.onEnded && cbRef.current.onEnded();
       sessionRef.current = null;
+      setIsOnHold(false);
     });
+    // Kutish holati - JsSIP re-INVITE (sendonly/recvonly SDP) muvaffaqiyatli
+    // bo'lganda keladi. Asterisk B2BUA sifatida buni o'zi boshqaradi (ikkinchi
+    // tomonga MOH chalib beradi) - bu yerda faqat UI holatini kuzatamiz.
+    session.on('hold', () => setIsOnHold(true));
+    session.on('unhold', () => setIsOnHold(false));
   }, []);
 
   const initialize = useCallback(() => {
@@ -366,5 +374,25 @@ export default function useSipPhone({
     }
   }, []);
 
-  return { bridgeStatus, isRegistered, waitUntilRegistered, answer, terminate, setMute, reinitialize: initialize, markOutboundDial, clearOutboundDial };
+  // Kutish holati (Hold): JsSIP session.hold()/unhold() qayta-INVITE yuboradi
+  // (SDP'da sendonly/inactive) - Asterisk B2BUA sifatida buni to'g'ridan-to'g'ri
+  // boshqaradi (ikkinchi tomonga moh_suggest'dagi MOH klassini chaladi).
+  // Maxsus backend/ARI kodi shart emas, faqat SIP signalizatsiyasi.
+  const hold = useCallback(() => {
+    if (sessionRef.current) {
+      try { sessionRef.current.hold(); } catch (e) { /* ignore */ }
+    }
+  }, []);
+
+  const unhold = useCallback(() => {
+    if (sessionRef.current) {
+      try { sessionRef.current.unhold(); } catch (e) { /* ignore */ }
+    }
+  }, []);
+
+  return {
+    bridgeStatus, isRegistered, waitUntilRegistered, answer, terminate, setMute,
+    reinitialize: initialize, markOutboundDial, clearOutboundDial,
+    isOnHold, hold, unhold,
+  };
 }

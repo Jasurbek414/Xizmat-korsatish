@@ -1,5 +1,5 @@
 import React from 'react';
-import { Phone, PhoneCall, PhoneOff, Mic, MicOff, HelpCircle } from 'lucide-react';
+import { Phone, PhoneCall, PhoneOff, Mic, MicOff, HelpCircle, Pause, Play } from 'lucide-react';
 
 const PhoneDialer = ({
   phoneNumber,
@@ -7,13 +7,15 @@ const PhoneDialer = ({
   callStatus,
   duration,
   isMuted,
+  isOnHold,
   incomingNumber,
   handleKeypadPress,
   handleBackspace,
   handleDial,
   handleAccept,
   handleHangup,
-  toggleMute
+  toggleMute,
+  toggleHold,
 }) => {
   // Format call duration (mm:ss)
   const formatDuration = (seconds) => {
@@ -53,7 +55,11 @@ const PhoneDialer = ({
             <>
               <span className="text-sm font-bold text-emerald-500 dark:text-emerald-400 tracking-wider font-mono">{phoneNumber || incomingNumber}</span>
               <span className="text-lg font-extrabold text-slate-800 dark:text-white mt-1 font-mono">{formatDuration(duration)}</span>
-              <span className="text-[10px] text-emerald-600 dark:text-emerald-400 mt-0.5 uppercase font-bold tracking-wider">Aloqa o'rnatildi</span>
+              {isOnHold ? (
+                <span className="text-[10px] text-amber-500 dark:text-amber-400 mt-0.5 uppercase font-bold tracking-wider">Kutishda...</span>
+              ) : (
+                <span className="text-[10px] text-emerald-600 dark:text-emerald-400 mt-0.5 uppercase font-bold tracking-wider">Aloqa o'rnatildi</span>
+              )}
             </>
           )}
 
@@ -75,6 +81,14 @@ const PhoneDialer = ({
               title={isMuted ? "Mikrofonni yoqish" : "Mikrofonni o'chirish"}
             >
               {isMuted ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
+            </button>
+            <button
+              type="button"
+              onClick={toggleHold}
+              className={`p-4 rounded-full border transition cursor-pointer ${isOnHold ? 'bg-amber-500/10 text-amber-500 border-amber-500/20' : 'bg-slate-100 hover:bg-slate-200 dark:bg-white/5 dark:hover:bg-white/10 text-slate-600 dark:text-gray-300 border-slate-200 dark:border-white/5'}`}
+              title={isOnHold ? "Davom ettirish" : "Kutishga qo'yish"}
+            >
+              {isOnHold ? <Play className="w-5 h-5" /> : <Pause className="w-5 h-5" />}
             </button>
             <button
               type="button"

@@ -76,6 +76,12 @@ public class TelephonyWebSocketHandler extends TextWebSocketHandler implements T
             presenceManager.setStatus(userId, "ONLINE");
             setDeviceStatus(userId, "ONLINE");
             log.info("Telephony WebSocket established for user: {}", userId);
+            // Navbat (queue): operator endi ONLINE - shu kompaniya uchun
+            // musiqa bilan kutayotgan qo'ng'iroq bo'lsa, unga ulanishga
+            // harakat qilamiz (avval hech qayerdan chaqirilmagani uchun
+            // navbatdagi mijoz operator qaytishini "sezmasdi").
+            UUID companyId = companyIdOf(session);
+            telephonyService.tryServeQueuedCalls(companyId);
         } else {
             session.close(CloseStatus.NOT_ACCEPTABLE);
         }

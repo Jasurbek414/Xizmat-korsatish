@@ -231,13 +231,26 @@ public class AsteriskEventListener {
 
     /**
      * Operator (ichki extension) oyog'i javob berdi - bridge'ga qo'shamiz,
-     * ring group qolgan a'zolarini uzamiz, va agar bu chiquvchi qo'ng'iroqning
-     * operator oyog'i bo'lsa (channelId "&lt;sessionUuid&gt;-op") haqiqiy
-     * sessiyani "javob berildi" deb belgilaymiz - FreeSWITCH'dagi CHANNEL_BRIDGE
-     * hodisasining ekvivalenti (ikkala oyoq ham HAQIQATAN birlashtirilgandagina keladi).
+     * ring group qolgan a'zolarini uzamiz, va ota-sessiyani "javob berildi"
+     * deb belgilaymiz - FreeSWITCH'dagi CHANNEL_BRIDGE hodisasining
+     * ekvivalenti (ikkala oyoq ham HAQIQATAN birlashtirilgandagina keladi).
+     *
+     * MUHIM (audit'da topilgan xato, tuzatildi): ota-sessiya ID'si avval
+     * channelId'ning "-op" SUFFIKSIDAN olinardi - bu FAQAT chiquvchi
+     * qo'ng'iroq oqimida ishlaydi (operator kanali AYNAN "&lt;sessionUuid&gt;-op"
+     * shaklida). Kiruvchi qo'ng'iroq ring-group'ida operator kanallari
+     * "&lt;channelUuid&gt;-op-&lt;extension&gt;" shaklida (AsteriskAdapter.
+     * bridgeIncomingCall'ga qarang) - bu suffiks bilan HECH QACHON mos
+     * kelmasdi, shuning uchun kiruvchi qo'ng'iroqlar uchun answerCall
+     * umuman chaqirilmasdi (backend hech qachon "javob berildi" demasdi).
+     * Endi ota-sessiya ID'si BRIDGE NOMIDAN olinadi - bu invariant ikkala
+     * oqimda ham izchil: chiquvchi "&lt;sessionUuid&gt;-bridge"
+     * (handleTrunkLegAnswered), kiruvchi "&lt;channelUuid&gt;-bridge"
+     * (AsteriskAdapter.bridgeIncomingCall) - ikkalasida ham "-bridge"
+     * suffiksini olib tashlash to'g'ri ota ID'ni beradi.
      */
     private void handleOperatorLegAnswered(String channelId, String bridgeId) {
-        if (bridgeId == null) return;
+        if (bridgeId == null || !bridgeId.endsWith("-bridge")) return;
         ariClient.addChannelToBridge(bridgeId, channelId);
 
         List<String> siblings = callState.removeRingGroup(bridgeId);
@@ -249,14 +262,14 @@ public class AsteriskEventListener {
             }
         }
 
-        if (channelId.endsWith("-op")) {
-            String sessionIdStr = channelId.substring(0, channelId.length() - "-op".length());
-            try {
-                telephonyService.answerCall(UUID.fromString(sessionIdStr));
-            } catch (IllegalArgumentException ignored) {
-                // "-op" bilan tugagan, lekin sessionUuid formatida bo'lmagan
-                // kanal (nazariy jihatdan bo'lmasligi kerak) - e'tiborsiz.
-            }
+        String parentIdStr = bridgeId.substring(0, bridgeId.length() - "-bridge".length());
+        try {
+            telephonyService.answerCall(UUID.fromString(parentIdStr));
+        } catch (IllegalArgumentException ignored) {
+            // Nazariy jihatdan bo'lmasligi kerak - "-bridge"dan oldingi qism
+            // har doim yo sessionUuid (chiquvchi) yo channelUuid (kiruvchi,
+            // ham UUID formatida - Asterisk ARI kanal ID'lari originate
+            // qilinganda biz bergan qiymat, ikkalasi ham UUID.toString()).
         }
     }
 

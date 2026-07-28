@@ -318,6 +318,13 @@ const Telephony = ({ auth }) => {
     setIsMuted(next);
   };
 
+  // Kutish holati - haqiqiy holat JsSIP'ning 'hold'/'unhold' hodisalaridan
+  // keladi (sip.isOnHold), bu yerda faqat SIP re-INVITE'ni ishga tushiramiz.
+  const toggleHold = () => {
+    if (sip.isOnHold) sip.unhold();
+    else sip.hold();
+  };
+
   const handleSaveSettings = async (e) => {
     e.preventDefault();
     try {
@@ -391,6 +398,7 @@ const Telephony = ({ auth }) => {
             callStatus={callStatus}
             duration={duration}
             isMuted={isMuted}
+            isOnHold={sip.isOnHold}
             incomingNumber={incomingNumber}
             handleKeypadPress={handleKeypadPress}
             handleBackspace={handleBackspace}
@@ -398,6 +406,7 @@ const Telephony = ({ auth }) => {
             handleAccept={handleAccept}
             handleHangup={handleHangup}
             toggleMute={toggleMute}
+            toggleHold={toggleHold}
           />
         </div>
 

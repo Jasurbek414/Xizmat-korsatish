@@ -152,6 +152,14 @@ services:
       # papkaga yozadi - pjsip.conf oxiridagi "#include pjsip.d/*.conf" orqali
       # avtomatik o'qiladi (backend'dagi bir xil bind mount'ga qarang).
       - ./asterisk-config/pjsip.d:/etc/asterisk/pjsip.d
+      # MUHIM: "andrius/asterisk" image'ida standart MOH (music-on-hold)
+      # audio fayllari YO'Q (/var/lib/asterisk/moh/ bo'sh) - musiconhold.conf'dagi
+      # [default] klass shu papkani ko'rsatadi. Hold (B-qism) va navbat
+      # (C-qism, kutish bridge'i) HAQIQATAN ishlaydi (chaqiriq uzilmaydi),
+      # lekin fayl bo'lmagani uchun mijoz musiqa o'rniga jimlik eshitadi.
+      # Haqiqiy musiqa uchun istalgan 8kHz'ga mos audio faylni (masalan .wav)
+      # shu papkaga qo'yish kifoya - Asterisk qayta ishga tushirilganda avtomatik topadi.
+      - ./asterisk-config/moh:/var/lib/asterisk/moh
       - asterisk_data:/var/lib/asterisk
 
   # TURN server (coturn) - WebRTC ovoz (media) relay.
