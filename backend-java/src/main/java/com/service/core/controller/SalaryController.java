@@ -1,10 +1,14 @@
 package com.service.core.controller;
 
 import com.service.core.model.Company;
+import com.service.core.model.Order;
+import com.service.core.model.OrderStatus;
 import com.service.core.model.Salary;
 import com.service.core.model.Transaction;
 import com.service.core.model.User;
 import com.service.core.repository.CompanyRepository;
+import com.service.core.repository.OrderRepository;
+import com.service.core.repository.OrderStatusRepository;
 import com.service.core.repository.SalaryRepository;
 import com.service.core.repository.TransactionRepository;
 import com.service.core.repository.UserRepository;
@@ -15,6 +19,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.YearMonth;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -31,13 +36,18 @@ public class SalaryController {
     private final TransactionRepository transactionRepository;
     private final UserRepository userRepository;
     private final CompanyRepository companyRepository;
+    private final OrderRepository orderRepository;
+    private final OrderStatusRepository orderStatusRepository;
 
     public SalaryController(SalaryRepository salaryRepository, TransactionRepository transactionRepository,
-                             UserRepository userRepository, CompanyRepository companyRepository) {
+                             UserRepository userRepository, CompanyRepository companyRepository,
+                             OrderRepository orderRepository, OrderStatusRepository orderStatusRepository) {
         this.salaryRepository = salaryRepository;
         this.transactionRepository = transactionRepository;
         this.userRepository = userRepository;
         this.companyRepository = companyRepository;
+        this.orderRepository = orderRepository;
+        this.orderStatusRepository = orderStatusRepository;
     }
 
     @GetMapping
@@ -87,12 +97,45 @@ public class SalaryController {
                 .filter(u -> !alreadyGenerated.contains(u.getId()))
                 .toList();
 
+        // MUHIM (audit'da topilgan xato, tuzatildi): haydovchi komissiyasi avval
+        // FAQAT veb-admin panelida (Salaries.jsx/PayslipModal.jsx) HAR SAFAR
+        // ekranga chizilganda qattiq yozilgan "10%" bilan qayta hisoblanardi -
+        // (1) Sozlamalar > Umumiy'dagi "Haydovchi KPI foizi" (Company.driverKpiPercent)
+        // HECH QACHON ishlatilmasdi - admin uni 20% qilib qo'ysa ham komissiya
+        // baribir 10% bo'lib qolardi; (2) bu ekranda ko'rsatilgan (va bosib
+        // chiqariladigan Payslip'da "Sof to'lanadigan" sifatida yozilgan) summa
+        // HAQIQIY Salary.bonus'ga HECH QACHON yozilmasdi - "To'lash" bosilganda
+        // backend faqat bazadagi (komissiyasiz) bonus asosida xarajat
+        // tranzaksiyasini yozardi. Natijada xodimga bosib berilgan hisob-kitob
+        // varaqasidagi summa bilan Moliya bo'limida haqiqatda qayd etilgan
+        // to'lov summasi mos kelmasdi. Endi komissiya HAQIQIY (payPeriod oyidagi
+        // yakunlangan buyurtmalar bo'yicha, kompaniyaning o'zi sozlagan foizi
+        // bilan) shu yerda HISOBLANIB, Salary.bonus'ga bir marta yoziladi -
+        // ko'rinish, chop etish va haqiqiy to'lov endi doim BIR XIL manbadan keladi.
+        List<OrderStatus> sortedStatuses = orderStatusRepository.findByCompanyIdOrderBySortOrderAsc(companyId);
+        UUID finalStatusId = sortedStatuses.isEmpty() ? null : sortedStatuses.get(sortedStatuses.size() - 1).getId();
+        int kpiPercent = company.getDriverKpiPercent() != null ? company.getDriverKpiPercent() : 10;
+        YearMonth payYearMonth = YearMonth.from(payPeriod);
+
         List<Salary> created = new ArrayList<>();
         for (User u : eligible) {
+            BigDecimal commission = BigDecimal.ZERO;
+            if ("WORKER_DRIVER".equalsIgnoreCase(u.getRole()) && finalStatusId != null) {
+                List<Order> workerOrders = orderRepository.findByCompanyIdAndWorkerId(companyId, u.getId());
+                BigDecimal completedTotal = workerOrders.stream()
+                        .filter(o -> o.getStatus() != null && finalStatusId.equals(o.getStatus().getId()))
+                        .filter(o -> o.getCreatedAt() != null && YearMonth.from(o.getCreatedAt()).equals(payYearMonth))
+                        .map(Order::getPrice)
+                        .reduce(BigDecimal.ZERO, BigDecimal::add);
+                commission = completedTotal.multiply(BigDecimal.valueOf(kpiPercent))
+                        .divide(BigDecimal.valueOf(100));
+            }
+
             Salary salary = Salary.builder()
                     .company(company)
                     .user(u)
                     .baseSalary(BigDecimal.valueOf(u.getSalary()))
+                    .bonus(commission)
                     .payPeriod(payPeriod)
                     .build();
             created.add(salaryRepository.save(salary));

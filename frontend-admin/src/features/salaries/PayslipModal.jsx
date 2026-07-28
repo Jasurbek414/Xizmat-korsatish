@@ -8,7 +8,10 @@ const PayslipModal = ({ isOpen, onClose, salary, orders = [], completedStatusId 
 
   if (!isOpen || !salary) return null;
 
-  // Filter completed orders for this worker in the current pay period
+  // Faqat ma'lumot uchun: shu davrda yakunlangan buyurtmalar ro'yxati
+  // (komissiya summasi endi backend'da hisoblanib salary.bonus'ga yozilgan -
+  // bu yerda qayta hisoblanmaydi, aks holda chop etilgan summa Moliyadagi
+  // haqiqiy to'lovdan farqlanib qolishi mumkin edi - audit'da topilgan xato).
   const workerOrders = orders.filter(o => {
     const isWorker = o.worker_name.toLowerCase() === salary.full_name.toLowerCase();
     const isCompleted = completedStatusId !== null && o.status_id === completedStatusId;
@@ -17,11 +20,7 @@ const PayslipModal = ({ isOpen, onClose, salary, orders = [], completedStatusId 
     const orderPeriod = o.created_at ? o.created_at.slice(0, 7) : ''; // "2026-06"
     return isWorker && isCompleted && orderPeriod === salary.pay_period;
   });
-
-  // Calculate dynamic commissions
   const totalOrdersAmount = workerOrders.reduce((sum, o) => sum + o.price, 0);
-  const commission = Math.round(totalOrdersAmount * 0.1); // 10%
-  const baseBonus = Math.max(salary.bonus - commission, 0);
 
   const netSalary = salary.base_salary + salary.bonus - salary.deductions;
 
@@ -108,13 +107,7 @@ const PayslipModal = ({ isOpen, onClose, salary, orders = [], completedStatusId 
                   <span className="text-slate-500 dark:text-gray-400">{t('salaries_page.orders_comm')}</span>
                   <span className="text-[9px] text-slate-400 block font-normal">Bajarilgan buyurtmalar soni: {workerOrders.length} ta ({formatCurrency(totalOrdersAmount, i18n.language)} jami)</span>
                 </div>
-                <span className="text-emerald-600 font-bold">+{formatCurrency(commission, i18n.language)}</span>
-              </div>
-
-              {/* Performance Bonus */}
-              <div className="flex justify-between items-center py-1">
-                <span className="text-slate-500 dark:text-gray-400">{t('salaries_page.performance_bonus')}</span>
-                <span className="text-emerald-600 font-bold">+{formatCurrency(baseBonus, i18n.language)}</span>
+                <span className="text-emerald-600 font-bold">+{formatCurrency(salary.bonus, i18n.language)}</span>
               </div>
 
               {/* Deductions */}

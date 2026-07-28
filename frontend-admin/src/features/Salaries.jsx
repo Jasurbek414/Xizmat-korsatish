@@ -52,26 +52,24 @@ const Salaries = ({ tab }) => {
         created_at: o.createdAt
       }));
 
+      // MUHIM (audit'da topilgan xato, tuzatildi): komissiya avval bu yerda
+      // qattiq yozilgan "10%" bilan HAR SAFAR qayta hisoblanardi - kompaniyaning
+      // Sozlamalar > Umumiy'da o'zi belgilagan "Haydovchi KPI foizi"ni butunlay
+      // e'tiborsiz qoldirib, va HAQIQIY to'lovda (SalaryController.paySalary)
+      // ishtirok etmasdi (faqat ko'rinish uchun soxta raqam edi - Payslip'da
+      // chop etilgan summa bilan Moliyada qayd etilgan haqiqiy to'lov mos
+      // kelmasdi). Endi backend (/salaries/generate) buni to'g'ri foiz bilan
+      // hisoblab, Salary.bonus'ga bir marta yozadi - shu yerda faqat backend
+      // qaytargan qiymat ko'rsatiladi.
       const computedSalaries = salariesData.map(sal => {
         const payPeriodStr = sal.payPeriod.substring(0, 7); // e.g. "2026-06"
-
-        // Find completed orders for this worker in this period
-        const workerCompletedOrders = mappedOrders.filter(ord => {
-          const isWorker = ord.worker_name.toLowerCase() === sal.user.fullName.toLowerCase();
-          const isCompleted = completedStatusId !== null && ord.status_id === completedStatusId;
-          const ordPeriod = ord.created_at ? ord.created_at.slice(0, 7) : '';
-          return isWorker && isCompleted && ordPeriod === payPeriodStr;
-        });
-
-        const totalOrdersAmount = workerCompletedOrders.reduce((sum, ord) => sum + ord.price, 0);
-        const commission = Math.round(totalOrdersAmount * 0.1); // 10% commission
 
         return {
           id: sal.id,
           user_id: sal.user.id,
           full_name: sal.user.fullName,
           base_salary: sal.baseSalary,
-          bonus: sal.bonus + commission,
+          bonus: sal.bonus,
           deductions: sal.deductions,
           status: sal.status,
           pay_period: payPeriodStr
