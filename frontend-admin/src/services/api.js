@@ -342,6 +342,48 @@ export const api = {
     return handleResponse(res);
   },
 
+  // Finance: Debts (Nasiyalar & Qarzlar)
+  async getDebts() {
+    const res = await fetch(`${API_BASE_URL}/finance/debts`, {
+      headers: getHeaders()
+    });
+    return handleResponse(res);
+  },
+
+  async createDebt(debt) {
+    const res = await fetch(`${API_BASE_URL}/finance/debts`, {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify(debt)
+    });
+    return handleResponse(res);
+  },
+
+  async payDebt(id) {
+    const res = await fetch(`${API_BASE_URL}/finance/debts/${id}/pay`, {
+      method: 'PUT',
+      headers: getHeaders()
+    });
+    return handleResponse(res);
+  },
+
+  // Finance: Budgets (Byudjetlar)
+  async getBudgets() {
+    const res = await fetch(`${API_BASE_URL}/finance/budgets`, {
+      headers: getHeaders()
+    });
+    return handleResponse(res);
+  },
+
+  async updateBudget(category, limitAmount) {
+    const res = await fetch(`${API_BASE_URL}/finance/budgets/${category}`, {
+      method: 'PUT',
+      headers: getHeaders(),
+      body: JSON.stringify({ limitAmount })
+    });
+    return handleResponse(res);
+  },
+
   // GPS Tracking
   async getDriversGps() {
     const res = await fetch(`${API_BASE_URL}/gps/drivers`, {

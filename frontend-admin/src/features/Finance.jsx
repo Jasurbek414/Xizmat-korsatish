@@ -9,16 +9,21 @@ import FinanceFilters from './finance/FinanceFilters';
 import FinanceTable from './finance/FinanceTable';
 import CreateTxModal from './finance/CreateTxModal';
 import PLReport from './finance/PLReport';
+import DebtManager from './finance/DebtManager';
+import BudgetManager from './finance/BudgetManager';
 
 const Finance = ({ tab }) => {
   const { t } = useTranslation();
-  
-  // Tabs: 'TRANSACTIONS' | 'PL'
+
+  // Tabs: 'TRANSACTIONS' | 'PL' | 'DEBTS' | 'BUDGETS'
   const [activeTab, setActiveTab] = useState('TRANSACTIONS');
 
   // DB States
   const [transactions, setTransactions] = useState([]);
   const [ordersList, setOrdersList] = useState([]);
+  const [debts, setDebts] = useState([]);
+  const [budgets, setBudgets] = useState([]);
+  const [completedStatusId, setCompletedStatusId] = useState(null);
   const [wallets, setWallets] = useState([
     { id: 'cash', name_uz: 'Naqd pul', name_ru: 'Наличные', name_en: 'Cash', balance: 0 }
   ]);
@@ -55,13 +60,46 @@ const Finance = ({ tab }) => {
   // Loading database items on mount or tab change
   const loadData = async () => {
     try {
-      const [txsData, statsData, ordersData, pendingHandoversData, pendingTxsData] = await Promise.all([
+      const [txsData, statsData, ordersData, pendingHandoversData, pendingTxsData, statusesData, debtsData, budgetsData] = await Promise.all([
         api.getTransactions(),
         api.getFinanceStats(),
         api.getOrders(),
         api.getPendingHandovers(),
-        api.getPendingTransactions()
+        api.getPendingTransactions(),
+        api.getOrderStatuses(),
+        api.getDebts(),
+        api.getBudgets()
       ]);
+
+      // MUHIM (audit'da topilgan xato, tuzatildi): "Kutilayotgan mablag'lar"
+      // (hali yakunlanmagan buyurtmalar summasi) avval qattiq yozilgan, hech
+      // qachon haqiqiy ma'lumotlarga mos kelmaydigan mock UUID'ga
+      // ("b4444444-...") solishtirilardi - HAQIQIY backend statuslari bu
+      // ID bilan hech qachon mos kelmagani uchun BARCHA buyurtmalar (hatto
+      // yakunlanganlari ham) "kutilayotgan" deb hisoblanib, ko'rsatkich
+      // doim shishirilgan edi. Endi Salaries.jsx bilan bir xil mantiq -
+      // kompaniyaning o'zi sozlagan statuslar ro'yxatidagi ENG OXIRGI
+      // (sort_order bo'yicha) status "yakunlangan" hisoblanadi.
+      const sortedStatuses = [...statusesData].sort((a, b) => a.sortOrder - b.sortOrder);
+      const completedStatusId = sortedStatuses.length > 0 ? sortedStatuses.slice(-1)[0].id : null;
+      setCompletedStatusId(completedStatusId);
+
+      const mappedDebts = debtsData.map(d => ({
+        id: d.id,
+        type: d.type,
+        person: d.person,
+        amount: d.amount,
+        description: d.description || '',
+        status: d.status,
+        created_at: d.createdAt
+      }));
+      setDebts(mappedDebts);
+
+      const mappedBudgets = budgetsData.map(b => ({
+        category: b.category,
+        limit: b.limitAmount
+      }));
+      setBudgets(mappedBudgets);
 
       const mappedTxs = txsData.map(t => ({
         id: t.id,
@@ -104,7 +142,7 @@ const Finance = ({ tab }) => {
       // Calculate Expected Funds (from non-completed orders)
       const pendingOrders = ordersData.filter(o => {
         const statusId = o.status ? o.status.id : '';
-        return statusId !== 'b4444444-4444-4444-4444-444444444444';
+        return completedStatusId !== null && statusId !== completedStatusId;
       });
       const pendingSum = pendingOrders.reduce((sum, o) => sum + (o.price || 0), 0);
       setExpectedFunds(pendingSum);
@@ -177,6 +215,53 @@ const Finance = ({ tab }) => {
     }
   };
 
+  // Debts (Nasiyalar & Qarzlar)
+  const handleCreateDebt = async (newDebt) => {
+    try {
+      const saved = await api.createDebt({
+        type: newDebt.type,
+        person: newDebt.person,
+        amount: newDebt.amount,
+        description: newDebt.description
+      });
+      setDebts(prev => [...prev, {
+        id: saved.id,
+        type: saved.type,
+        person: saved.person,
+        amount: saved.amount,
+        description: saved.description || '',
+        status: saved.status,
+        created_at: saved.createdAt
+      }]);
+    } catch (err) {
+      window.alert(err.message || "Qarz yozishda xatolik yuz berdi");
+    }
+  };
+
+  const handlePayDebt = async (debtId) => {
+    if (!window.confirm("Ushbu qarzni so'ndirilgan deb belgilaysizmi? Bu amal Moliya balansiga ta'sir qiladi.")) return;
+    try {
+      await api.payDebt(debtId);
+      setDebts(prev => prev.map(d => d.id === debtId ? { ...d, status: 'PAID' } : d));
+      // Qarz to'lovi Moliyada yangi tranzaksiya sifatida yozildi - balansni yangilaymiz.
+      const statsData = await api.getFinanceStats();
+      setTotals({ income: statsData.totalIncome, expense: statsData.totalExpense, balance: statsData.balance });
+      loadData();
+    } catch (err) {
+      window.alert(err.message || "Qarzni to'lashda xatolik yuz berdi");
+    }
+  };
+
+  // Budgets (Byudjetlar)
+  const handleUpdateBudget = async (category, limit) => {
+    try {
+      await api.updateBudget(category, limit);
+      setBudgets(prev => prev.map(b => b.category === category ? { ...b, limit } : b));
+    } catch (err) {
+      window.alert(err.message || "Byudjet limitini saqlashda xatolik yuz berdi");
+    }
+  };
+
   const handleConfirmTransaction = async (txId) => {
     if (!window.confirm("Ushbu kuryer tranzaksiyasini tasdiqlab, kassaga qabul qilasizmi?")) return;
     try {
@@ -227,11 +312,11 @@ const Finance = ({ tab }) => {
 
       // Check if not completed
       const statusId = o.status ? o.status.id : '';
-      return statusId !== 'b4444444-4444-4444-4444-444444444444';
+      return completedStatusId !== null && statusId !== completedStatusId;
     });
 
     return pendingOrders.reduce((sum, o) => sum + (o.price || 0), 0);
-  }, [ordersList, selectedDate]);
+  }, [ordersList, selectedDate, completedStatusId]);
 
   const categories = ['ALL', 'ORDER_PAYMENT', 'SALARY', 'OFFICE_EXPENSE', 'TAX', 'DEBT_PAYMENT', 'TRANSFER'];
 
@@ -402,11 +487,23 @@ const Finance = ({ tab }) => {
         >
           {t('finance_page.tx_history')} & Kassa
         </button>
-        <button 
+        <button
           onClick={() => setActiveTab('PL')}
           className={`flex-1 sm:flex-initial px-5 py-2 rounded-lg cursor-pointer transition ${activeTab === 'PL' ? 'bg-white dark:bg-indigo-600/15 text-indigo-600 dark:text-indigo-400 shadow-sm' : 'text-slate-600 dark:text-gray-400 hover:text-slate-900'}`}
         >
           {t('finance_page.reports')} (P&L Hisoboti)
+        </button>
+        <button
+          onClick={() => setActiveTab('DEBTS')}
+          className={`flex-1 sm:flex-initial px-5 py-2 rounded-lg cursor-pointer transition ${activeTab === 'DEBTS' ? 'bg-white dark:bg-indigo-600/15 text-indigo-600 dark:text-indigo-400 shadow-sm' : 'text-slate-600 dark:text-gray-400 hover:text-slate-900'}`}
+        >
+          {t('finance_page.debts')}
+        </button>
+        <button
+          onClick={() => setActiveTab('BUDGETS')}
+          className={`flex-1 sm:flex-initial px-5 py-2 rounded-lg cursor-pointer transition ${activeTab === 'BUDGETS' ? 'bg-white dark:bg-indigo-600/15 text-indigo-600 dark:text-indigo-400 shadow-sm' : 'text-slate-600 dark:text-gray-400 hover:text-slate-900'}`}
+        >
+          {t('finance_page.budget')}
         </button>
       </div>
 
@@ -542,6 +639,23 @@ const Finance = ({ tab }) => {
 
       {activeTab === 'PL' && (
         <PLReport transactions={filteredTx} />
+      )}
+
+      {activeTab === 'DEBTS' && (
+        <DebtManager
+          debts={debts}
+          wallets={wallets}
+          onPayDebt={handlePayDebt}
+          onCreateDebt={handleCreateDebt}
+        />
+      )}
+
+      {activeTab === 'BUDGETS' && (
+        <BudgetManager
+          budgets={budgets}
+          transactions={transactions}
+          onUpdateBudget={handleUpdateBudget}
+        />
       )}
 
       {/* Modals */}
