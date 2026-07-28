@@ -9,10 +9,10 @@ import java.security.SecureRandom;
 import java.util.Optional;
 
 /**
- * Har bir operator uchun FreeSWITCH "internal" profilida ICHKI SIP
- * extension'ni ta'minlaydi (brauzer JsSIP shu bilan ro'yxatdan o'tadi).
- * Bu UzTelecom trunk hisobi (SipAccount) bilan hech qanday aloqasi yo'q -
- * butunlay alohida, FreeSWITCH'ning "internal" profili/katalogi uchun.
+ * Har bir operator uchun Asterisk PJSIP "transport-ws" orqali ro'yxatdan
+ * o'tadigan ICHKI SIP/WebRTC extension'ni ta'minlaydi (brauzer JsSIP shu
+ * bilan ro'yxatdan o'tadi). Bu UzTelecom trunk hisobi (SipAccount) bilan
+ * hech qanday aloqasi yo'q - butunlay alohida, ichki extensionlar uchun.
  */
 @Service
 public class ExtensionService {
@@ -24,15 +24,15 @@ public class ExtensionService {
     private static final int PASSWORD_LENGTH = 24;
 
     private final DeviceRepository deviceRepository;
-    private final FreeSwitchExtensionFileWriter extensionFileWriter;
+    private final AsteriskExtensionConfigWriter extensionConfigWriter;
     private final SIPAdapter sipAdapter;
     private final SecureRandom secureRandom = new SecureRandom();
 
     public ExtensionService(DeviceRepository deviceRepository,
-                             FreeSwitchExtensionFileWriter extensionFileWriter,
+                             AsteriskExtensionConfigWriter extensionConfigWriter,
                              SIPAdapter sipAdapter) {
         this.deviceRepository = deviceRepository;
-        this.extensionFileWriter = extensionFileWriter;
+        this.extensionConfigWriter = extensionConfigWriter;
         this.sipAdapter = sipAdapter;
     }
 
@@ -52,14 +52,14 @@ public class ExtensionService {
         if (existing.isPresent()) {
             Device device = existing.get();
             // MUHIM (audit: 12-band, "o'z-o'zini tiklash") - DB'da Device
-            // yozuvi bor bo'lishi extension XML fayli HALI HAM diskda
-            // borligini kafolatlamaydi (masalan FreeSWITCH konteyneri/volume
+            // yozuvi bor bo'lishi konfiguratsiya fayli HALI HAM diskda
+            // borligini kafolatlamaydi (masalan Asterisk konteyneri/volume
             // qayta qurilgan bo'lsa) - bunday holatda foydalanuvchi hech
             // qachon sababini bilmasdan ro'yxatdan o'ta olmay qolardi. Endi
             // har safar qaytarishdan oldin fayl mavjudligi tekshiriladi, yo'q
             // bo'lsa xuddi shu ma'lumotlar bilan avtomatik qayta yoziladi.
-            if (!extensionFileWriter.exists(device)) {
-                extensionFileWriter.writeExtension(device);
+            if (!extensionConfigWriter.exists(device)) {
+                extensionConfigWriter.writeConfig(device);
                 sipAdapter.reloadDirectory();
             }
             return device;
@@ -74,7 +74,7 @@ public class ExtensionService {
                 .build();
 
         Device saved = deviceRepository.save(device);
-        extensionFileWriter.writeExtension(saved);
+        extensionConfigWriter.writeConfig(saved);
         sipAdapter.reloadDirectory();
         return saved;
     }

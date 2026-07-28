@@ -19,7 +19,7 @@ public class RegistrationManager {
     private final SipAccountRepository sipAccountRepository;
     private final RegistrationRepository registrationRepository;
     private final SIPAdapter sipAdapter;
-    private final FreeSwitchGatewayFileWriter gatewayFileWriter;
+    private final AsteriskTrunkConfigWriter trunkConfigWriter;
     private final TelephonyEventBus eventBus;
 
     private final Map<UUID, String> statusCache = new ConcurrentHashMap<>();
@@ -27,12 +27,12 @@ public class RegistrationManager {
     public RegistrationManager(SipAccountRepository sipAccountRepository,
                                RegistrationRepository registrationRepository,
                                SIPAdapter sipAdapter,
-                               FreeSwitchGatewayFileWriter gatewayFileWriter,
+                               AsteriskTrunkConfigWriter trunkConfigWriter,
                                TelephonyEventBus eventBus) {
         this.sipAccountRepository = sipAccountRepository;
         this.registrationRepository = registrationRepository;
         this.sipAdapter = sipAdapter;
-        this.gatewayFileWriter = gatewayFileWriter;
+        this.trunkConfigWriter = trunkConfigWriter;
         this.eventBus = eventBus;
     }
 
@@ -79,13 +79,12 @@ public class RegistrationManager {
     public void checkAndRegisterTrunks() {
         List<SipAccount> accounts = sipAccountRepository.findAll();
         for (SipAccount account : accounts) {
-            // MUHIM: avval FreeSWITCH'ning HAQIQIY holatini so'raymiz - hodisaga
-            // (sofia::gateway_state) tayanmaymiz, chunki gateway listener
-            // ulanmasdan oldin ro'yxatdan o'tgan bo'lsa, hech qanday hodisa
-            // kelmaydi va cache noto'g'ri "UNREGISTERED"da qolib ketardi (bu
-            // esa ishlaydigan trunk'ni har 30 soniyada keraksiz qayta
-            // ro'yxatdan o'tkazishga urinishga, ya'ni "registration churn"ga
-            // sabab bo'lardi).
+            // MUHIM: avval PBX'ning HAQIQIY holatini so'raymiz (ARI endpoint
+            // holati orqali) - hodisaga tayanmaymiz, aks holda cache noto'g'ri
+            // "UNREGISTERED"da qolib ketardi (bu esa ishlaydigan trunk'ni har
+            // 30 soniyada keraksiz qayta ro'yxatdan o'tkazishga urinishga,
+            // ya'ni "registration churn"ga sabab bo'lardi - TELEFONIYA-XATOLAR.md
+            // 19-band).
             String realStatus = sipAdapter.queryRegistrationStatus(account.getId().toString());
             if (realStatus != null && !realStatus.equals(getStatus(account.getId()))) {
                 // Haqiqiy holat cache'dagidan FARQ qilsagina yozamiz - aks holda
@@ -102,12 +101,11 @@ public class RegistrationManager {
             // tegmaymiz.
             if ("UNREGISTERED".equals(effectiveStatus) || "FAILED".equals(effectiveStatus)) {
                 try {
-                    // Gateway faylini har safar qayta yozamiz (o'z-o'zini tuzatuvchi -
-                    // masalan volume tiklanganda yoki fayl SipAccountController orqali
-                    // emas, boshqa yo'l bilan yaratilgan hisob uchun hech qachon
-                    // yozilmagan bo'lsa ham, shu yerda albatta mavjud bo'lishini
-                    // ta'minlaydi - jonli testda aynan shu holat aniqlangan edi).
-                    gatewayFileWriter.writeGateway(account);
+                    // Konfiguratsiya faylini har safar qayta yozamiz (o'z-o'zini
+                    // tuzatuvchi - masalan volume tiklanganda yoki fayl boshqa yo'l
+                    // bilan yaratilgan hisob uchun hech qachon yozilmagan bo'lsa ham,
+                    // shu yerda albatta mavjud bo'lishini ta'minlaydi).
+                    trunkConfigWriter.writeConfig(account);
                     sipAdapter.register(account);
                     updateStatus(account.getId(), "REGISTERING", null);
                 } catch (Exception e) {

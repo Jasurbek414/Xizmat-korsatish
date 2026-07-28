@@ -1,0 +1,14 @@
+; ARI (Asterisk REST Interface) - Java backend shu orqali qo'ng'iroqlarni
+; boshqaradi (2-bosqichda AsteriskAdapter/AsteriskEventListener). Faqat
+; ichki Docker tarmog'idan yetiladi (http.conf izohiga qarang).
+[general]
+enabled=yes
+pretty=yes
+
+; MUHIM: bu parol backend'ning ASTERISK_ARI_PASSWORD (.env) qiymati bilan
+; BIR XIL bo'lishi SHART, aks holda ARI autentifikatsiyasi muvaffaqiyatsiz
+; tugaydi (xuddi avvalgi FREESWITCH_ESL_PASSWORD invarianti kabi).
+[asterisk]
+type=user
+password=CHANGE_ME_ARI_PASSWORD
+read_only=no

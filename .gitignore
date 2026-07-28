@@ -37,6 +37,15 @@ mobile-flutter/android/app/google-services.json
 .env.development.local
 .env.test.local
 .env.production.local
+
+# Asterisk - haqiqiy UzTelecom trunk paroli va ARI paroli shu fayllarda ochiq
+# matnda saqlanadi (.env kabi) - faqat *.conf.example namunalari git'ga tushadi.
+asterisk-config/pjsip.conf
+asterisk-config/ari.conf
+# AsteriskTrunkConfigWriter/AsteriskExtensionConfigWriter (backend) yozadigan
+# haqiqiy trunk/operator parollari - _placeholder.conf'dan tashqari hammasi.
+asterisk-config/pjsip.d/*.conf
+!asterisk-config/pjsip.d/_placeholder.conf
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*

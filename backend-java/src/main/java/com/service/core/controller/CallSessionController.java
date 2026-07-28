@@ -18,7 +18,7 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 
 /**
- * FreeSwitchEventListener orqali backend o'zi avtoritativ yozadigan qo'ng'iroq
+ * AsteriskEventListener orqali backend o'zi avtoritativ yozadigan qo'ng'iroq
  * tarixini (CallSession) o'qish uchun. Bundan oldin bu yozuvlar faqat bazaga
  * saqlanardi-yu, ularni o'qish uchun hech qanday endpoint yo'q edi.
  */

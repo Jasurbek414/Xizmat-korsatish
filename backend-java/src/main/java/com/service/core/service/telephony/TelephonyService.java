@@ -15,7 +15,6 @@ import org.springframework.stereotype.Service;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
-import java.util.stream.Collectors;
 
 @Service
 public class TelephonyService {
@@ -29,7 +28,7 @@ public class TelephonyService {
     private final TelephonyEventBus eventBus;
     private final CallSessionRepository callSessionRepository;
     private final SipAccountRepository sipAccountRepository;
-    private final FreeSwitchGatewayFileWriter gatewayFileWriter;
+    private final AsteriskTrunkConfigWriter trunkConfigWriter;
     private final DeviceRepository deviceRepository;
     private final UserRepository userRepository;
 
@@ -40,7 +39,7 @@ public class TelephonyService {
                             TelephonyEventBus eventBus,
                             CallSessionRepository callSessionRepository,
                             SipAccountRepository sipAccountRepository,
-                            FreeSwitchGatewayFileWriter gatewayFileWriter,
+                            AsteriskTrunkConfigWriter trunkConfigWriter,
                             DeviceRepository deviceRepository,
                             UserRepository userRepository) {
         this.sipAdapter = sipAdapter;
@@ -50,7 +49,7 @@ public class TelephonyService {
         this.eventBus = eventBus;
         this.callSessionRepository = callSessionRepository;
         this.sipAccountRepository = sipAccountRepository;
-        this.gatewayFileWriter = gatewayFileWriter;
+        this.trunkConfigWriter = trunkConfigWriter;
         this.deviceRepository = deviceRepository;
         this.userRepository = userRepository;
     }
@@ -64,14 +63,15 @@ public class TelephonyService {
 
     public void registerSipAccount(SipAccount account) {
         registrationManager.updateStatus(account.getId(), "REGISTERING", null);
-        // Haqiqiy FreeSWITCH gateway faylini yozamiz - shundan keyingina "rescan"
-        // buyrug'i ma'noli bo'ladi (aks holda FreeSWITCH bu hisob haqida bilmaydi).
-        gatewayFileWriter.writeGateway(account);
+        // Haqiqiy PJSIP konfiguratsiya faylini yozamiz - shundan keyingina
+        // "reloadDirectory" buyrug'i ma'noli bo'ladi (aks holda Asterisk bu
+        // hisob haqida bilmaydi).
+        trunkConfigWriter.writeConfig(account);
         try {
             sipAdapter.register(account);
-            // Haqiqiy "REGISTERED" holati endi FreeSwitchEventListener orqali
-            // FreeSWITCH'ning o'z sofia::gateway_state hodisasi kelganda
-            // tasdiqlanadi - bu yerda muvaffaqiyat oldindan taxmin qilinmaydi.
+            // Haqiqiy "REGISTERED" holati endi RegistrationManager'ning davriy
+            // ARI so'rovi (queryRegistrationStatus) orqali tasdiqlanadi - bu
+            // yerda muvaffaqiyat oldindan taxmin qilinmaydi.
             eventBus.publish(new TelephonyEvent("REGISTRATION", account.getId(), account.getCompany().getId()));
         } catch (Exception e) {
             registrationManager.updateStatus(account.getId(), "FAILED", e.getMessage());
@@ -82,13 +82,13 @@ public class TelephonyService {
      * Mavjud SipAccount sozlamalari o'zgartirilganda (audit: "Dublikat trunk
      * yaratilishi" xatosi - frontend har safar sozlamani saqlashda YANGI
      * SipAccount yaratardi, chunki yangilash uchun alohida endpoint yo'q edi).
-     * Gateway fayli nomi hisob ID'siga bog'liq bo'lgani uchun (ID o'zgarmaydi),
-     * faylni yangi qiymatlar bilan qayta yozib, eski ro'yxatdan o'tishni
-     * "killgw" bilan tugatib, keyin "rescan" orqali yangi fayl yuklanadi.
+     * Konfiguratsiya fayli nomi hisob ID'siga bog'liq bo'lgani uchun (ID
+     * o'zgarmaydi), faylni yangi qiymatlar bilan qayta yozib, eski ro'yxatdan
+     * o'tishni "unregister" bilan tugatib, keyin qayta ro'yxatdan o'tkaziladi.
      */
     public void updateSipAccount(SipAccount account) {
         registrationManager.updateStatus(account.getId(), "REGISTERING", null);
-        gatewayFileWriter.writeGateway(account);
+        trunkConfigWriter.writeConfig(account);
         try {
             sipAdapter.unregister(account);
             sipAdapter.register(account);
@@ -101,7 +101,7 @@ public class TelephonyService {
     public void unregisterSipAccount(SipAccount account) {
         try {
             sipAdapter.unregister(account);
-            gatewayFileWriter.deleteGateway(account);
+            trunkConfigWriter.deleteConfig(account);
             registrationManager.updateStatus(account.getId(), "UNREGISTERED", null);
         } catch (Exception e) {
             // Ignore
@@ -190,12 +190,17 @@ public class TelephonyService {
             sipAdapter.hangupCall(channelUuid);
             return;
         }
-        String bridgeTarget = operators.stream()
-                .map(d -> "user/" + d.getExtensionNumber())
-                .collect(Collectors.joining(","));
+        // MUHIM: bu ro'yxat butunlay PBX'ga xos formatdan xoli (faqat raqamlar) -
+        // FreeSWITCH "user/2001" yoki Asterisk "PJSIP/2001" kabi dial-string'ga
+        // o'girishni endi har bir adapter o'zi, o'z ichida bajaradi (audit'da
+        // topilgan qatlam sizishi tuzatildi: avval bu FreeSWITCH-ga xos satr
+        // to'g'ridan-to'g'ri shu yerda, business logikada qurilardi).
+        List<String> extensionNumbers = operators.stream()
+                .map(Device::getExtensionNumber)
+                .toList();
         log.info("Kiruvchi qo'ng'iroq ({}dan -> {}): {} ta onlayn operatorga ulanmoqda: {}",
-                callerNumber, destinationNumber, operators.size(), bridgeTarget);
-        sipAdapter.bridgeIncomingCall(channelUuid, bridgeTarget);
+                callerNumber, destinationNumber, operators.size(), extensionNumbers);
+        sipAdapter.bridgeIncomingCall(channelUuid, extensionNumbers);
     }
 
     /** ESL hodisa tinglovchisi (ishonchli, ichki manba) tomonidan chaqiriladi. */

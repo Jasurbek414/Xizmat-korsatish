@@ -1,49 +1,57 @@
 package com.service.core.service.telephony;
 
 import com.service.core.model.SipAccount;
+import java.util.List;
 import java.util.UUID;
 
+/**
+ * PBX dvigateliga (hozir: Asterisk/ARI, ilgari: FreeSWITCH/ESL) bog'liq
+ * bo'lmagan qo'ng'iroq boshqaruvi abstraksiyasi. TelephonyService faqat shu
+ * interfeys orqali ishlaydi - qaysi PBX ishlatilayotgani unga ko'rinmaydi.
+ */
 public interface SIPAdapter {
     void register(SipAccount account);
     void unregister(SipAccount account);
 
     /**
-     * @param callerExtension operatorning FreeSWITCH "internal" profilidagi ICHKI
-     *                        extension raqami (Device.extensionNumber) - UzTelecom
-     *                        trunk hisobi bilan aloqasi yo'q.
-     * @param gatewayName     "external" profildagi gateway nomi - bu HAR DOIM
+     * @param callerExtension operatorning ICHKI extension raqami (Device.extensionNumber) -
+     *                        UzTelecom trunk hisobi bilan aloqasi yo'q.
+     * @param gatewayName     trunk endpoint/gateway identifikatori - bu HAR DOIM
      *                        SipAccount.getId().toString() (UUID), username EMAS
-     *                        (FreeSwitchGatewayFileWriter shunday yozadi).
+     *                        (AsteriskTrunkConfigWriter shunday yozadi).
      * @param callerIdNumber  UzTelecom'ga KO'RSATILADIGAN chiquvchi caller ID
      *                        (trunk hisob username'i, masalan "101"). MUHIM:
      *                        bo'sh/noto'g'ri caller ID bo'lsa UzTelecom IPBX
-     *                        qo'ng'iroqni "503 congestion" (Q.850 cause 34) bilan
-     *                        RAD ETADI (jonli sinovda aniqlangan asosiy sabab).
+     *                        qo'ng'iroqni "503 congestion" bilan RAD ETADI
+     *                        (FreeSWITCH implementatsiyasida jonli sinovda
+     *                        aniqlangan, carrier'ning o'zi talab qiladi).
      */
     void makeCall(UUID sessionUuid, String callerExtension, String callee, String gatewayName, String callerIdNumber);
     void hangupCall(String channelUuid);
 
     /**
-     * KIRUVCHI qo'ng'iroq: "public" kontekstда park qilingan (ushlangan) tashqi
+     * KIRUVCHI qo'ng'iroq: Stasis ilovasida kutib turgan (park qilingan) tashqi
      * qo'ng'iroqni operator(lar)ning ichki extension'iga (brauzer) ulaydi.
-     * @param channelUuid  park qilingan kiruvchi qo'ng'iroqning kanal UUID'i
-     *                     (CHANNEL_PARK hodisasidagi Unique-ID).
-     * @param bridgeTarget FreeSWITCH bridge dial-string, masalan
-     *                     "user/2001,user/2002" (bir nechta operatorni bir vaqtda
-     *                     jiringlatadi - birinchi javob bergan ulanadi).
+     * @param channelUuid      kutib turgan kiruvchi qo'ng'iroqning kanal ID'i.
+     * @param extensionNumbers onlayn operatorlarning ichki extension raqamlari
+     *                         ro'yxati (masalan ["2001","2002"]) - bir vaqtda
+     *                         jiringlaydi, birinchi javob bergan ulanadi. Har bir
+     *                         adapter buni o'z PBX'ining dial-string formatiga
+     *                         (masalan "PJSIP/2001") o'zi o'giradi - bu qatlam
+     *                         hech qanday PBX'ga xos formatni bilmaydi.
      */
-    void bridgeIncomingCall(String channelUuid, String bridgeTarget);
+    void bridgeIncomingCall(String channelUuid, List<String> extensionNumbers);
     String getAdapterName();
 
     /**
-     * FreeSWITCH XML konfiguratsiyasini (directory, dialplan, profillar
-     * ro'yxati) qayta yuklaydi - masalan yangi ichki extension fayli
-     * yozilgandan keyin. Faol qo'ng'iroqlarga ta'sir qilmaydi.
+     * PBX konfiguratsiyasini (endpoint/directory ro'yxati) qayta yuklaydi -
+     * masalan yangi ichki extension fayli yozilgandan keyin. Faol
+     * qo'ng'iroqlarga ta'sir qilmaydi.
      */
     void reloadDirectory();
 
     /**
-     * Trunk gateway'ning FreeSWITCH'dagi HAQIQIY ro'yxatdan o'tish holatini
+     * Trunk'ning PBX'dagi HAQIQIY ro'yxatdan o'tish holatini
      * ("REGISTERED"/"REGISTERING"/"FAILED"/"UNREGISTERED") to'g'ridan-to'g'ri
      * so'rab qaytaradi (hodisaga bog'liq emas). Aniqlab bo'lmasa null.
      *
