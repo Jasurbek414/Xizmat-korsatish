@@ -147,7 +147,18 @@ public class EmployeeController {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("message", "Xodim topilmadi"));
         }
 
-        if (request.containsKey("username")) employee.setUsername(request.get("username").trim());
+        if (request.containsKey("username")) {
+            String newUsername = request.get("username").trim();
+            // Username butun tizim bo'ylab unikal (users.username unique constraint) -
+            // oldindan tekshirmasak, boshqa foydalanuvchining nomi kiritilganda
+            // DB constraint xatosi 500 sifatida qaytardi.
+            if (!newUsername.equalsIgnoreCase(employee.getUsername())
+                    && userRepository.findByUsername(newUsername).isPresent()) {
+                return ResponseEntity.status(HttpStatus.CONFLICT)
+                        .body(Map.of("message", "Foydalanuvchi nomi allaqachon mavjud"));
+            }
+            employee.setUsername(newUsername);
+        }
         if (request.containsKey("full_name")) employee.setFullName(request.get("full_name").trim());
         if (request.containsKey("phone")) employee.setPhone(request.get("phone"));
         if (request.containsKey("role")) {

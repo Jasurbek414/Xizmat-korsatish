@@ -42,7 +42,13 @@ public class OrderController {
         this.transactionRepository = transactionRepository;
     }
 
+    // MUHIM (xavfsizlik, audit'da topilgan): avval @PreAuthorize yo'q edi -
+    // istalgan autentifikatsiya qilingan xodim (masalan haydovchi) kompaniyaning
+    // BARCHA buyurtmalarini (mijoz telefoni, narxlar bilan) ko'ra olardi.
+    // Bu endpoint faqat veb-admin panel uchun - mobil ilova /my, /available
+    // va /completed'dan foydalanadi.
     @GetMapping
+    @PreAuthorize("@perm.has('orders')")
     public ResponseEntity<?> getOrders() {
         String tenantId = TenantContext.getCurrentTenant();
         if (tenantId == null) {
@@ -57,6 +63,7 @@ public class OrderController {
      * Mobil ilova uchun: joriy foydalanuvchiga (haydovchi/ishchi) tayinlangan buyurtmalar.
      */
     @GetMapping("/my")
+    @PreAuthorize("@perm.has('orders','mobile_orders')")
     public ResponseEntity<?> getMyOrders() {
         String tenantId = TenantContext.getCurrentTenant();
         if (tenantId == null) {
@@ -77,6 +84,7 @@ public class OrderController {
      * Har bir haydovchi ko'radi va bo'shini o'ziga qabul qila oladi.
      */
     @GetMapping("/available")
+    @PreAuthorize("@perm.has('orders','mobile_orders')")
     public ResponseEntity<?> getAvailableOrders() {
         String tenantId = TenantContext.getCurrentTenant();
         if (tenantId == null) {
@@ -90,6 +98,7 @@ public class OrderController {
      * Tarix bo'limi: to'langan yoki topshirilgan buyurtmalar (COLLECTED yoki HANDED_OVER).
      */
     @GetMapping("/completed")
+    @PreAuthorize("@perm.has('orders','mobile_orders')")
     public ResponseEntity<?> getCompletedOrders() {
         String tenantId = TenantContext.getCurrentTenant();
         if (tenantId == null) {
@@ -104,6 +113,7 @@ public class OrderController {
      * Faqat tayinlanmagan (workerId = null) buyurtmani qabul qilish mumkin.
      */
     @PutMapping("/{id}/accept")
+    @PreAuthorize("@perm.has('orders','mobile_orders')")
     public ResponseEntity<?> acceptOrder(@PathVariable UUID id) {
         String tenantId = TenantContext.getCurrentTenant();
         if (tenantId == null) {
@@ -201,7 +211,13 @@ public class OrderController {
         return ResponseEntity.status(HttpStatus.CREATED).body(saved);
     }
 
+    // MUHIM (xavfsizlik, audit'da topilgan): avval hech qanday ruxsat
+    // tekshiruvi yo'q edi - buyurtmalarga aloqasi bo'lmagan har qanday xodim
+    // (masalan Bugalter) istalgan buyurtma statusini o'zgartira olardi.
+    // Egalik tekshiruvi ATAYIN qo'yilmagan: sex hodimi o'ziga BIRIKTIRILMAGAN
+    // (worker = haydovchi) buyurtmalarning statusini yangilashi kerak.
     @PutMapping("/{id}/status")
+    @PreAuthorize("@perm.has('orders','mobile_orders')")
     public ResponseEntity<?> updateStatus(@PathVariable UUID id, @RequestBody Map<String, String> request) {
         String tenantId = TenantContext.getCurrentTenant();
         if (tenantId == null) {
@@ -345,7 +361,13 @@ public class OrderController {
      * Haydovchi va ishchi o'z buyurtmasining narxini o'zgartirishi mumkin.
      * Tarixga o'tgan (kassaga topshirilgan) buyurtmalarda narx o'zgartirish taqiqlanadi.
      */
+    // MUHIM (xavfsizlik, audit'da topilgan): avval hech qanday ruxsat
+    // tekshiruvi yo'q edi. Egalik tekshiruvi qo'yilmagan, chunki sex hodimi
+    // o'ziga biriktirilmagan buyurtmaning narxini o'lchovdan keyin belgilaydi
+    // (FactoryOrderDetailScreen) - lekin hech bo'lmaganda buyurtma bilan
+    // ishlash huquqi talab qilinadi.
     @PutMapping("/{id}/price")
+    @PreAuthorize("@perm.has('orders','mobile_orders')")
     public ResponseEntity<?> updateOrderPrice(@PathVariable UUID id, @RequestBody Map<String, Object> request) {
         String tenantId = TenantContext.getCurrentTenant();
         if (tenantId == null) {
@@ -399,6 +421,7 @@ public class OrderController {
      * Faqat aynan shu buyurtmaga tayinlangan xodimning o'zi bajarishi mumkin.
      */
     @PutMapping("/{id}/reject")
+    @PreAuthorize("@perm.has('orders','mobile_orders')")
     public ResponseEntity<?> rejectOrder(@PathVariable UUID id) {
         String tenantId = TenantContext.getCurrentTenant();
         if (tenantId == null) {
@@ -438,6 +461,7 @@ public class OrderController {
      *    shunday HANDED_OVER holatida rad etiladi.
      */
     @PutMapping("/{id}/collect-payment")
+    @PreAuthorize("@perm.has('orders','mobile_orders')")
     public ResponseEntity<?> collectPayment(@PathVariable UUID id, @RequestBody Map<String, Object> request) {
         String tenantId = TenantContext.getCurrentTenant();
         if (tenantId == null) {

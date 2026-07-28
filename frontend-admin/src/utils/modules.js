@@ -25,7 +25,12 @@ export function getPerms(roleObj) {
   return {
     ...DEFAULT_PERMS,
     ...roleObj.permissions,
-    telephony: roleObj.permissions.telephony !== false
+    // MUHIM (audit'da topilgan): avval "!== false" edi - ruxsat kaliti umuman
+    // BERILMAGAN (undefined) rollar uchun ham menyuda "Telefoniya" ko'rinib,
+    // lekin backend @perm.has('telephony') buni rad etib har bir so'rov 403
+    // bilan tugardi. Menyu endi backend qoidasi bilan BIR XIL: faqat aniq
+    // "true" bo'lsa ko'rinadi.
+    telephony: roleObj.permissions.telephony === true
   };
 }
 

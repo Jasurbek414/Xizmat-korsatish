@@ -150,34 +150,13 @@ export const initMockDb = () => {
     localStorage.setItem('company_settings', JSON.stringify(DEFAULT_COMPANY_SETTINGS));
   }
 
+  // MUHIM (audit'da topilgan): avval bu yerga ikkita SOXTA namunaviy
+  // bildirishnoma ("Kassa balansi kam", "Yangi kuryer faollashdi") urug'
+  // sifatida yozilardi - haqiqiy foydalanuvchilar ularni chin ogohlantirish
+  // deb o'ylashi mumkin edi. Endi ro'yxat bo'sh boshlanadi, faqat haqiqiy
+  // amallar (addNotification orqali) yoziladi.
   if (!localStorage.getItem('notifications')) {
-    const DEFAULT_NOTIFICATIONS = [
-      {
-        id: 'n1',
-        title_uz: 'Kassa balansi kam',
-        title_ru: 'Низкий баланс кассы',
-        title_en: 'Low Cash Register Balance',
-        message_uz: 'Naqd pul kassasi balansi belgilangan minimal limitdan pastladi.',
-        message_ru: 'Баланс наличной кассы опустился ниже установленного минимума.',
-        message_en: 'The cash register balance fell below the established minimum limit.',
-        type: 'WARNING',
-        read: false,
-        created_at: new Date(Date.now() - 3600000).toISOString() // 1 hour ago
-      },
-      {
-        id: 'n2',
-        title_uz: 'Yangi kuryer faollashdi',
-        title_ru: 'Активирован новый курьер',
-        title_en: 'New Courier Online',
-        message_uz: 'Alisher Qodirov xizmat ko\'rsatish hududiga kirdi.',
-        message_ru: 'Алишер Кодиров вошел в зону обслуживания.',
-        message_en: 'Alisher Qodirov entered the service area.',
-        type: 'SUCCESS',
-        read: true,
-        created_at: new Date(Date.now() - 7200000).toISOString() // 2 hours ago
-      }
-    ];
-    localStorage.setItem('notifications', JSON.stringify(DEFAULT_NOTIFICATIONS));
+    localStorage.setItem('notifications', JSON.stringify([]));
   }
 };
 

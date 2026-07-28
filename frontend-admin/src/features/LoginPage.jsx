@@ -141,11 +141,6 @@ const LoginPage = ({ setAuth }) => {
           </button>
         </form>
 
-        <div className="border-t border-slate-100 dark:border-white/5 pt-4 text-center">
-          <p className="text-[9px] text-slate-400 dark:text-gray-500 font-mono tracking-wide leading-relaxed">
-            Admin: admin / admin
-          </p>
-        </div>
       </div>
     </div>
   );

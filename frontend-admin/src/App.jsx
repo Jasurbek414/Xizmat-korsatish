@@ -276,7 +276,7 @@ const AdminPortal = ({ auth, setAuth, theme, toggleTheme }) => {
       <div className="flex-1 flex flex-col h-screen overflow-hidden">
         <header className="h-16 shrink-0 border-b border-slate-200 dark:border-white/5 bg-white/95 dark:bg-[#111827]/80 backdrop-blur-md px-8 flex items-center justify-between z-30 transition-colors duration-200">
           <div>
-            <h2 className="text-sm font-bold text-slate-800 dark:text-white">{t('common.welcome')}, {auth.full_name || auth.username}!</h2>
+            <h2 className="text-sm font-bold text-slate-800 dark:text-white">{t('common.welcome')}, {auth.fullName || auth.username}!</h2>
             <p className="text-[10px] text-slate-500 dark:text-gray-500">{t('common.today')}: {new Date().toLocaleDateString()}</p>
           </div>
           <div className="flex items-center gap-3">
