@@ -6,6 +6,7 @@ import '../../../models/order.dart';
 import '../../../ui/app_ui.dart';
 import '../../auth/bloc/auth_bloc.dart';
 import '../bloc/orders_cubit.dart';
+import '../order_zone.dart';
 import '../widgets/order_card.dart';
 
 /// Sexdagi buyurtmaning ichki bosqichi - gilamlarning (order item) status
@@ -38,21 +39,6 @@ class _FactoryOrdersScreenState extends State<FactoryOrdersScreen> {
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
   _WorkshopStage? _stageFilter;
-
-  int _lowerBound(List<OrderStatusInfo> statuses) {
-    if (statuses.isEmpty) return 0;
-    final sorted = [...statuses]..sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
-    return sorted[(sorted.length * 1) ~/ 3].sortOrder;
-  }
-
-  int _upperBound(List<OrderStatusInfo> statuses) {
-    if (statuses.isEmpty) return 0;
-    final sorted = [...statuses]..sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
-    return sorted[(sorted.length * 2) ~/ 3].sortOrder;
-  }
-
-  bool _isAtWorkshop(Order o, int lower, int upper) =>
-      o.status != null && o.status!.sortOrder >= lower && o.status!.sortOrder < upper;
 
   /// Gilamlar (order item) statuslaridan buyurtmaning sexdagi bosqichini aniqlaydi.
   /// Item kiritilmagan bo'lsa (hali o'lchov/gilam qo'shilmagan) - "Keldi".
@@ -93,13 +79,12 @@ class _FactoryOrdersScreenState extends State<FactoryOrdersScreen> {
         final orders = loaded?.orders ?? const <Order>[];
         final statuses = (loaded?.statuses ?? const <OrderStatusInfo>[]).toList()
           ..sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
-        final lower = _lowerBound(statuses);
-        final upper = _upperBound(statuses);
+        final zoneBoundary = OrderZoneBoundary.fromStatuses(statuses);
         final authState = context.read<AuthBloc>().state;
         final currentUserId = authState is Authenticated ? authState.user.id : '';
 
         // Faqat workshop zonasi — haydovchi "Olib ketish"ni bosgan buyurtmalar
-        final workshopOrders = orders.where((o) => _isAtWorkshop(o, lower, upper)).toList();
+        final workshopOrders = orders.where((o) => zoneBoundary.isAtWorkshop(o)).toList();
 
         // Qidiruv filtri
         final q = _searchQuery.toLowerCase();

@@ -6,6 +6,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../../core/theme.dart';
 import '../../../models/order.dart';
 import '../bloc/orders_cubit.dart';
+import '../order_zone.dart';
 import '../repository/orders_repository.dart';
 import 'detail_common.dart';
 
@@ -97,20 +98,25 @@ class _FactoryOrderDetailScreenState extends State<FactoryOrderDetailScreen> {
 
   /// Barcha gilamlar "Tayyor" bosqichiga yetganmi - shu bo'lmasa buyurtmani
   /// haydovchiga topshirish (keyingi bosqichga o'tkazish) taqiqlanadi.
-  /// Gilamlar umuman kiritilmagan bo'lsa (item-based bo'lmagan xizmat) - to'siq
-  /// qo'yilmaydi.
-  bool get _allItemsReady =>
-      widget.order.items.isEmpty ||
-      widget.order.items.every((i) => i.status == 'READY');
+  ///
+  /// MUHIM (audit'da topilgan xato, tuzatildi): avval `items.isEmpty ||` sharti
+  /// bor edi - ya'ni gilamlar ro'yxati BO'SH bo'lsa ham "hammasi tayyor"
+  /// hisoblanardi. Natijada sex xodimi bitta ham gilam kiritmasdan, o'lchov
+  /// olmasdan va narx belgilamasdan buyurtmani haydovchiga qaytarib yuborishi
+  /// mumkin edi - "Avval barcha gilamlarni Tayyor belgilang" himoyasi aynan
+  /// eng muhim holatda (hech narsa kiritilmaganda) ishlamasdi. Endi kamida
+  /// bitta gilam kiritilgan bo'lishi SHART.
+  bool get _hasItems => widget.order.items.isNotEmpty;
 
-  OrderStatusInfo? get _nextStatus {
-    final sorted = [...widget.statuses]
-      ..sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
-    final idx =
-        sorted.indexWhere((s) => s.id == widget.order.status?.id);
-    if (idx == -1 || idx >= sorted.length - 1) return null;
-    return sorted[idx + 1];
-  }
+  bool get _allItemsReady =>
+      _hasItems && widget.order.items.every((i) => i.status == 'READY');
+
+  /// Sex ishi tugagach buyurtma o'tkaziladigan status - haydovchi yana
+  /// ko'radigan "yetkazish" zonasining birinchi statusi. Bitta bosishda
+  /// (oraliq sex statuslarini sakrab o'tib) shu yerga o'tkaziladi -
+  /// batafsil izoh uchun OrderZoneBoundary.handoverStatus'ga qarang.
+  OrderStatusInfo? get _nextStatus =>
+      OrderZoneBoundary.fromStatuses(widget.statuses).handoverStatus(widget.statuses);
 
   Future<void> _save({bool advance = false}) async {
     setState(() => _saving = true);
@@ -350,6 +356,25 @@ class _FactoryOrderDetailScreenState extends State<FactoryOrderDetailScreen> {
   _ItemStatusInfo _itemStatusInfo(String status) =>
       _itemStatuses[status] ?? _ItemStatusInfo(status, AppTheme.textMuted);
 
+  /// Gilam bosqichlari ketma-ketligi (yuqoridagi xarita tartibida).
+  static final List<String> _itemStatusOrder = _itemStatuses.keys.toList();
+
+  /// Gilamni `from` bosqichidan `to` bosqichiga o'tkazish mumkinmi.
+  ///
+  /// MUHIM (audit'da topilgan xato, tuzatildi): avval barcha bosqichlar
+  /// tanlanadigan (ChoiceChip) bo'lgani uchun gilamni "Qabul qilindi"dan
+  /// TO'G'RIDAN-TO'G'RI "Tayyor"ga o'tkazish mumkin edi - yuvish va quritish
+  /// bosqichlari butunlay o'tkazib yuborilardi va bu hech qayerda qayd
+  /// etilmasdi. Endi faqat bitta qadam oldinga siljish mumkin; bitta qadam
+  /// orqaga qaytish esa ataylab ochiq qoldirilgan (xodim adashib bosgan
+  /// bosqichni tuzata olishi uchun).
+  bool _canMoveItemTo(String from, String to) {
+    final fromIdx = _itemStatusOrder.indexOf(from);
+    final toIdx = _itemStatusOrder.indexOf(to);
+    if (fromIdx == -1 || toIdx == -1) return true; // noma'lum status - cheklamaymiz
+    return (toIdx - fromIdx).abs() == 1;
+  }
+
   /// Gilamni o'chirish dialogi
   Future<void> _deleteItem(OrderItemInfo item) async {
     final confirmed = await showDialog<bool>(
@@ -460,7 +485,6 @@ class _FactoryOrderDetailScreenState extends State<FactoryOrderDetailScreen> {
   }
 
   Widget _buildBody(Order o, Color statusColor) {
-    final shortId = o.id.length > 6 ? o.id.substring(0, 6) : o.id;
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return ListView(
@@ -805,18 +829,22 @@ class _FactoryOrderDetailScreenState extends State<FactoryOrderDetailScreen> {
                   label: Text(
                       _allItemsReady
                           ? 'Tayyor - ${_nextStatus!.nameUz}ga yuborish'
-                          : 'Avval barcha gilamlarni "Tayyor" belgilang',
+                          : (!_hasItems
+                              ? 'Avval gilam qo\'shing'
+                              : 'Avval barcha gilamlarni "Tayyor" belgilang'),
                       textAlign: TextAlign.center,
                       style: const TextStyle(
                           fontWeight: FontWeight.w700)),
                 ),
               ),
               if (!_allItemsReady)
-                const Padding(
-                  padding: EdgeInsets.only(top: 8),
+                Padding(
+                  padding: const EdgeInsets.only(top: 8),
                   child: Text(
-                    "Haydovchiga topshirishdan oldin har bir gilamning \"Tayyor\" katagini belgilang.",
-                    style: TextStyle(color: AppTheme.textMuted, fontSize: 11),
+                    !_hasItems
+                        ? "Buyurtmada birorta ham gilam kiritilmagan. Haydovchiga topshirishdan oldin gilamlarni qo'shing va o'lchovlarini kiriting."
+                        : "Haydovchiga topshirishdan oldin har bir gilamning \"Tayyor\" katagini belgilang.",
+                    style: const TextStyle(color: AppTheme.textMuted, fontSize: 11),
                   ),
                 ),
             ],
@@ -950,17 +978,26 @@ class _FactoryOrderDetailScreenState extends State<FactoryOrderDetailScreen> {
                   children: _itemStatuses.entries.map((e) {
                     final selected = item.status == e.key;
                     final info = e.value;
+                    // Bosqichni sakrab o'tish taqiqlanadi - faqat qo'shni
+                    // bosqichlar tanlanadi (izoh uchun _canMoveItemTo'ga qarang).
+                    final allowed = selected || _canMoveItemTo(item.status, e.key);
                     return ChoiceChip(
-                      label: Text(info.label, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                      label: Text(info.label,
+                          style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: allowed ? null : AppTheme.textMuted)),
                       selected: selected,
                       selectedColor: info.color.withOpacity(0.2),
-                      backgroundColor: info.color.withOpacity(0.05),
+                      backgroundColor: info.color.withOpacity(allowed ? 0.05 : 0.02),
                       side: BorderSide(
                         color: selected ? info.color : Colors.transparent,
                         width: 1.5,
                       ),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                      onSelected: (val) async {
+                      onSelected: !allowed
+                          ? null
+                          : (val) async {
                         if (!val || selected) return;
                         Navigator.pop(bctx);
                         try {

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:intl/intl.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import '../../../core/permissions/permission_keys.dart';
 import '../../../core/theme.dart';
@@ -12,6 +13,7 @@ import '../../finance/screens/finance_summary_screen.dart';
 import '../../gps/widgets/shift_toggle_button.dart';
 import '../../map/screens/driver_map_screen.dart';
 import '../../orders/bloc/orders_cubit.dart';
+import '../../orders/order_zone.dart';
 import '../../orders/widgets/order_card.dart';
 import '../../team/screens/team_screen.dart';
 
@@ -58,9 +60,47 @@ class HomeDashboardScreen extends StatelessWidget {
         final newIds = loaded?.newOrderIds ?? const <String>{};
         final authState = context.read<AuthBloc>().state;
         final currentUserId = authState is Authenticated ? authState.user.id : '';
+        final role = authState is Authenticated ? authState.user.role : '';
+
+        // MUHIM (audit'da topilgan xato, tuzatildi): bu ekran avval HECH
+        // QANDAY zona filtri qo'llamasdi - "so'nggi buyurtmalar" xom
+        // (dispatch pool) ro'yxatidan olinardi. Shu sabab haydovchining bosh
+        // sahifasida sex ichida bo'lishi kerak bo'lgan (undan yashirin
+        // bo'lishi kerak) buyurtmalar ham ko'rinib, ularga ta'sir o'tkazish
+        // (status o'zgartirish) imkoni qolardi - va aksincha, sex hodimining
+        // bosh sahifasida haydovchining pickup/delivery bosqichidagi
+        // buyurtmalari ko'rinib, ularga aralashish imkoni bor edi.
+        // DriverOrdersScreen/FactoryOrdersScreen'da ishlatiladigan BIR XIL
+        // (OrderZoneBoundary) qoida shu yerda ham qo'llaniladi - haydovchi
+        // sex ichidagi buyurtmalarni, sex hodimi esa haydovchining pickup/
+        // delivery bosqichidagi buyurtmalarini bosh sahifada ko'rmaydi.
+        final zoneBoundary = OrderZoneBoundary.fromStatuses(statuses);
+        final isDriver = role.contains('DRIVER');
+        final isWorkshopStaff = role.contains('SEH') || role.contains('FACTORY') || role == 'WORKER';
+        final visibleOrders = orders.where((o) {
+          if (isDriver) return !zoneBoundary.isAtWorkshop(o);
+          if (isWorkshopStaff) return zoneBoundary.isAtWorkshop(o);
+          return true; // ADMIN/MENEJER/DISPETCHER - hammasini ko'radi
+        }).toList();
+
+        // MUHIM (audit'da topilgan kamchilik, to'ldirildi): haydovchi
+        // mijozdan naqd pulni qabul qilgach buyurtma darhol "Tarix"ga
+        // o'tardi va u qo'lida qancha pul yig'ilganini, kassaga qancha
+        // topshirishi kerakligini ilovadan BILA OLMASDI - bu ma'lumot
+        // faqat veb-admin panelida ko'rinardi. Bu yerda "COLLECTED"
+        // (pul olingan, lekin hali kassaga topshirilmagan) buyurtmalar
+        // yig'indisi ko'rsatiladi. Backend o'zgarishi shart emas -
+        // bunday buyurtmalar allaqachon /orders/completed orqali keladi.
+        final unsettled = isDriver
+            ? orders
+                .where((o) => o.workerId == currentUserId && o.paymentStatus == 'COLLECTED')
+                .toList()
+            : const <Order>[];
+        final unsettledTotal =
+            unsettled.fold<double>(0, (sum, o) => sum + o.collectedPrice);
 
         // So'nggi (yangi tepada, keyin eng yangi sanalar) 5 ta
-        final recent = [...orders]..sort((a, b) {
+        final recent = [...visibleOrders]..sort((a, b) {
             final an = newIds.contains(a.id) ? 0 : 1;
             final bn = newIds.contains(b.id) ? 0 : 1;
             if (an != bn) return an - bn;
@@ -75,7 +115,12 @@ class HomeDashboardScreen extends StatelessWidget {
             padding: const EdgeInsets.fromLTRB(0, 4, 0, 96),
             children: [
               _greetingHeader(),
-              _statsRow(orders, statuses).animate().fadeIn(delay: 80.ms, duration: 350.ms).slideY(begin: 0.08),
+              if (unsettled.isNotEmpty)
+                _unsettledCashCard(unsettled.length, unsettledTotal)
+                    .animate()
+                    .fadeIn(delay: 60.ms, duration: 350.ms)
+                    .slideY(begin: 0.08),
+              _statsRow(visibleOrders, statuses).animate().fadeIn(delay: 80.ms, duration: 350.ms).slideY(begin: 0.08),
               _quickActions(context).animate().fadeIn(delay: 160.ms, duration: 350.ms).slideY(begin: 0.08),
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 18, 16, 8),
@@ -190,6 +235,44 @@ class HomeDashboardScreen extends StatelessWidget {
         ],
       ),
     ).animate().fadeIn(duration: 400.ms).slideY(begin: -0.08, curve: Curves.easeOutCubic);
+  }
+
+  /// Haydovchi mijozlardan yig'gan, lekin hali kassaga topshirmagan naqd pul.
+  /// Kassaga topshirilgach (veb-admin "Topshirishni tasdiqlash"ni bosgach)
+  /// buyurtma HANDED_OVER holatiga o'tadi va bu kartadan yo'qoladi.
+  Widget _unsettledCashCard(int count, double total) {
+    final formatter = NumberFormat.decimalPattern('uz');
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 10, 16, 0),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppTheme.amberSoft,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: AppTheme.amber.withOpacity(0.35)),
+      ),
+      child: Row(children: [
+        Container(
+          width: 40,
+          height: 40,
+          decoration: BoxDecoration(
+            color: AppTheme.amber.withOpacity(0.18),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: const Icon(LucideIcons.wallet, size: 20, color: AppTheme.amber),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text('Kassaga topshirilmagan',
+                style: AppTheme.text(12, weight: FontWeight.w600, color: AppTheme.textSecondary)),
+            const SizedBox(height: 2),
+            Text("${formatter.format(total)} so'm",
+                style: AppTheme.display(18, weight: FontWeight.w800, spacing: -0.3)),
+          ]),
+        ),
+        StatusPill('$count ta', AppTheme.amber),
+      ]),
+    );
   }
 
   Widget _statsRow(List<Order> orders, List<OrderStatusInfo> statuses) {

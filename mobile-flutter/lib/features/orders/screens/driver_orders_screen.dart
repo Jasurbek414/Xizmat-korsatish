@@ -9,6 +9,7 @@ import '../../../models/order.dart';
 import '../../../ui/app_ui.dart';
 import '../../auth/bloc/auth_bloc.dart';
 import '../bloc/orders_cubit.dart';
+import '../order_zone.dart';
 import '../widgets/order_card.dart';
 
 /// Haydovchi buyurtmalari - 3 zonaga bo'lingan statuslar orqali filtrlanadi:
@@ -39,33 +40,13 @@ class _DriverOrdersScreenState extends State<DriverOrdersScreen> {
     super.dispose();
   }
 
-  /// Statuslar sortOrder'ining pastki chegarasi (1/3) - shundan past = pickup.
-  int _lowerBound(List<OrderStatusInfo> statuses) {
-    if (statuses.isEmpty) return 0;
-    final sorted = [...statuses]..sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
-    return sorted[(sorted.length * 1) ~/ 3].sortOrder;
-  }
-
-  /// Statuslar sortOrder'ining yuqori chegarasi (2/3) - shundan yuqori = delivery.
-  int _upperBound(List<OrderStatusInfo> statuses) {
-    if (statuses.isEmpty) return 0;
-    final sorted = [...statuses]..sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
-    return sorted[(sorted.length * 2) ~/ 3].sortOrder;
-  }
-
-  /// Uydan olib ketish (haydovchi ko'radi) - birinchi 1/3 statuslar.
-  bool _isPickup(Order o, int lower) => o.status == null || o.status!.sortOrder < lower;
-
-  /// Sexda ishlanmoqda (HAYDOVCHI KO'RMAYDI) - o'rta 1/3 statuslar.
-  bool _isAtWorkshop(Order o, int lower, int upper) =>
-      o.status != null && o.status!.sortOrder >= lower && o.status!.sortOrder < upper;
-
-  /// Sexdan olib ketish (haydovchi ko'radi) - oxirgi 1/3 statuslar.
-  /// To'lov qabul qilingan buyurtmalar ro'yxatda ko'rinmaydi (tugallangan).
-  bool _isDelivery(Order o, int upper) =>
-      o.status != null &&
-      o.status!.sortOrder >= upper &&
-      o.paymentStatus == 'PENDING';
+  /// Sexdan olib ketish (haydovchi ko'radi) qo'shimcha sharti - to'lov qabul
+  /// qilingan buyurtmalar ro'yxatda ko'rinmaydi (tugallangan). Zona
+  /// chegaralarining o'zi endi OrderZoneBoundary'da (order_zone.dart) - shu
+  /// bitta manba DriverOrdersScreen, FactoryOrdersScreen va
+  /// HomeDashboardScreen'ning barchasida ishlatiladi, mos kelmaslik xavfisiz.
+  bool _isDeliveryReady(Order o, OrderZoneBoundary zone) =>
+      zone.isDelivery(o) && o.paymentStatus == 'PENDING';
 
   @override
   Widget build(BuildContext context) {
@@ -93,8 +74,7 @@ class _DriverOrdersScreenState extends State<DriverOrdersScreen> {
         final statuses = (loaded?.statuses ?? const <OrderStatusInfo>[]).toList()
           ..sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
         final newIds = loaded?.newOrderIds ?? const <String>{};
-        final lower = _lowerBound(statuses);
-        final upper = _upperBound(statuses);
+        final zoneBoundary = OrderZoneBoundary.fromStatuses(statuses);
 
         final authState = context.read<AuthBloc>().state;
         final currentUserId = authState is Authenticated ? authState.user.id : '';
@@ -113,8 +93,8 @@ class _DriverOrdersScreenState extends State<DriverOrdersScreen> {
         //   🏠 Uydan olib ketish (1/3) → haydovchi ko'radi
         //   🔒 Sexda (1/3) → haydovchi KO'RMAYDI (faqat sex xodimi)
         //   🏭 Sexdan olib ketish (1/3) → haydovchi ko'radi
-        final pickupOrders = searched.where((o) => _isPickup(o, lower)).toList();
-        final deliveryOrders = searched.where((o) => _isDelivery(o, upper)).toList();
+        final pickupOrders = searched.where((o) => zoneBoundary.isPickup(o)).toList();
+        final deliveryOrders = searched.where((o) => _isDeliveryReady(o, zoneBoundary)).toList();
 
         // Statusi o'rta 1/3 (sexda) bo'lgan buyurtmalar haydovchi ro'yxatida
         // ko'rinmaydi - faqat sex xodimi ko'radi (FactoryOrdersScreen orqali)

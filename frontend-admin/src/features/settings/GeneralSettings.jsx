@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { api } from '../../services/api';
-import { Check, Info } from 'lucide-react';
+import { Check, Info, AlertTriangle } from 'lucide-react';
 
 const GeneralSettings = () => {
   const { t } = useTranslation();
@@ -19,6 +19,30 @@ const GeneralSettings = () => {
   });
   const [saved, setSaved] = useState(false);
   const [newUnit, setNewUnit] = useState('');
+
+  // Moliyani 0ga tushirish (Xavfli zona) - qaytarib bo'lmaydigan amal,
+  // shuning uchun aniq "RESET" so'zini kiritishni talab qiluvchi alohida
+  // tasdiqlash oynasi bilan himoyalangan.
+  const [showResetModal, setShowResetModal] = useState(false);
+  const [resetConfirmText, setResetConfirmText] = useState('');
+  const [resetting, setResetting] = useState(false);
+  const [resetResult, setResetResult] = useState(null);
+
+  const handleResetFinance = async () => {
+    if (resetConfirmText.trim().toUpperCase() !== 'RESET') return;
+    setResetting(true);
+    try {
+      const result = await api.resetFinance();
+      setResetResult(result.message || "Moliya balansi 0ga tushirildi.");
+      setShowResetModal(false);
+      setResetConfirmText('');
+    } catch (err) {
+      console.error("Failed to reset finance:", err);
+      alert(err.message || "Moliyani 0ga tushirishda xatolik yuz berdi.");
+    } finally {
+      setResetting(false);
+    }
+  };
 
   useEffect(() => {
     const loadSettings = async () => {
@@ -100,6 +124,13 @@ const GeneralSettings = () => {
         <div className="bg-emerald-500/10 border border-emerald-500/10 text-emerald-600 dark:text-emerald-400 p-4 rounded-xl text-xs flex items-center gap-2 font-semibold animate-fade-in shadow-sm">
           <Check className="w-4 h-4 shrink-0" />
           <span>{t('settings_page.saved_success')}</span>
+        </div>
+      )}
+
+      {resetResult && (
+        <div className="bg-emerald-500/10 border border-emerald-500/10 text-emerald-600 dark:text-emerald-400 p-4 rounded-xl text-xs flex items-center gap-2 font-semibold animate-fade-in shadow-sm">
+          <Check className="w-4 h-4 shrink-0" />
+          <span>{resetResult}</span>
         </div>
       )}
 
@@ -306,6 +337,72 @@ const GeneralSettings = () => {
           </button>
         </div>
       </form>
+
+      {/* Xavfli zona - korxona ishga tushishidan oldin (sinov davri) yig'ilib
+          qolgan barcha kirim-chiqimlarni tozalab, balansni 0ga tushirish uchun.
+          Buyurtmalar/mijozlar/xodimlarga BUTUNLAY TEGMAYDI. */}
+      <div className="glass-card p-6 rounded-2xl border border-rose-200 dark:border-rose-500/20 bg-white dark:bg-transparent shadow-sm">
+        <div className="flex items-start gap-3">
+          <div className="w-9 h-9 rounded-xl bg-rose-500/10 flex items-center justify-center shrink-0">
+            <AlertTriangle className="w-5 h-5 text-rose-500" />
+          </div>
+          <div className="flex-1 space-y-1">
+            <h4 className="text-sm font-bold text-rose-600 dark:text-rose-400 font-['Outfit']">Xavfli zona</h4>
+            <p className="text-xs text-slate-500 dark:text-gray-400 font-medium">
+              Moliyani 0ga tushirish - barcha kirim-chiqim (tranzaksiya) yozuvlarini butunlay o'chiradi va balansni 0 qiladi.
+              Buyurtmalar, mijozlar, xodimlar, oyliklar va boshqa ma'lumotlarga tegmaydi. Bu amal <strong>QAYTARILMAYDI</strong> -
+              faqat korxona haqiqiy ishni endi boshlayotganda, sinov davridagi test yozuvlarini tozalash uchun ishlating.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setShowResetModal(true)}
+            className="shrink-0 bg-rose-500 hover:bg-rose-600 text-white font-bold px-4 py-2.5 rounded-xl transition cursor-pointer text-xs whitespace-nowrap"
+          >
+            Moliyani 0ga tushirish
+          </button>
+        </div>
+      </div>
+
+      {showResetModal && (
+        <div className="fixed inset-0 bg-black/50 dark:bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="glass-card rounded-2xl max-w-sm w-full p-6 space-y-4 shadow-2xl animate-scale-in bg-white dark:bg-[#111827]">
+            <div className="flex items-center gap-2">
+              <AlertTriangle className="w-5 h-5 text-rose-500 shrink-0" />
+              <h3 className="text-base font-bold text-slate-800 dark:text-white font-['Outfit']">Moliyani 0ga tushirish</h3>
+            </div>
+            <p className="text-xs text-slate-500 dark:text-gray-400 font-medium leading-relaxed">
+              Barcha kirim-chiqim yozuvlari <strong>butunlay o'chiriladi</strong> va qaytarib bo'lmaydi.
+              Buyurtmalar va boshqa ma'lumotlar daxlsiz qoladi. Davom etish uchun pastga aniq <strong>RESET</strong> so'zini kiriting.
+            </p>
+            <input
+              type="text"
+              value={resetConfirmText}
+              onChange={(e) => setResetConfirmText(e.target.value)}
+              placeholder="RESET"
+              autoFocus
+              className="w-full glass-input rounded-xl px-3 py-2.5 text-slate-800 dark:text-white focus:outline-none text-xs font-bold tracking-widest text-center uppercase"
+            />
+            <div className="flex gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => { setShowResetModal(false); setResetConfirmText(''); }}
+                className="flex-1 bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-white/10 text-slate-600 dark:text-gray-300 font-bold py-2.5 rounded-xl transition cursor-pointer text-xs"
+              >
+                Bekor qilish
+              </button>
+              <button
+                type="button"
+                disabled={resetConfirmText.trim().toUpperCase() !== 'RESET' || resetting}
+                onClick={handleResetFinance}
+                className="flex-1 bg-rose-500 hover:bg-rose-600 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold py-2.5 rounded-xl transition cursor-pointer text-xs"
+              >
+                {resetting ? 'Tozalanmoqda...' : 'Ha, 0ga tushirish'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

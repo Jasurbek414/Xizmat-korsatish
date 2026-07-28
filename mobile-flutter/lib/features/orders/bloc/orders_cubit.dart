@@ -1,6 +1,7 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../core/network/api_exception.dart';
 import '../../../models/order.dart';
+import '../order_zone.dart';
 import '../repository/orders_repository.dart';
 
 abstract class OrdersState {
@@ -96,28 +97,29 @@ class OrdersCubit extends Cubit<OrdersState> {
     return [allOrders, statuses];
   }
 
-  /// Haydovchi bo'sh (yoki boshqa) buyurtmani O'ZIGA qabul qiladi.
-  /// Qabul qilgandan so'ng statusni workshop (sex) zonasiga o'tkazadi,
-  /// shunda buyurtma sex xodimiga ko'rinadi.
+  /// Haydovchi bo'sh (yoki boshqa) buyurtmani O'ZIGA biriktiradi.
+  ///
+  /// MUHIM (audit'da topilgan xato, tuzatildi): avval bu metod biriktirish
+  /// bilan BIR VAQTDA statusni ham sex zonasiga o'tkazib yuborardi. Natijada
+  /// haydovchi "Olib ketish" tugmasini bosishi bilanoq buyurtma uning
+  /// ro'yxatidan YO'QOLARDI - garchi u hali mijoz uyiga yo'lga ham chiqmagan,
+  /// gilamni qo'liga olmagan bo'lsa ham. Sex hodimi esa hali yetib kelmagan
+  /// gilamni o'z ro'yxatida ko'rib turardi.
+  ///
+  /// Aslida bu IKKI BOSHQA hodisa edi:
+  ///   1) "bu buyurtmani men olaman" (biriktirish - shu metod);
+  ///   2) "gilamni sexga topshirdim" (jismoniy topshirish - haydovchi
+  ///      tafsilot ekranidagi alohida "Sexga topshirish" tugmasi).
+  /// Endi biriktirish statusni O'ZGARTIRMAYDI: buyurtma haydovchida
+  /// (pickup zonasida) qoladi, u mijoznikiga boradi, gilamni oladi, sexga
+  /// keltiradi va SHUNDAGINA "Sexga topshirish"ni bosadi.
+  ///
+  /// Yon foyda: avval ikkita ketma-ket API chaqiruvi orasida orqaga qaytarish
+  /// yo'q edi - ikkinchisi yiqilsa buyurtma biriktirilgan-u, statusi eski
+  /// holatda qolib, holat yarim o'zgargan bo'lardi. Endi bitta chaqiruv.
   Future<void> acceptOrder(Order order) async {
     try {
       await _repository.acceptOrder(order.id);
-      
-      // Accept qilgandan keyin statusni workshop zonasiga (o'rta 1/3) o'tkazamiz
-      final currentState = this.state;
-      if (currentState is OrdersLoaded) {
-        final sorted = [...currentState.statuses]
-          ..sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
-        if (sorted.length >= 3) {
-          final lower = sorted[(sorted.length * 1) ~/ 3].sortOrder;
-          final workshopStatus = sorted.firstWhere(
-            (s) => s.sortOrder >= lower,
-            orElse: () => sorted.first,
-          );
-          await _repository.updateStatus(order.id, workshopStatus.id);
-        }
-      }
-      
       await refresh();
     } on ApiException catch (e) {
       emit(OrdersError(e.message));
@@ -222,11 +224,47 @@ class OrdersCubit extends Cubit<OrdersState> {
   Future<void> changeOrderItemStatus(Order order, OrderItemInfo item, String newStatus) async {
     try {
       await _repository.updateOrderItemStatus(order.id, item.id, newStatus);
+      await _syncWorkshopStatus(order, item, newStatus);
       await refresh();
     } on ApiException catch (e) {
       emit(OrdersError(e.message));
       rethrow;
     }
+  }
+
+  /// Buyurtma statusini gilamlarning haqiqiy ishlov holatiga moslaydi -
+  /// FAQAT sex zonasi ICHIDA (buyurtmani hech qachon zonadan chiqarmaydi).
+  ///
+  /// MUHIM (audit'da topilgan xato, tuzatildi): buyurtma statusi (Yuvilmoqda/
+  /// Bajarilmoqda) va gilam statuslari (ACCEPTED/WASHED/DRIED/READY) butunlay
+  /// mustaqil ikki tizim edi - o'rtasida hech qanday bog'liqlik yo'q edi.
+  /// Shu sabab buyurtma "Bajarilmoqda"da tursa ham gilamlar hammasi hali
+  /// ACCEPTED bo'lishi mumkin edi (yoki aksincha), va veb-admin panelida
+  /// ko'rinadigan status haqiqiy ish holatini aks ettirmasdi. Endi sex
+  /// xodimi gilam bosqichini o'zgartirishi bilan buyurtma statusi ham
+  /// avtomatik moslashadi:
+  ///   - barcha gilamlar hali ACCEPTED  -> sex zonasining 1-statusi
+  ///   - kamida bittasi ishlovga kirgan -> sex zonasining 2-statusi (bo'lsa)
+  /// Shunday qilib "Bajarilmoqda" haqiqatan "ish boshlandi" degani bo'ladi.
+  Future<void> _syncWorkshopStatus(Order order, OrderItemInfo changed, String newStatus) async {
+    final current = state;
+    if (current is! OrdersLoaded) return;
+
+    final zone = OrderZoneBoundary.fromStatuses(current.statuses);
+    // Buyurtma sex zonasida bo'lmasa - aralashmaymiz.
+    if (!zone.isAtWorkshop(order)) return;
+
+    final workshopStatuses = zone.workshopStatuses(current.statuses);
+    if (workshopStatuses.length < 2) return; // sinxronlash uchun joy yo'q
+
+    // Serverdagi yangi holatni mahalliy hisoblaymiz (refresh hali bo'lmagan).
+    final anyStarted = order.items.any((i) =>
+        i.id == changed.id ? newStatus != 'ACCEPTED' : i.status != 'ACCEPTED');
+
+    final target = anyStarted ? workshopStatuses[1] : workshopStatuses.first;
+    if (order.status?.id == target.id) return;
+
+    await _repository.updateStatus(order.id, target.id);
   }
 
   Future<void> createOrderItem(Order order, String name, double length, double width, int quantity) async {

@@ -331,6 +331,17 @@ export const api = {
     return handleResponse(res);
   },
 
+  // Korxona ishga tushishidan oldingi sinov davri kirim-chiqimlarini
+  // o'chirib, balansni 0ga tushiradi. FAQAT transactions'ga tegadi.
+  async resetFinance() {
+    const res = await fetch(`${API_BASE_URL}/finance/reset`, {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify({ confirm: 'RESET' })
+    });
+    return handleResponse(res);
+  },
+
   // GPS Tracking
   async getDriversGps() {
     const res = await fetch(`${API_BASE_URL}/gps/drivers`, {

@@ -166,4 +166,45 @@ public class FinanceController {
         Transaction saved = transactionRepository.save(tx);
         return ResponseEntity.ok(saved);
     }
+
+    /**
+     * Korxona ishga tushishidan oldin (test/sinov davrida) yig'ilib qolgan
+     * barcha kirim-chiqim yozuvlarini o'chirib, moliya balansini 0ga
+     * tushiradi. FAQAT "transactions" jadvaliga tegadi - buyurtmalar,
+     * mijozlar, xodimlar, oylik (Salary) yozuvlari, GPS/qo'ng'iroqlar tarixi
+     * BUTUNLAY DAXLSIZ qoladi.
+     *
+     * MUHIM: bu amal QAYTARILMAYDI (o'chirilgan tranzaksiyalarni tiklab
+     * bo'lmaydi), shuning uchun:
+     * 1) faqat ADMIN roli chaqira oladi (class darajasidagi 'finance'/
+     *    'mobile_finance_view' ruxsati YETARLI EMAS - bugalter yoki
+     *    boshqa "finance" huquqiga ega xodim buni bajara olmaydi);
+     * 2) tasodifiy bosilib ketishning oldini olish uchun so'rov tanasida
+     *    aniq "RESET" tasdiqlash so'zi talab qilinadi (frontend buni
+     *    qattiq kiritilgan matn bilan yuboradi, foydalanuvchi alohida
+     *    tasdiqlash oynasida ko'radi).
+     */
+    @PostMapping("/reset")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<?> resetFinance(@RequestBody(required = false) Map<String, String> request) {
+        String tenantId = TenantContext.getCurrentTenant();
+        if (tenantId == null) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of("message", "Tenant ID is missing"));
+        }
+
+        String confirm = request != null ? request.get("confirm") : null;
+        if (!"RESET".equals(confirm)) {
+            return ResponseEntity.badRequest().body(Map.of("message", "Tasdiqlash kodi noto'g'ri yoki yuborilmagan"));
+        }
+
+        UUID companyId = UUID.fromString(tenantId);
+        List<Transaction> all = transactionRepository.findByCompanyId(companyId);
+        int count = all.size();
+        transactionRepository.deleteAll(all);
+
+        return ResponseEntity.ok(Map.of(
+                "message", count + " ta tranzaksiya o'chirildi - moliya balansi 0ga tushirildi",
+                "deletedCount", count
+        ));
+    }
 }

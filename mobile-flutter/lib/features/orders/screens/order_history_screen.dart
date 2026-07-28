@@ -46,9 +46,24 @@ class _OrderHistoryScreenState extends State<OrderHistoryScreen> {
           ..sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
         final authState = context.read<AuthBloc>().state;
         final currentUserId = authState is Authenticated ? authState.user.id : '';
+        final role = authState is Authenticated ? authState.user.role : '';
+
+        // MUHIM (audit'da topilgan xato, tuzatildi): bu ekranda hech qanday
+        // rol/egalik filtri yo'q edi - haydovchi butun kompaniyaning
+        // yakunlangan buyurtmalarini (boshqa haydovchilarnikini ham, o'zi
+        // umuman qatnashmaganini ham) ko'rardi. Endi haydovchi faqat O'ZI
+        // bajargan buyurtmalarni ko'radi. Sex xodimiga cheklov qo'yilmaydi -
+        // sexdagi ish alohida xodimga biriktirilmaydi (gilamda "kim yuvdi"
+        // maydoni yo'q), shuning uchun ular uchun "meniki" tushunchasi
+        // mavjud emas; admin/menejer/dispetcher esa nazorat uchun hammasini
+        // ko'rishi kerak.
+        final isDriver = role.contains('DRIVER');
 
         final q = _q.toLowerCase();
-        final done = orders.where((o) => _isDone(o, statuses)).where((o) {
+        final done = orders
+            .where((o) => !isDriver || o.workerId == currentUserId)
+            .where((o) => _isDone(o, statuses))
+            .where((o) {
           return q.isEmpty ||
               o.client.fullName.toLowerCase().contains(q) ||
               o.client.phone.toLowerCase().contains(q) ||

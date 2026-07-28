@@ -1,9 +1,22 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
+// O'zbekiston kod prefiksi - operator har safar to'liq "+998" ni qo'lda
+// terishi shart bo'lmasligi uchun, maydon ochilganda avtomatik qo'yiladi va
+// operator faqat qolgan raqamlarni kiritadi.
+const PHONE_PREFIX = '+998 ';
+
 const CreateOrderModal = ({ isOpen, onClose, clients, services, workers, newOrder, setNewOrder, onSubmit, companySettings, error }) => {
   const { t } = useTranslation();
+
+  // Oyna ochilganda telefon maydoni bo'sh bo'lsa - prefiksni avtomatik qo'yamiz.
+  useEffect(() => {
+    if (isOpen && !newOrder.client_phone) {
+      setNewOrder(prev => ({ ...prev, client_phone: PHONE_PREFIX }));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
@@ -30,9 +43,17 @@ const CreateOrderModal = ({ isOpen, onClose, clients, services, workers, newOrde
             <label className="block text-slate-500 dark:text-gray-400 mb-1">Mijoz Telefon Raqami</label>
             <input 
               type="text"
-              value={newOrder.client_phone || ''}
+              value={newOrder.client_phone || PHONE_PREFIX}
               onChange={(e) => {
-                const val = e.target.value;
+                let val = e.target.value;
+                // "+998 " prefiksi doim saqlanib qoladi - operator uni
+                // tasodifan o'chirib yuborsa (masalan hammasini belgilab
+                // o'chirsa), avtomatik qayta tiklanadi va faqat undan
+                // keyingi raqamlar saqlanib qoladi.
+                if (!val.startsWith(PHONE_PREFIX)) {
+                  const digitsOnly = val.replace(/\D/g, '').replace(/^998/, '');
+                  val = PHONE_PREFIX + digitsOnly;
+                }
                 const cleanInput = val.replace(/\D/g, '');
                 const found = clients.find(c => {
                   const cleanPhone = c.phone ? c.phone.replace(/\D/g, '') : '';

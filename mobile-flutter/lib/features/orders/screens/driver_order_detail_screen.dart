@@ -765,6 +765,31 @@ class _DriverOrderDetailScreenState extends State<DriverOrderDetailScreen> {
   }
 
   List<Widget> _buildActions() {
+    // MUHIM (audit'da topilgan xato, tuzatildi): bu metod `_isCompleted`
+    // holatini UMUMAN tekshirmasdi. Natijada haydovchi "Tarix" bo'limidan
+    // allaqachon yakunlangan va to'langan buyurtmani ochsa (ayniqsa boshqa
+    // haydovchinikini) unga "Olib ketish" tugmasi ko'rsatilardi. Bosilganda
+    // backend uni 409 bilan rad etardi va foydalanuvchi tushunarsiz xato
+    // olardi. Endi yakunlangan buyurtmada hech qanday amal tugmasi yo'q.
+    if (_isCompleted) {
+      return [
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(vertical: 16),
+          decoration: BoxDecoration(
+            color: AppTheme.greenSoft,
+            borderRadius: BorderRadius.circular(14),
+          ),
+          child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+            const Icon(LucideIcons.checkCircle2, size: 18, color: AppTheme.green),
+            const SizedBox(width: 8),
+            Text('Buyurtma yakunlangan',
+                style: AppTheme.text(14, weight: FontWeight.w700, color: AppTheme.green)),
+          ]),
+        ),
+      ];
+    }
+
     // Case 1: Not my order - Accept button
     if (!_isMine) {
       return [
@@ -805,9 +830,14 @@ class _DriverOrderDetailScreenState extends State<DriverOrderDetailScreen> {
         : sorted.sublist(idx + 1);
 
     if (remaining.isNotEmpty) {
-      // Birinchi bosqich (Qabul qilindi -> Yuvilmoqda) uchun "Qabul qilish" matni ishlatiladi
+      // Birinchi bosqichdan chiqish = gilamni JISMONAN sexga topshirish
+      // (buyurtma shu daqiqadan boshlab haydovchi ro'yxatidan sex hodimiga
+      // o'tadi). Avval bu tugma "Qabul qilish" deb nomlangan edi - bu
+      // chalkash edi, chunki haydovchi buyurtmani allaqachon qabul qilgan
+      // (biriktirgan) bo'ladi; bu tugma esa butunlay boshqa hodisani -
+      // sexga topshirishni bildiradi.
       final isFirstStep = sorted.isNotEmpty && sorted.first.id == order.status?.id;
-      final primaryLabel = isFirstStep ? "Qabul qilish" : remaining[0].nameUz;
+      final primaryLabel = isFirstStep ? "Sexga topshirish" : remaining[0].nameUz;
       final widgets = <Widget>[
         // Primary action - next step
         Container(
@@ -844,34 +874,14 @@ class _DriverOrderDetailScreenState extends State<DriverOrderDetailScreen> {
         ),
       ];
 
-      // Additional actions
-      if (remaining.length >= 2) {
-        widgets.add(const SizedBox(height: 10));
-        widgets.add(
-          SizedBox(
-            width: double.infinity,
-            child: OutlinedButton.icon(
-              onPressed: () => _advanceToStatus(
-                  remaining[1].id, remaining[1].nameUz),
-              style: OutlinedButton.styleFrom(
-                foregroundColor: AppTheme.textPrimary,
-                side: const BorderSide(
-                    color: AppTheme.borderColor),
-                padding:
-                    const EdgeInsets.symmetric(vertical: 14),
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14)),
-              ),
-              icon: Icon(LucideIcons.chevronRight,
-                  size: 18, color: AppTheme.textSecondary),
-              label: Text(remaining[1].nameUz,
-                  style: const TextStyle(
-                      fontWeight: FontWeight.w600,
-                      fontSize: 14)),
-            ),
-          ),
-        );
-      }
+      // MUHIM (xavfsizlik/mantiq xatosi, audit'da topilgan): avval shu yerda
+      // IKKINCHI ("remaining[1]") tugma ham ko'rsatilardi - bu haydovchiga
+      // BIR TEGISHDA IKKI bosqichni birdan o'tkazib yuborish imkonini
+      // berardi (masalan "Yuvilmoqda"dan to'g'ridan-to'g'ri "Tugallandi"ga,
+      // "Bajarilmoqda" bosqichini butunlay chetlab o'tib). Aynan shu sabab
+      // haydovchi sex hodimi hech qanday ishlov bermasdan turib buyurtmani
+      // o'zi yakunlab qo'ya olardi. Endi haydovchi HAR DOIM faqat BITTA
+      // KEYINGI bosqichga o'ta oladi - sakrab o'tish yo'q.
 
       return widgets;
     }

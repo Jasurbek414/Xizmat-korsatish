@@ -173,11 +173,24 @@ class OrderCard extends StatelessWidget {
     }
     final next = _nextStatus;
     if (next != null) {
-      // Birinchi bosqich uchun "Qabul qilish" matni ishlatiladi
+      // Birinchi bosqichdan chiqish = gilamni JISMONAN sexga topshirish
+      // (DriverOrderDetailScreen'dagi bir xil tugma bilan izchil bo'lishi
+      // uchun - u yerdagi batafsil izohga qarang).
       final sorted = [...statuses]..sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
       final isFirstStep = sorted.isNotEmpty && sorted.first.id == order.status?.id;
-      final label = isFirstStep ? 'Qabul qilish' : next.nameUz;
-      final c = AppTheme.hex(next.colorCode);
+      final label = isFirstStep ? 'Sexga topshirish' : next.nameUz;
+      // MUHIM (audit'da topilgan xato, tuzatildi): avval bu yerda HAR DOIM
+      // next.colorCode (KEYINGI statusning admin sozlagan rangi, masalan
+      // "Yuvilmoqda" uchun amber/sariq) ishlatilardi - shu sabab bir xil
+      // "Qabul qilish" matni buyurtmadan buyurtmaga TURLI rangda ko'rinardi:
+      // hali hech kimga tayinlanmagan buyurtmalarda (yuqorida, !_isMine
+      // shoxobchasida) AppButton'ning standart yashil rangi, lekin allaqachon
+      // tayinlangan-u hali statusi o'zgartirilmagan buyurtmalarda (masalan
+      // veb-admin orqali dispetcher tayinlagan bo'lsa) next.colorCode. Endi
+      // "Qabul qilish" har doim BIR XIL (asosiy) rangda - faqat HAQIQIY
+      // bosqich o'tkazish (birinchi bosqich EMAS) o'sha statusning o'z
+      // rangida ko'rsatiladi.
+      final c = isFirstStep ? AppTheme.primary : AppTheme.hex(next.colorCode);
       return _coloredAction(label, LucideIcons.arrowRight, c, () => _confirmAdvance(context, next));
     }
     return Container(
