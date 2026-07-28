@@ -65,13 +65,24 @@ public class AsteriskExtensionConfigWriter {
         String extension = escape(device.getExtensionNumber());
         String password = escape(device.getPassword());
 
+        // MUHIM (jonli sinovda aniqlangan xato, tuzatildi): AOR nomi
+        // "ext-<extension>-aor" edi - REGISTER so'rovi kelganda Asterisk
+        // "AOR '' not found for endpoint '2000'" xatosi bilan rad etardi.
+        // Sabab: JsSIP (va aksariyat SIP klientlari) REGISTER'ning
+        // Request-URI'sida foydalanuvchi qismini ko'rsatmaydi (faqat domen,
+        // RFC 3261 tavsiyasiga muvofiq) - Asterisk'ning registrar moduli bu
+        // holatda AOR'ni ENDPOINT NOMI BILAN BIR XIL deb qidiradi. Standart
+        // Asterisk PJSIP konvensiyasi ham shunday: aor va endpoint bo'limlari
+        // BIR XIL nom ([2000]) bilan yoziladi (turli xil "type=" tufayli
+        // to'qnashuv bo'lmaydi - sorcery ularni alohida ob'ekt sifatida
+        // ko'radi).
         return "[ext-" + extension + "-auth]\n" +
                 "type=auth\n" +
                 "auth_type=userpass\n" +
                 "username=" + extension + "\n" +
                 "password=" + password + "\n" +
                 "\n" +
-                "[ext-" + extension + "-aor]\n" +
+                "[" + extension + "]\n" +
                 "type=aor\n" +
                 "max_contacts=1\n" +
                 "remove_existing=yes\n" +
@@ -87,7 +98,7 @@ public class AsteriskExtensionConfigWriter {
                 "use_avpf=yes\n" +
                 "media_encryption=dtls\n" +
                 "auth=ext-" + extension + "-auth\n" +
-                "aors=ext-" + extension + "-aor\n";
+                "aors=" + extension + "\n";
     }
 
     private String escape(String value) {

@@ -28,95 +28,16 @@ protocol=ws
 bind=0.0.0.0
 
 ; ============================================================================
-; UzTelecom trunk (1-bosqich: foydalanuvchi bergan haqiqiy ma'lumotlar bilan
-; qo'lda yozilgan sinov yozuvi - server 84.54.75.26, username/parol pastda).
-; MUHIM: port va kodek UzTelecom tomonidan aniq ko'rsatilmagan - standart SIP
-; porti (5060/UDP) va PSTN uchun odatiy G.711 (ulaw/alaw) kodeklari
-; qo'llanildi. Agar ro'yxatdan o'tish yoki qo'ng'iroq sifatida muammo
-; chiqsa, aynan shu ikkala taxminni birinchi tekshirish kerak.
-; ============================================================================
-
-[uztelecom-101-auth]
-type=auth
-auth_type=userpass
-username=101
-password=CHANGE_ME_TRUNK_PASSWORD
-
-[uztelecom-101-aor]
-type=aor
-contact=sip:101@84.54.75.26:5060
-qualify_frequency=60
-
-[uztelecom-101]
-type=endpoint
-transport=transport-udp
-context=from-uztelecom
-disallow=all
-allow=ulaw,alaw
-outbound_auth=uztelecom-101-auth
-aors=uztelecom-101-aor
-from_user=101
-from_domain=84.54.75.26
-direct_media=no
-rtp_symmetric=yes
-force_rport=yes
-rewrite_contact=yes
-
-; MUHIM (xavfsizlik): FreeSWITCH tomonda "trunk_inbound" ACL bilan faqat
-; UzTelecom'ning HAQIQIY IP'sidan (84.54.75.26) kelgan INVITE qabul
-; qilingan edi - aks holda istalgan skaner "101" username'iga mos INVITE
-; yuborib, onlayn operatorlarni jiringlatishi mumkin edi. PJSIP'da bunga
-; ekvivalent - "identify" ob'ekti: shu endpoint'ga faqat shu IP'dan kelgan
-; so'rovlar bog'lanadi.
-[uztelecom-101-identify]
-type=identify
-endpoint=uztelecom-101
-match=84.54.75.26
-
-[uztelecom-101-reg]
-type=registration
-transport=transport-udp
-outbound_auth=uztelecom-101-auth
-server_uri=sip:84.54.75.26
-client_uri=sip:101@84.54.75.26
-contact_user=101
-retry_interval=30
-forbidden_retry_interval=120
-expiration=120
-
-; ============================================================================
-; Sinov uchun bitta WebRTC extension (2000) - brauzer ro'yxatdan o'tishini
-; ham shu safar tekshirish uchun. 2-3-bosqichda bu AsteriskExtensionConfigWriter
-; orqali har bir operator Device'i uchun avtomatik yaratiladigan bo'ladi.
-; MUHIM: parol shu yerda ko'rinadi (faqat lokal sinov uchun) - productionda
-; har bir operator uchun tasodifiy generatsiya qilinadigan alohida parol
-; bo'ladi (Device.password, SipPasswordConverter bilan shifrlangan holda).
-; ============================================================================
-
-[webrtc-2000-auth]
-type=auth
-auth_type=userpass
-username=2000
-password=CHANGE_ME_TEST_WEBRTC_PASSWORD
-
-[webrtc-2000-aor]
-type=aor
-max_contacts=1
-remove_existing=yes
-
-[webrtc-2000]
-type=endpoint
-transport=transport-ws
-context=from-internal
-disallow=all
-allow=ulaw,alaw,opus
-webrtc=yes
-dtls_auto_generate_cert=yes
-use_avpf=yes
-media_encryption=dtls
-auth=webrtc-2000-auth
-aors=webrtc-2000-aor
-
+; MUHIM (2-3-bosqich tasdiqlangandan keyin tozalandi): 1-bosqichda shu yerda
+; qo'lda yozilgan "uztelecom-101"/"webrtc-2000" sinov yozuvlari bo'lgan -
+; ular UzTelecom trunk (101) HAQIQATAN ro'yxatdan o'ta olishini tasdiqlash
+; uchun edi. Endi AsteriskTrunkConfigWriter/AsteriskExtensionConfigWriter
+; orqali "Namifor" kompaniyasi uchun HAQIQIY SipAccount/Device yaratilib,
+; xuddi shu tarzda ro'yxatdan o'tishi tasdiqlangan (pjsip.d/*.conf).
+; Qo'lda yozilgan sinov yozuvi ATAYIN olib tashlandi - UzTelecom'ning bitta
+; "101" hisobi uchun IKKITA parallel registration yuborish carrier tomonda
+; bloklanish xavfini tug'diradi (TELEFONIYA-XATOLAR.md 3-band: aynan shu
+; sabab bilan avval FreeSWITCH implementatsiyasida haqiqiy muammo chiqqan edi).
 ; ============================================================================
 ; 3-bosqich: AsteriskTrunkConfigWriter/AsteriskExtensionConfigWriter (backend)
 ; har bir haqiqiy SipAccount/Device uchun shu papkaga avtomatik .conf fayl
