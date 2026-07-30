@@ -29,6 +29,29 @@ const PC_CONFIG = {
     // qiymatni albatta yangilang (coturn-certs/docker-compose'dagi coturn
     // xizmati ham shu IP'ga bog'liq emas, lekin brauzer to'g'ridan-to'g'ri
     // shu qiymatga ulanadi).
+    // MUHIM (jonli diagnostikada topilgan ASOSIY xato, 2026-07-30): server
+    // ROUTER ORTIDA (LAN 192.168.100.11, router 192.168.100.1) va ochiq IP
+    // 213.230.93.109 ROUTERGA tegishli. Routerda 3478 uchun port forwarding
+    // sozlanmagan, shuning uchun pastdagi ochiq IP orqali coturn'ga HECH KIM
+    // yetib bormaydi - coturn logida 20+ qo'ng'iroq urinishiga qaramay birorta
+    // TURN allocation yo'q edi. Brauzer relay nomzodini olmagani va Asterisk
+    // SDP'da faqat o'zining ichki Docker IP'sini (172.19.0.5) e'lon qilgani
+    // uchun ishlaydigan ICE juftligi UMUMAN qolmaydi: brauzer ICE to'plashni
+    // tugatolmay "200 OK" yubormaydi - abonent go'shakni ko'targanida ham
+    // veb jiringlashda qolib, ~14s dan keyin Asterisk BYE yuboradi.
+    // Aynan shu sabab bazadagi 20 ta call_sessions yozuvining HAMMASI
+    // duration=0 bo'lgan (ovoz hech qachon ulanmagan).
+    //
+    // Operatorlar SERVER BILAN BIR XIL tarmoqda ishlaganda (hozirgi holat -
+    // brauzer so'rovlari serverning o'z ochiq IP'sidan kelayotgani bilan
+    // tasdiqlangan) LAN manzili orqali coturn'ga BEVOSITA yetib boradi va
+    // router sozlamasini kutmasdan ovoz DARHOL ishlaydi. Shu sababli ikkala
+    // manzil ham ro'yxatda: brauzer har biriga relay ajratishga urinib,
+    // QAYSI ishlasa o'shani tanlaydi (ICE'ning standart xatti-harakati).
+    // LAN manzili birinchi - mahalliy operator uchun tezroq topiladi.
+    { urls: 'turn:192.168.100.11:3478?transport=tcp', username: 'webrtc', credential: 'webrtcTURN2026x9k4relay' },
+    // Masofadagi (boshqa tarmoqdagi) operatorlar uchun - ISHLASHI UCHUN
+    // routerda 3478/TCP+UDP -> 192.168.100.11 forwarding SOZLANISHI SHART.
     { urls: 'turn:213.230.93.109:3478?transport=tcp', username: 'webrtc', credential: 'webrtcTURN2026x9k4relay' },
   ],
   // MUHIM: 'relay' EMAS, 'all' (standart) - brauzer HAM to'g'ridan-to'g'ri HAM
