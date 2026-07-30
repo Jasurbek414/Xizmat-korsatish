@@ -23,9 +23,33 @@ const getHeaders = () => {
   return headers;
 };
 
+// Login/subdomain endpointlari xato PAROL uchun ham 401 qaytaradi - ular pastdagi
+// avtomatik logout mantig'idan ISTISNO qilinishi SHART. Aks holda foydalanuvchi
+// parolni bir marta xato kiritsa, "parol xato" xabari ko'rsatilish o'rniga sahifa
+// qayta yuklanib, cheksiz reload halqasi hosil bo'lardi.
+const AUTH_ENDPOINTS_RE = /\/auth\/(login|subdomain)/;
+
 const handleResponse = async (response) => {
   if (!response.ok) {
     const errorData = await response.json().catch(() => ({}));
+
+    // MUHIM (jonli holatda topilgan xato, tuzatildi): 401 kelganda hech qanday
+    // chora ko'rilmasdi - saqlangan token yaroqsiz bo'lib qolgan holatda (masalan
+    // admin panelda xodimning login nomi o'zgartirilgan bo'lsa) foydalanuvchi
+    // har bir sahifada xato xabarini ko'rib, o'zi qo'lda "Chiqish"ni topmaguncha
+    // shu holatda qamalib qolardi. Endi yaroqsiz sessiya avtomatik tozalanadi.
+    // reload() ATAYIN qat'iy yo'nalish (masalan '/login') o'rniga ishlatiladi:
+    // joriy URL saqlanib qoladi, App.jsx esa auth_user yo'qligini ko'rib
+    // o'zining marshrut mantig'i bilan TO'G'RI login sahifasiga yuboradi
+    // (superadmin uchun /spd, kompaniya hisobi uchun /login) - qat'iy yo'nalish
+    // superadminni noto'g'ri sahifaga tushirib qo'yardi.
+    if (response.status === 401 && !AUTH_ENDPOINTS_RE.test(response.url || '')) {
+      localStorage.removeItem('auth_token');
+      localStorage.removeItem('auth_user');
+      localStorage.removeItem('tenant_id');
+      window.location.reload();
+    }
+
     throw new Error(errorData.message || `API Error: ${response.status}`);
   }
   if (response.status === 204) return null;

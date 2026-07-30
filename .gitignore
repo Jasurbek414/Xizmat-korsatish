@@ -37,6 +37,15 @@ mobile-flutter/android/app/google-services.json
 .env.development.local
 .env.test.local
 .env.production.local
+# MUHIM (auditda topilgan xavf): yuqoridagi ".env" namunasi FAQAT aynan ".env"
+# nomini qamrab oladi. Parol/token almashtirilganda ".env.bak", ".env.old",
+# ".env.2026-07-30" kabi zaxira nusxalar yaratish juda keng tarqalgan amaliyot -
+# ular esa e'tiborsiz QOLDIRILMAY, "git add ." bilan JWT_SECRET, Cloudflare
+# tunnel tokeni, ARI va SIP parollari bilan birga repozitoriyga tushib ketardi.
+.env.bak*
+.env.old*
+.env.*.bak
+.env.backup*
 
 # Asterisk - haqiqiy UzTelecom trunk paroli va ARI paroli shu fayllarda ochiq
 # matnda saqlanadi (.env kabi) - faqat *.conf.example namunalari git'ga tushadi.

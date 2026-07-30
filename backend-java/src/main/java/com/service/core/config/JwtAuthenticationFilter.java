@@ -2,6 +2,7 @@ package com.service.core.config;
 
 import com.service.core.model.Company;
 import com.service.core.repository.CompanyRepository;
+import com.service.core.repository.UserRepository;
 import com.service.core.tenant.TenantContext;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.FilterChain;
@@ -26,11 +27,14 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private final JwtTokenProvider jwtTokenProvider;
     private final CompanyRepository companyRepository;
+    private final UserRepository userRepository;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
-    public JwtAuthenticationFilter(JwtTokenProvider jwtTokenProvider, CompanyRepository companyRepository) {
+    public JwtAuthenticationFilter(JwtTokenProvider jwtTokenProvider, CompanyRepository companyRepository,
+                                   UserRepository userRepository) {
         this.jwtTokenProvider = jwtTokenProvider;
         this.companyRepository = companyRepository;
+        this.userRepository = userRepository;
     }
 
     @Override
@@ -52,6 +56,26 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                         // paytida emas, HAR bir so'rovda tekshiriladi).
                         if (companyId != null && !companyId.trim().isEmpty() && isCompanyBlocked(companyId)) {
                             writeBlockedResponse(response);
+                            return;
+                        }
+
+                        // MUHIM (jonli holatda topilgan xato, tuzatildi): JWT'ning "sub"
+                        // maydonida O'ZGARUVCHI foydalanuvchi nomi saqlanadi. Admin panelda
+                        // xodimning login nomi o'zgartirilsa (yoki xodim o'chirilsa), o'sha
+                        // odamning brauzeridagi token IMZO JIHATIDAN hamon YAROQLI qoladi -
+                        // lekin endi mavjud bo'lmagan nomni ko'rsatadi. Natijada
+                        // PermissionService.has() foydalanuvchini topolmay "false" qaytarardi
+                        // va HAR BIR so'rov 403 "Sizda bu amalni bajarish uchun huquq yo'q"
+                        // bilan tugardi. Bu xabar butunlay chalg'ituvchi edi: haqiqiy sabab
+                        // ruxsat emas, YAROQSIZ SESSIYA edi - foydalanuvchi esa huquqlarni va
+                        // parolni qayta-qayta tekshirib vaqt yo'qotardi (aynan shunday bo'lgan:
+                        // parolni tiklash 6 marta 403 bergan). Bundan tashqari frontend 403'da
+                        // hech qanday chora ko'rmagani uchun foydalanuvchi shu holatda abadiy
+                        // qamalib qolardi - chiqishning yagona yo'li qo'lda logout edi.
+                        // Endi aniq 401 qaytaramiz: frontend buni tushunib avtomatik
+                        // login sahifasiga qaytaradi.
+                        if (userRepository.findByUsername(username).isEmpty()) {
+                            writeInvalidSessionResponse(response);
                             return;
                         }
 
@@ -91,6 +115,19 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         response.setContentType(MediaType.APPLICATION_JSON_VALUE);
         response.getWriter().write(objectMapper.writeValueAsString(
             Map.of("message", "Kompaniya bloklangan. Administrator bilan bog'laning.")
+        ));
+    }
+
+    // ATAYIN 401 (403 emas): 403 "sen kimsan bilaman, lekin bu amalga huquqing
+    // yo'q" degani - bu holatda esa aksincha, tokendagi shaxs endi umuman
+    // mavjud emas. 401 semantik jihatdan to'g'ri va frontend'ning avtomatik
+    // logout mantig'i (services/api.js) aynan shu kodga tayanadi.
+    private void writeInvalidSessionResponse(HttpServletResponse response) throws IOException {
+        response.setStatus(HttpStatus.UNAUTHORIZED.value());
+        response.setContentType(MediaType.APPLICATION_JSON_VALUE);
+        response.getWriter().write(objectMapper.writeValueAsString(
+            Map.of("message", "Sessiya yaroqsiz (foydalanuvchi nomi o'zgargan yoki hisob o'chirilgan). "
+                + "Iltimos, qaytadan tizimga kiring.")
         ));
     }
 }
