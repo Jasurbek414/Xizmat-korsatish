@@ -98,6 +98,7 @@ class Order {
   final String paymentStatus;
   final List<OrderItemInfo> items;
   final String measurementUnit;
+  final double servicePrice;
   // Buyurtma statusi birinchi marta "sex zonasi"ga o'tgan payt (backend
   // birinchi safar o'zi qayd etadi) - sexdagi navbatni HAQIQIY jismoniy
   // kelish tartibi bo'yicha saralash uchun (createdAt - buyurtma yaratilgan
@@ -121,6 +122,7 @@ class Order {
     required this.paymentStatus,
     required this.items,
     required this.measurementUnit,
+    required this.servicePrice,
     this.workshopEnteredAt,
   });
 
@@ -149,6 +151,7 @@ class Order {
               .toList() ??
           [],
       measurementUnit: service?['measurementUnit'] ?? 'm²',
+      servicePrice: (service?['price'] as num?)?.toDouble() ?? 0.0,
       workshopEnteredAt: json['workshopEnteredAt'] != null
           ? DateTime.tryParse(json['workshopEnteredAt'] as String)
           : null,

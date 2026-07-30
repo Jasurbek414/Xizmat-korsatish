@@ -37,9 +37,7 @@ const Orders = ({ tab }) => {
     service_id: '',
     worker_id: '',
     address: '',
-    description: '',
-    quantity: 1,
-    measurement_unit: 'dona'
+    description: ''
   });
   const [companySettings, setCompanySettings] = useState({});
 
@@ -57,7 +55,6 @@ const Orders = ({ tab }) => {
       address: o.address,
       description: o.description,
       price: o.price,
-      quantity: 1,
       measurement_unit: o.service ? (o.service.measurementUnit || o.service.measurement_unit || 'm²') : 'm²',
       items: o.items || [],
       payment_status: o.paymentStatus || o.payment_status || 'PENDING',
@@ -168,8 +165,6 @@ const Orders = ({ tab }) => {
         price: services.find(s => s.id === newOrder.service_id)?.price || 0,
         address: newOrder.address || client.address || '',
         description: newOrder.description || '',
-        quantity: parseFloat(newOrder.quantity) || 1,
-        measurement_unit: newOrder.measurement_unit || 'dona',
         status_id: firstStatus
       };
 
@@ -191,9 +186,7 @@ const Orders = ({ tab }) => {
         service_id: '',
         worker_id: '',
         address: '',
-        description: '',
-        quantity: 1,
-        measurement_unit: 'dona'
+        description: ''
       });
 
       // Trigger notification
@@ -274,9 +267,7 @@ const Orders = ({ tab }) => {
       service_id: services.find(s => s.nameUz === order.service_name || s.name_uz === order.service_name)?.id || '',
       worker_id: order.worker_id || '',
       address: order.address,
-      description: order.description || '',
-      quantity: order.quantity || 1,
-      measurement_unit: order.measurement_unit || 'dona'
+      description: order.description || ''
     });
     setShowCreateModal(true);
   };
@@ -361,7 +352,6 @@ const Orders = ({ tab }) => {
         newOrder={newOrder}
         setNewOrder={setNewOrder}
         onSubmit={handleCreateOrder}
-        companySettings={companySettings}
         error={createOrderError}
       />
 

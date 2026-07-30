@@ -7,7 +7,7 @@ import { useTranslation } from 'react-i18next';
 // operator faqat qolgan raqamlarni kiritadi.
 const PHONE_PREFIX = '+998 ';
 
-const CreateOrderModal = ({ isOpen, onClose, clients, services, workers, newOrder, setNewOrder, onSubmit, companySettings, error }) => {
+const CreateOrderModal = ({ isOpen, onClose, clients, services, workers, newOrder, setNewOrder, onSubmit, error }) => {
   const { t } = useTranslation();
 
   // Oyna ochilganda telefon maydoni bo'sh bo'lsa - prefiksni avtomatik qo'yamiz.
@@ -147,36 +147,6 @@ const CreateOrderModal = ({ isOpen, onClose, clients, services, workers, newOrde
             </select>
           </div>
           
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-slate-500 dark:text-gray-400 mb-1">Miqdor (Quantity)</label>
-              <input 
-                type="number" 
-                min="0.01"
-                step="any"
-                value={newOrder.quantity || 1} 
-                onChange={(e) => setNewOrder({...newOrder, quantity: parseFloat(e.target.value) || 1})}
-                className="w-full glass-input rounded-xl px-3 py-2 text-slate-800 dark:text-white focus:outline-none font-mono"
-                required
-              />
-            </div>
-            <div>
-              <label className="block text-slate-500 dark:text-gray-400 mb-1">O'lchov Birligi</label>
-              <select 
-                value={newOrder.measurement_unit || 'dona'}
-                onChange={(e) => setNewOrder({...newOrder, measurement_unit: e.target.value})}
-                className="w-full glass-input rounded-xl px-3 py-2 text-slate-800 dark:text-white focus:outline-none cursor-pointer"
-                required
-              >
-                {(companySettings?.measurement_units || ['dona', 'kv. metr', 'kg', 'litr', 'metr']).map(unit => (
-                  <option key={unit} value={unit} className="bg-white dark:bg-[#111827] text-slate-800 dark:text-gray-200">
-                    {unit}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-
           <div>
             <label className="block text-slate-500 dark:text-gray-400 mb-1">{t('dashboard.address')}</label>
             <input 

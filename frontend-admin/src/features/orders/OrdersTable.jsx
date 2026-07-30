@@ -50,7 +50,7 @@ const OrdersTable = ({ filteredOrders, statuses, onStatusChange, onOpenDetails, 
                     <td className="p-4 text-slate-700 dark:text-gray-200">
                       <div className="font-semibold">{o.service_name}</div>
                       <div className="text-[10px] text-indigo-600 dark:text-indigo-400 font-semibold mt-0.5">
-                        {itemsCount > 0 ? `${itemsCount} ta mahsulot (gilam)` : (o.quantity !== undefined ? `${o.quantity} ${o.measurement_unit || 'dona'}` : '1 dona')}
+                        {itemsCount > 0 ? `${itemsCount} ta mahsulot (gilam)` : `Hali o'lchov kiritilmagan (${o.measurement_unit || 'dona'})`}
                       </div>
                     </td>
                     <td className="p-4 font-mono text-[10px] text-slate-500 dark:text-gray-400">

@@ -35,6 +35,35 @@ public class OrderItemController {
         this.orderStatusRepository = orderStatusRepository;
     }
 
+    /**
+     * Gilam o'lchovlari (OrderItem) o'zgarganda buyurtma narxini xizmat
+     * narxidan avtomatik qayta hisoblaydi - sex hodimi narxni qo'lda
+     * kiritmasa ham buxgalteriya haqiqiy o'lchovga mos summani ko'radi.
+     * Xizmatning o'lchov birligi ("m²"/"kv. metr" - maydon bo'yicha;
+     * "dona"/"kg"/"litr"/"metr" - soni bo'yicha) hisoblash rejimini belgilaydi.
+     */
+    private void recalculatePrice(Order order) {
+        List<OrderItem> items = orderItemRepository.findByOrderId(order.getId());
+        if (items.isEmpty() || order.getService() == null) {
+            return;
+        }
+
+        String unit = order.getService().getMeasurementUnit();
+        boolean isAreaBased = "m²".equals(unit) || (unit != null && unit.toLowerCase().replace(".", "").contains("kv"));
+
+        BigDecimal total;
+        if (isAreaBased) {
+            total = items.stream()
+                    .map(i -> i.getLength().multiply(i.getWidth()).multiply(BigDecimal.valueOf(i.getQuantity())))
+                    .reduce(BigDecimal.ZERO, BigDecimal::add);
+        } else {
+            total = BigDecimal.valueOf(items.stream().mapToInt(OrderItem::getQuantity).sum());
+        }
+
+        order.setPrice(total.multiply(order.getService().getPrice()));
+        orderRepository.save(order);
+    }
+
     private boolean isOrderPastOrCompleted(Order order) {
         if ("HANDED_OVER".equals(order.getPaymentStatus())) {
             return true;
@@ -100,6 +129,7 @@ public class OrderItemController {
                 .build();
 
         OrderItem saved = orderItemRepository.save(item);
+        recalculatePrice(order);
         return ResponseEntity.status(HttpStatus.CREATED).body(saved);
     }
 
@@ -142,6 +172,7 @@ public class OrderItemController {
         }
 
         OrderItem saved = orderItemRepository.save(item);
+        recalculatePrice(order);
         return ResponseEntity.ok(saved);
     }
 
@@ -168,6 +199,7 @@ public class OrderItemController {
         }
 
         orderItemRepository.delete(item);
+        recalculatePrice(order);
         return ResponseEntity.ok(Map.of("message", "Mahsulot muvaffaqiyatli o'chirildi"));
     }
 }

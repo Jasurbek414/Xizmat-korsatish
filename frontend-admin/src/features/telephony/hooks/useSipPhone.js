@@ -20,7 +20,16 @@ const PC_CONFIG = {
     { urls: 'stun:stun.freeswitch.org' },
     // TURN (coturn) - ovoz media'sini TCP orqali relay qiladi (Docker Desktop
     // UDP yo'li buzuq). URL domen EMAS, to'g'ridan-to'g'ri server IP.
-    { urls: 'turn:84.54.75.20:3478?transport=tcp', username: 'webrtc', credential: 'webrtcTURN2026x9k4relay' },
+    // MUHIM (jonli sinovda topilgan xato, tuzatildi): bu yerda avval eski
+    // (haqiqiy bo'lmagan) "84.54.75.20" IP qattiq yozilgan edi - server
+    // HAQIQIY ochiq IP'si (curl api.ipify.org bilan tekshirilgan) butunlay
+    // BOSHQA edi. Noto'g'ri TURN IP tufayli brauzer coturn'ga umuman
+    // ulanolmasdi - WebRTC ICE/media butunlay o'rnatilmasdi ("aloqa
+    // o'rnatilmayapti" xatosi aynan shu sabab edi). Server IP o'zgarsa - bu
+    // qiymatni albatta yangilang (coturn-certs/docker-compose'dagi coturn
+    // xizmati ham shu IP'ga bog'liq emas, lekin brauzer to'g'ridan-to'g'ri
+    // shu qiymatga ulanadi).
+    { urls: 'turn:213.230.93.109:3478?transport=tcp', username: 'webrtc', credential: 'webrtcTURN2026x9k4relay' },
   ],
   // MUHIM: 'relay' EMAS, 'all' (standart) - brauzer HAM to'g'ridan-to'g'ri HAM
   // relay yo'lini sinaydi. Shunda coturn yetib bormasa ham qo'ng'iroq O'RNATILADI

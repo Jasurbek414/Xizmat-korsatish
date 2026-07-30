@@ -118,6 +118,18 @@ services:
   asterisk:
     image: andrius/asterisk:22
     container_name: service-core-asterisk
+    # MUHIM (jonli sinovda topilgan xato, tuzatildi): "hostname:" ko'rsatilmasa
+    # Docker konteynerga tasodifiy raqamdan boshlanishi mumkin bo'lgan hex ID
+    # (masalan "17b9ed4a32bb") beradi - Asterisk buni transport-ws uchun
+    # ANIQ external_signaling_address sozlanmagani sababli o'zining SIP
+    # Contact sarlavhasida (INVITE'larda) hostname sifatida ishlatadi. JsSIP
+    # (va aksariyat qat'iy SIP grammatikasi) RAQAM bilan boshlanadigan
+    # hostname'ni yaroqsiz deb rad etadi ("error parsing header Contact") -
+    # bu operator brauzeriga INVITE yetib borsa ham JIMGINA tashlab
+    # yuborilishiga, "newRTCSession" hech qachon chaqirilmasligiga sabab
+    # bo'lgan asosiy xato edi. Harf bilan boshlanadigan hostname bu
+    # muammoni butunlay yo'q qiladi.
+    hostname: asterisk-pbx
     logging: *default-logging
     restart: always
     ports:

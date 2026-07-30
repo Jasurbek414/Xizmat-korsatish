@@ -41,6 +41,39 @@ class _FactoryOrderDetailScreenState extends State<FactoryOrderDetailScreen> {
   bool _saving = false;
   bool _addingItem = false;
 
+  /// Narx maydoniga foydalanuvchi o'zi qo'lda yozganmi (aks holda avtomatik
+  /// hisoblangan taklif ko'rsatiladi va _save() da alohida yuborilmaydi -
+  /// backend OrderItemController.recalculatePrice orqali o'lchovlardan
+  /// narxni o'zi hisoblab qo'yadi).
+  bool _priceManuallyEdited = false;
+  bool _suppressPriceListener = false;
+
+  void _setPriceText(String text) {
+    _suppressPriceListener = true;
+    _priceController.text = text;
+    _suppressPriceListener = false;
+  }
+
+  /// Backend'dagi OrderItemController.recalculatePrice bilan BIR XIL qoida:
+  /// xizmat o'lchov birligi "m²"/"kv..." bo'lsa maydon (eni×bo'yi×soni)
+  /// bo'yicha, aks holda faqat soni bo'yicha hisoblanadi.
+  double _suggestedPrice() {
+    if (widget.order.items.isEmpty) return 0;
+    final unit = widget.order.measurementUnit.toLowerCase().replaceAll('.', '');
+    final isAreaBased = unit == 'm²' || unit.contains('kv');
+    final basis = isAreaBased
+        ? _calcTotalArea(widget.order.items)
+        : _calcTotalQuantity(widget.order.items).toDouble();
+    return basis * widget.order.servicePrice;
+  }
+
+  /// O'lcham/gilam ro'yxati o'zgarganda - agar inson narxni qo'lda
+  /// tahrirlamagan bo'lsa - taklif etilgan narxni maydonga yozib qo'yadi.
+  void _refreshSuggestedPriceIfNotEdited() {
+    if (_priceManuallyEdited || widget.order.items.isEmpty) return;
+    _setPriceText(_suggestedPrice().toStringAsFixed(0));
+  }
+
   /// Tarix (o'tgan) buyurtma ekanligini tekshiradi — yakunlangan
   /// yoki to'lov qilingan buyurtmalar tahrirlanmasligi kerak.
   bool get _isCompleted {
@@ -63,7 +96,12 @@ class _FactoryOrderDetailScreenState extends State<FactoryOrderDetailScreen> {
       _eniCtrl[item.id] = TextEditingController(text: item.width > 0 ? item.width.toString() : '');
       _boyiCtrl[item.id] = TextEditingController(text: item.length > 0 ? item.length.toString() : '');
     }
-    if (widget.order.price > 0) _priceController.text = widget.order.price.toStringAsFixed(0);
+    final suggested = _suggestedPrice();
+    if (suggested > 0) {
+      _setPriceText(suggested.toStringAsFixed(0));
+    } else if (widget.order.price > 0) {
+      _setPriceText(widget.order.price.toStringAsFixed(0));
+    }
     if (widget.order.description.isNotEmpty) _noteController.text = widget.order.description;
   }
 
@@ -130,12 +168,18 @@ class _FactoryOrderDetailScreenState extends State<FactoryOrderDetailScreen> {
               widget.order.id, item.id, boyi, eni);
         }
       }
-      // Save price + note
-      final price =
-          double.tryParse(
+      // Save price + note. Agar inson narxni qo'lda o'zgartirmagan bo'lsa,
+      // taklif etilgan (avtomatik hisoblangan) narx yuboriladi - shu bilan
+      // eski/tahrirlanmagan matn qiymati backend hisoblagan narxni ustidan
+      // yozib qo'yishining oldi olinadi. Backend ham xuddi shu formula
+      // bo'yicha mustaqil qayta hisoblaydi (OrderItemController.recalculatePrice).
+      final typedPrice = double.tryParse(
               _priceController.text.replaceAll(RegExp(r'[^0-9.]'), '')) ??
           0;
-      await _repo.updateOrderPrice(widget.order.id, price,
+      final priceToSend = (widget.order.items.isNotEmpty && !_priceManuallyEdited)
+          ? _suggestedPrice()
+          : typedPrice;
+      await _repo.updateOrderPrice(widget.order.id, priceToSend,
           description: _noteController.text.trim());
 
       // Advance to next status
@@ -774,6 +818,9 @@ class _FactoryOrderDetailScreenState extends State<FactoryOrderDetailScreen> {
             TextField(
               controller: _priceController,
               keyboardType: TextInputType.number,
+              onChanged: (_) {
+                if (!_suppressPriceListener) _priceManuallyEdited = true;
+              },
               decoration: const InputDecoration(
                 hintText: 'Narxni kiriting',
                 prefixIcon:
@@ -784,6 +831,14 @@ class _FactoryOrderDetailScreenState extends State<FactoryOrderDetailScreen> {
                   fontSize: 14,
                   fontWeight: FontWeight.w600),
             ),
+            if (_hasItems && !_priceManuallyEdited)
+              Padding(
+                padding: const EdgeInsets.only(top: 6),
+                child: Text(
+                  'Avtomatik hisoblangan: ${NumberFormat.decimalPattern('uz').format(_suggestedPrice())} so\'m (o\'lchov asosida)',
+                  style: const TextStyle(color: AppTheme.textMuted, fontSize: 11),
+                ),
+              ),
           ],
           const SizedBox(height: 24),
 
@@ -1049,10 +1104,13 @@ class _FactoryOrderDetailScreenState extends State<FactoryOrderDetailScreen> {
                         // Save measurements to controller maps
                         _eniCtrl[item.id]?.text = eniCtrl.text;
                         _boyiCtrl[item.id]?.text = boyiCtrl.text;
-                        // Sync price to main controller
+                        _refreshSuggestedPriceIfNotEdited();
+                        // Agar inson shu oynada narxni qo'lda yozgan bo'lsa -
+                        // avtomatik taklifni ustidan yozadi (qo'lda tahrirlash).
                         final priceText = priceCtrl.text.trim();
                         if (priceText.isNotEmpty) {
-                          _priceController.text = priceText;
+                          _priceManuallyEdited = true;
+                          _setPriceText(priceText);
                         }
                         setState(() {});
                         Navigator.pop(bctx);
@@ -1225,7 +1283,7 @@ class _FactoryOrderDetailScreenState extends State<FactoryOrderDetailScreen> {
         keyboardType:
             const TextInputType.numberWithOptions(decimal: true),
         textAlign: TextAlign.center,
-        onChanged: (_) => setState(() {}),
+        onChanged: (_) => setState(() => _refreshSuggestedPriceIfNotEdited()),
         style: const TextStyle(
             fontSize: 12,
             color: AppTheme.textPrimary,
