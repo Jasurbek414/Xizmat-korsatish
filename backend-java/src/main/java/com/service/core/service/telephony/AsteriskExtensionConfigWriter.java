@@ -97,6 +97,29 @@ public class AsteriskExtensionConfigWriter {
                 "dtls_auto_generate_cert=yes\n" +
                 "use_avpf=yes\n" +
                 "media_encryption=dtls\n" +
+                // MUHIM (jonli holatda topilgan ASOSIY xato, tuzatildi): Asterisk'da
+                // direct_media standart holatda "yes" va "webrtc=yes" yorlig'i uni
+                // O'ZGARTIRMAYDI (u faqat use_avpf/media_encryption/dtls_*/ice_support/
+                // rtcp_mux/media_use_received_transport qiymatlarini o'rnatadi).
+                // direct_media=yes bo'lsa, ikki tomon javob bergach Asterisk ularni
+                // TO'G'RIDAN-TO'G'RI ulashga urinib, brauzerga re-INVITE yuboradi va
+                // media'ni trunk manziliga yo'naltiradi. Brauzer buni BAJARA OLMAYDI:
+                // WebRTC uchun DTLS-SRTP va ICE shart, UzTelecom trunk esa oddiy RTP
+                // ishlatadi va butunlay boshqa tarmoqda. Natijada JsSIP re-INVITE'ni
+                // rad etadi ("Call failed: Rejected") va qo'ng'iroq shu zahoti uziladi.
+                // Simptom AYNAN shunday edi: trunk javob beradi, ko'prik yaratiladi,
+                // "Called 2000" ketadi, brauzer javob berishga urinadi va darhol
+                // qulaydi - bazadagi 20 ta call_sessions yozuvining HAMMASI
+                // duration=0 bilan (ya'ni ovoz birorta qo'ng'iroqda ham ulanmagan).
+                // WebRTC endpoint uchun direct_media HAR DOIM "no" bo'lishi shart -
+                // Asterisk media'ni o'zi orqali (B2BUA) o'tkazishi kerak, chunki
+                // faqat u DTLS-SRTP <-> oddiy RTP o'zgartirishini bajara oladi.
+                "direct_media=no\n" +
+                // Brauzer NAT ortida (Cloudflare tunnel + Docker tarmog'i) - RTP
+                // haqiqatan kelgan manzilga qaytariladi, SDP'da e'lon qilingan
+                // manzilga emas. ICE bilan birga ishlaganda ham bu qo'shimcha
+                // ishonchlilik beradi.
+                "rtp_symmetric=yes\n" +
                 // Operator "Kutish"ga qo'yganda (JsSIP re-INVITE, sendonly SDP)
                 // Asterisk BUNI o'zi (B2BUA sifatida) avtomatik boshqaradi -
                 // ikkinchi tomon (mijoz/trunk) shu MOH klassini eshitadi.
