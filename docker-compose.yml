@@ -1,5 +1,3 @@
-version: '3.8'
-
 # MUHIM (audit'da topilgan): standart Docker json-file log drayveri hech
 # qanday chegarasiz - TRACE darajasidagi loglash (endi o'chirilgan) bilan
 # birga disk vaqt o'tishi bilan to'lib ketishi mumkin edi. Har bir xizmatga
@@ -30,13 +28,32 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     restart: always
+    # MUHIM (2026-07-31 auditda topilgan): "depends_on: db" FAQAT konteyner
+    # ishga tushganini bildiradi, PostgreSQL so'rovga TAYYOR ekanini emas.
+    # Shu sababli har ko'tarilishda backend baza tayyor bo'lishidan oldin
+    # ulanishga urinib, bir necha marta qayta ishga tushardi. pg_isready
+    # bilan haqiqiy tayyorlikni tekshiramiz (backend'dagi service_healthy
+    # shartiga qarang).
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres} -d service_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
 
   backend:
     build: ./backend-java
     container_name: service-core-backend
     logging: *default-logging
     ports:
-      - "8082:8080"
+      # MUHIM (xavfsizlik, 2026-07-31 auditda topilgan): avval "8082:8080" -
+      # ya'ni 0.0.0.0, butun LAN'ga ochiq. Tekshirildi: bu portni HECH KIM
+      # ishlatmaydi - nginx backendga ICHKI docker tarmog'i orqali boradi
+      # (proxy-nginx.conf: "set $upstream_backend backend:8080"), mobil ilova
+      # esa https://namifor-api.ecos.uz (Cloudflare tunnel) orqali
+      # (mobile-flutter/lib/core/constants.dart). Endi faqat shu mashinadan -
+      # lokal debug uchun ochiq qoladi, tashqaridan yopiq.
+      - "127.0.0.1:8082:8080"
     environment:
       - DB_HOST=db
       - DB_PORT=5432
@@ -52,7 +69,13 @@ services:
       - ASTERISK_ARI_HOST=asterisk
       - ASTERISK_ARI_PORT=8088
       - ASTERISK_ARI_USERNAME=asterisk
-      - ASTERISK_ARI_PASSWORD=${ASTERISK_ARI_PASSWORD:-815a289f5c47169336e892e1745d2d4cd0b672512f14e87f}
+      # MUHIM (xavfsizlik, 2026-07-31 auditda topilgan): bu yerda avval
+      # haqiqiy parol standart qiymat (fallback) sifatida ochiq turardi va
+      # git'ga tushgan edi. Endi FAQAT .env'dan olinadi va standart qiymat
+      # ATAYLAB yo'q - .env'da bo'lmasa konteyner ko'tarilmaydi. Jimgina
+      # hammaga ma'lum parol bilan ishga tushib ketishdan shu yaxshi.
+      # Qiymat asterisk-config/ari.conf'dagi bilan BIR XIL bo'lishi shart.
+      - ASTERISK_ARI_PASSWORD=${ASTERISK_ARI_PASSWORD:?.env faylida ASTERISK_ARI_PASSWORD belgilanishi shart}
       # SIP hisob parollarini bazada shifrlash uchun (SipPasswordConverter).
       - SIP_CREDENTIALS_KEY=${SIP_CREDENTIALS_KEY:-}
     volumes:
@@ -64,7 +87,10 @@ services:
       # gateway/extension volume'lari o'rniga).
       - ./asterisk-config/pjsip.d:/asterisk-pjsip-config
     depends_on:
-      - db
+      db:
+        # Baza HAQIQATAN so'rovga tayyor bo'lgunicha kutamiz (db healthcheck'iga
+        # qarang) - shunchaki konteyner ishga tushishini emas.
+        condition: service_healthy
     restart: always
 
   frontend:
@@ -72,7 +98,12 @@ services:
     container_name: service-core-frontend
     logging: *default-logging
     ports:
-      - "3005:80"
+      # MUHIM (xavfsizlik, 2026-07-31 auditda topilgan): avval "3005:80" -
+      # 0.0.0.0. Backend bilan bir xil sabab: nginx frontendga ichki tarmoq
+      # orqali boradi ("set $upstream_frontend frontend:80"), tashqi
+      # foydalanuvchilar esa Cloudflare tunnel orqali. Host porti faqat
+      # lokal debug uchun kerak.
+      - "127.0.0.1:3005:80"
     restart: always
 
   tunnel:
@@ -205,6 +236,13 @@ services:
     command:
       - "-n"
       - "--log-file=stdout"
+      # VAQTINCHALIK (2026-07-30 diagnostikasi): batafsil log - brauzer TURN
+      # allocation so'rovi HAQIQATAN yetib kelayotganini ko'rish uchun. Standart
+      # rejimda coturn allocation'larni yozmaydi, shuning uchun "log bo'sh"
+      # holati "so'rov kelmadi" degan ma'noni BERMAYDI - shuni aniqlash uchun
+      # kerak. Muammo hal bo'lgach BU QATORNI OLIB TASHLANG (batafsil log
+      # har media paketni yozib diskni tez to'ldiradi).
+      - "-v"
       - "--listening-port=3478"
       - "--tls-listening-port=443"
       - "--cert=/certs/turn_cert.pem"
@@ -212,7 +250,14 @@ services:
       - "--realm=namifor.ecos.uz"
       - "--fingerprint"
       - "--lt-cred-mech"
-      - "--user=webrtc:webrtcTURN2026x9k4relay"
+      # MUHIM (xavfsizlik, 2026-07-31 auditda topilgan): TURN login/parol avval
+      # shu yerda ochiq matnda turardi va git'ga tushgan edi. Endi .env'dan
+      # olinadi (standart qiymat ATAYLAB yo'q).
+      # DIQQAT: bu ma'lumotlar brauzerga ham kerak, shuning uchun
+      # frontend-admin/src/features/telephony/hooks/useSipPhone.js ichida ham
+      # bor - parolni almashtirsangiz IKKALA joyni ham yangilang, aks holda
+      # TURN autentifikatsiyasi buziladi va ovoz umuman ulanmaydi.
+      - "--user=${TURN_USER:?.env faylida TURN_USER belgilanishi shart}:${TURN_PASSWORD:?.env faylida TURN_PASSWORD belgilanishi shart}"
       - "--min-port=49160"
       - "--max-port=49200"
       - "--no-dtls"
