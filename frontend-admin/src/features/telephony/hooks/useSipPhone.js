@@ -16,8 +16,14 @@ JsSIP.debug.disable('JsSIP:*');
 const PC_CONFIG = {
   iceServers: [
     // STUN - to'g'ridan-to'g'ri urinish (qo'ng'iroq har doim o'rnatilishi uchun).
+    // ATAYIN FAQAT BITTA STUN serveri: har qo'shimcha server nomzod to'plash
+    // vaqtini uzaytiradi (brauzer HAR BIR tarmoq interfeysi uchun HAR BIR
+    // serverga so'rov yuboradi - bu yerda 5+ interfeys bor, ular orasida
+    // IPv6 ULA (fd00::) manzillari ham, ular STUN serverlariga yetmaydi va
+    // "kod=701 STUN host lookup received error" beradi). "stun.freeswitch.org"
+    // olib tashlandi: FreeSWITCH davridan qolgan (loyiha Asterisk'ga o'tgan)
+    // va bitta ishlaydigan STUN serveri yetarli.
     { urls: 'stun:stun.l.google.com:19302' },
-    { urls: 'stun:stun.freeswitch.org' },
     // TURN (coturn) - ovoz media'sini TCP orqali relay qiladi (Docker Desktop
     // UDP yo'li buzuq). URL domen EMAS, to'g'ridan-to'g'ri server IP.
     // MUHIM (jonli sinovda topilgan xato, tuzatildi): bu yerda avval eski
@@ -50,9 +56,43 @@ const PC_CONFIG = {
     // QAYSI ishlasa o'shani tanlaydi (ICE'ning standart xatti-harakati).
     // LAN manzili birinchi - mahalliy operator uchun tezroq topiladi.
     { urls: 'turn:192.168.100.11:3478?transport=tcp', username: 'webrtc', credential: 'webrtcTURN2026x9k4relay' },
-    // Masofadagi (boshqa tarmoqdagi) operatorlar uchun - ISHLASHI UCHUN
-    // routerda 3478/TCP+UDP -> 192.168.100.11 forwarding SOZLANISHI SHART.
-    { urls: 'turn:213.230.93.109:3478?transport=tcp', username: 'webrtc', credential: 'webrtcTURN2026x9k4relay' },
+
+    // ============================================================================
+    // MUHIM - QO'NG'IROQLARNI BUZGAN HAQIQIY SABAB (2026-07-30, ICE loglari bilan
+    // aniqlangan). Bu yerda avval quyidagi yozuv TURGAN edi:
+    //
+    //   { urls: 'turn:213.230.93.109:3478?transport=tcp', ... }
+    //
+    // Ochiq IP routerga tegishli va routerda 3478 uchun port forwarding YO'Q.
+    // Muhim nozik jihat: bu manzilga yuborilgan paketlar RAD ETILMAYDI
+    // (connection refused), balki JIMGINA TASHLAB YUBORILADI - sinovda
+    // tasdiqlangan (curl: connect=0.000000, exit=28 timeout). Shuning uchun
+    // Chrome bu TURN serverga TCP ulanishni SYN qayta yuborishlari bilan
+    // 60-75 SEKUND davomida kutadi.
+    //
+    // Va aynan shu narsa qo'ng'iroqni o'ldirardi: JsSIP "200 OK" javobini
+    // ICE nomzod to'plash TO'LIQ tugagach yuboradi, to'plash esa har bir
+    // ICE serveri javob bergancha (yoki timeout bo'lguncha) tugamaydi.
+    // Natijada brauzer 200 OK yubormay turardi, Asterisk ~30 sekunddan keyin
+    // taslim bo'lib trunk'ga BYE yuborardi - abonent go'shakni ko'targan
+    // bo'lsa ham veb jiringlashda qolardi. Konsol loglarida bu aniq ko'rinadi:
+    // "[ICE] to'plash holati: gathering" bor, lekin "complete" HECH QACHON
+    // kelmaydi va "[ICE] ULANISH HOLATI" "checking"da qotib qoladi.
+    // Bazadagi 20 ta call_sessions yozuvining hammasi duration=0 bo'lgani
+    // ham shundan.
+    //
+    // XULOSA: yetib bo'lmaydigan TURN yozuvi "zaxira yo'l" emas - u qo'ng'iroqni
+    // FAOL RAVISHDA BUZADI. Shuning uchun olib tashlandi.
+    //
+    // Masofadagi operatorlarni yoqish uchun TARTIB QAT'IY SHUNDAY bo'lishi kerak:
+    //   1) Routerda (192.168.100.1) 3478/TCP+UDP -> 192.168.100.11 forwarding
+    //      sozlanadi;
+    //   2) Tashqi tarmoqdan (masalan telefon mobil internetida) port ochiqligi
+    //      TASDIQLANADI;
+    //   3) FAQAT SHUNDAN KEYIN yuqoridagi ochiq IP yozuvi qaytariladi.
+    // Aks tartibda qaytarilsa - mahalliy operatorlar uchun ham qo'ng'iroq
+    // yana buziladi.
+    // ============================================================================
   ],
   // MUHIM: 'relay' EMAS, 'all' (standart) - brauzer HAM to'g'ridan-to'g'ri HAM
   // relay yo'lini sinaydi. Shunda coturn yetib bormasa ham qo'ng'iroq O'RNATILADI
@@ -119,7 +159,74 @@ export default function useSipPhone({
   const attachSessionHandlers = useCallback((session) => {
     setIsOnHold(false); // Yangi sessiya - eski chaqiruvdan qolgan "hold" holati tozalanadi.
     session.on('peerconnection', (e) => {
-      e.peerconnection.addEventListener('track', (event) => {
+      const pc = e.peerconnection;
+
+      // MUHIM (2026-07-30 diagnostikasi): bu yerda AVVAL faqat 'track'
+      // tinglanardi - ya'ni WebRTC ulanishining HAQIQIY holati (ICE) hech qanday
+      // joyda kuzatilmasdi. Natijada qo'ng'iroq "ulanmadi" deganda konsolda
+      // "javob berilmoqda"dan keyin JIMLIK bo'lardi va nosozlikni topish
+      // imkonsiz edi: ICE nomzod to'plash muvaffaqiyatsizmi, TURN serveriga
+      // yetib bormadimi, yoki ulanish tekshiruvi (connectivity check) o'tmadimi
+      // - farqini bilishning YO'LI yo'q edi. Quyidagi loglar aynan shu
+      // ko'rinmaslikni tuzatadi.
+      //
+      // 'icecandidateerror' ENG MUHIMI: STUN/TURN serveriga ulanish
+      // muvaffaqiyatsiz bo'lsa, brauzer aynan shu hodisada url + errorCode +
+      // errorText beradi (masalan TURN allocation timeout yoki 401
+      // autentifikatsiya xatosi). Server loglarida bu ma'lumot YO'Q - faqat
+      // brauzer biladi.
+      pc.addEventListener('icecandidateerror', (ev) => {
+        console.error('[ICE] NOMZOD XATOSI | url=', ev.url,
+          '| kod=', ev.errorCode, '| matn=', ev.errorText, '| manzil=', ev.address, ev.port);
+      });
+
+      // Har bir topilgan nomzodning TURINI yozamiz. Kutilayotgani: kamida bitta
+      // "relay" (coturn orqali) yoki brauzer yetadigan "host"/"srflx".
+      pc.addEventListener('icecandidate', (ev) => {
+        if (ev.candidate && ev.candidate.candidate) {
+          const c = ev.candidate;
+          console.log('[ICE] nomzod topildi | tur=', c.type, '| protokol=', c.protocol,
+            '| manzil=', c.address, ':', c.port, '| related=', c.relatedAddress);
+        } else {
+          console.log('[ICE] nomzod to\'plash TUGADI (barcha nomzodlar yuborildi)');
+        }
+      });
+
+      pc.addEventListener('icegatheringstatechange', () => {
+        console.log('[ICE] to\'plash holati:', pc.iceGatheringState);
+      });
+
+      // Haqiqiy natija shu yerda ko'rinadi: 'connected'/'completed' = ovoz yo'li
+      // o'rnatildi; 'failed' = birorta ishlaydigan nomzod juftligi topilmadi
+      // (ya'ni tarmoq/TURN muammosi); 'checking'da qotib qolsa - nomzodlar bor,
+      // lekin ular orasida yetib boradigan yo'l yo'q.
+      pc.addEventListener('iceconnectionstatechange', async () => {
+        console.log('[ICE] ULANISH HOLATI:', pc.iceConnectionState);
+        if (pc.iceConnectionState === 'connected' || pc.iceConnectionState === 'completed') {
+          // Qaysi juftlik tanlandi - ovoz aynan qaysi yo'ldan kelayotganini
+          // aniq ko'rsatadi (to'g'ridan-to'g'ri yoki coturn relay orqali).
+          try {
+            const stats = await pc.getStats();
+            stats.forEach((r) => {
+              if (r.type === 'candidate-pair' && r.state === 'succeeded' && r.nominated) {
+                const local = stats.get(r.localCandidateId);
+                const remote = stats.get(r.remoteCandidateId);
+                console.log('[ICE] TANLANGAN YO\'L | mahalliy=',
+                  local && local.candidateType, local && local.address, local && local.port,
+                  '-> masofaviy=', remote && remote.candidateType, remote && remote.address, remote && remote.port);
+              }
+            });
+          } catch (statsErr) {
+            console.warn('[ICE] getStats xatosi:', statsErr && statsErr.message);
+          }
+        }
+      });
+
+      pc.addEventListener('connectionstatechange', () => {
+        console.log('[WebRTC] umumiy ulanish holati:', pc.connectionState);
+      });
+
+      pc.addEventListener('track', (event) => {
         const stream = event.streams[0];
         const audioEl = document.getElementById('telephony-audio');
         // 'track' bir necha marta ishlashi mumkin - faqat stream HAQIQATAN
@@ -139,14 +246,37 @@ export default function useSipPhone({
       });
     });
 
-    session.on('connecting', () => cbRef.current.onProgress && cbRef.current.onProgress());
-    session.on('progress', () => cbRef.current.onProgress && cbRef.current.onProgress());
-    session.on('accepted', () => cbRef.current.onActive && cbRef.current.onActive());
+    // Quyidagi hodisalarda AVVAL hech qanday log yo'q edi - qo'ng'iroq
+    // muvaffaqiyatsiz tugaganda konsolda sabab ko'rinmasdi (SIP darajasida
+    // nima bo'lganini faqat server logidan taxmin qilish mumkin edi).
+    session.on('connecting', () => {
+      console.log('[SIP] sessiya: connecting');
+      cbRef.current.onProgress && cbRef.current.onProgress();
+    });
+    session.on('progress', () => {
+      console.log('[SIP] sessiya: progress (jiringlayapti)');
+      cbRef.current.onProgress && cbRef.current.onProgress();
+    });
+    session.on('accepted', () => {
+      console.log('[SIP] sessiya: ACCEPTED (200 OK) - signalizatsiya tayyor, ovoz ICE\'ga bog\'liq');
+      cbRef.current.onActive && cbRef.current.onActive();
+    });
+    // 'confirmed' = ACK ham keldi, chaqiruv TO'LIQ o'rnatildi. Avval bu hodisa
+    // umuman kuzatilmagan edi - "accepted keldi, lekin confirmed kelmadi"
+    // holatini ajratib bo'lmasdi.
+    session.on('confirmed', () => {
+      console.log('[SIP] sessiya: CONFIRMED (ACK) - chaqiruv to\'liq o\'rnatildi');
+    });
     session.on('failed', (e) => {
+      console.error('[SIP] sessiya: FAILED | sabab=', e && e.cause,
+        '| SIP kod=', e && e.message && e.message.status_code,
+        '| sabab matni=', e && e.message && e.message.reason_phrase);
       cbRef.current.onFailed && cbRef.current.onFailed(e && e.cause);
       sessionRef.current = null;
     });
-    session.on('ended', () => {
+    session.on('ended', (e) => {
+      console.warn('[SIP] sessiya: ENDED | sabab=', e && e.cause,
+        '| kim uzdi=', e && e.originator);
       cbRef.current.onEnded && cbRef.current.onEnded();
       sessionRef.current = null;
       setIsOnHold(false);
