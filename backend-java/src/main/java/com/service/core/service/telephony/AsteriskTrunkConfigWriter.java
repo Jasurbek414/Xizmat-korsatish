@@ -123,6 +123,21 @@ public class AsteriskTrunkConfigWriter {
                 "contact_user=" + username + "\n" +
                 "retry_interval=30\n" +
                 "forbidden_retry_interval=120\n" +
+                // MUHIM (2026-07-31 jonli aniqlangan xato): fatal_retry_interval'ning
+                // Asterisk'dagi STANDART qiymati 0 - ya'ni "fatal" javob kelganda
+                // registratsiya BUTUNLAY to'xtaydi va boshqa HECH QACHON urinilmaydi
+                // ("Fatal response '401' received ... stopping outbound registration").
+                // Autentifikatsiya xatosi (401) aynan fatal deb hisoblanadi, shu sababli
+                // bitta o'tkinchi 401 (masalan operator tomonida nonce eskirishi yoki
+                // qayta ishga tushirish paytidagi to'qnashuv) trunk'ni jimgina o'ldirardi:
+                // kiruvchi qo'ng'iroqlar hech qanday ogohlantirishsiz kelmay qo'yadi va
+                // kimdir qo'lda "module reload" qilmaguncha shunday qoladi. Bu holat
+                // bugun uch marta kuzatildi (backend qayta ishga tushirilgandan keyin).
+                // Yuqoridagi retry_interval (vaqtinchalik xatolar) va
+                // forbidden_retry_interval (403) bu holatni QAMRAMAYDI - ular boshqa
+                // javob turlari uchun. Endi Asterisk 60 soniyada qayta urinadi, ya'ni
+                // trunk o'zini o'zi tiklaydi.
+                "fatal_retry_interval=60\n" +
                 "expiration=" + account.getKeepaliveInterval() + "\n";
     }
 
