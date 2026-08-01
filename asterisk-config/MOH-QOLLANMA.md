@@ -1,13 +1,32 @@
 # Kutish musiqasi (Music on Hold)
 
-Bu papka `musiconhold.conf`dagi `[default]` klassiga ulanadi
+`moh/` papkasi `musiconhold.conf`dagi `[default]` klassiga ulanadi
 (`mode=files`, `directory=moh`) va konteynerda
 `/var/lib/asterisk/moh/` sifatida ko'rinadi.
 
-**Audio fayllar git'ga tushmaydi** (`.gitignore`ga qarang) — shuning uchun
-yangi serverga o'rnatishda ularni **qo'lda ko'chirish kerak**. Aks holda
-mijoz kutishga qo'yilganda yoki navbatda turganda mutlaq jimlik eshitadi va
+> ⚠️ **`moh/` papkasiga audiodan boshqa hech narsa qo'ymang.** Asterisk
+> papkadagi HAMMA faylni ijro etiladigan deb hisoblaydi. Bu qo'llanma avval
+> shu papka ichida turgan edi va Asterisk uni `File: .../README` deb
+> ro'yxatga olgan edi — shuning uchun tashqariga chiqarildi.
+
+**Audio fayllar git'ga tushmaydi** (`.gitignore`ga qarang), lekin ular
+yo'qolmaydi: `scripts/generate-moh.py` musiqani istalgan joyda qayta
+yaratadi. Yangi serverga deploy qilganda shuni ishga tushiring:
+
+```bash
+python3 scripts/generate-moh.py
+docker restart service-core-asterisk
+```
+
+Agar buni unutsangiz mijoz kutishga qo'yilganda mutlaq jimlik eshitadi va
 ko'pchilik buni "aloqa uzildi" deb tushunib, go'shakni qo'yadi.
+
+## Tayyor musiqa o'rniga o'z faylingizni qo'ymoqchi bo'lsangiz
+
+`scripts/generate-moh.py` sinus to'lqinlaridan original ohang yaratadi —
+mualliflik huquqi muammosi yo'q. Tayyor trek ishlatmoqchi bo'lsangiz,
+litsenziyasiga e'tibor bering: ommaviy joyda (mijozga telefon orqali)
+ijro etish odatda alohida ruxsat talab qiladi.
 
 ## 1. Fayl formati
 

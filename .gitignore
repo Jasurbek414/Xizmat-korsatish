@@ -57,14 +57,16 @@ asterisk-config/pjsip.d/*.conf
 !asterisk-config/pjsip.d/_placeholder.conf
 
 # Kutish musiqasi (music-on-hold) audio fayllari. Git kod uchun, media uchun
-# emas - bir necha MB'lik audio har commit'da repo tarixiga yopishib qoladi va
-# uni keyin olib tashlash qiyin. Papka tuzilishi saqlanishi uchun .gitkeep va
-# ko'rsatma yozilgan README.md ataylab ISTISNO qilingan.
-# DIQQAT: shu sababli audio fayl deploy paytida QO'LDA ko'chiriladi - yangi
-# serverga o'rnatishda buni unutmang, aks holda mijoz kutishda jimlik eshitadi.
+# emas - audio har commit'da repo tarixiga yopishib qoladi va uni keyin olib
+# tashlash qiyin.
+# DEPLOY: fayl yo'qolmaydi - scripts/generate-moh.py uni qayta yaratadi
+# (qo'llanma: asterisk-config/MOH-QOLLANMA.md).
+# DIQQAT: bu papkaga AUDIODAN BOSHQA hech narsa qo'ymang. Asterisk papkadagi
+# HAMMA faylni ijro etiladigan deb hisoblaydi - README.md shu yerda turganda
+# uni ham "File: .../README" deb ro'yxatga olgan edi (jonli kuzatilgan).
+# Shu sababli qo'llanma papkadan tashqariga chiqarildi.
 asterisk-config/moh/*
 !asterisk-config/moh/.gitkeep
-!asterisk-config/moh/README.md
 
 npm-debug.log*
 yarn-debug.log*
