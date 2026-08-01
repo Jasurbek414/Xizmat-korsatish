@@ -1,3 +1,18 @@
+# MUHIM (2026-08-01, ikkinchi loyiha qo'shilgandan keyin): endi bitta WSL2 VM
+# ichida IKKI loyiha ishlaydi (8 GB RAM, 6 vCPU umumiy hovuz). Cheklovsiz bir
+# xizmatning xotira sizishi butun VM ni bo'g'ib, telefoniyani ham o'ldirishi
+# mumkin edi.
+#
+# NEGA cpu_shares, "cpus" EMAS: "cpus" QATTIQ chegara - xizmat bo'sh turgan
+# quvvatdan ham foydalana olmaydi. cpu_shares esa NISBIY ustuvorlik: raqobat
+# bo'lmasa hamma to'liq tezlikda ishlaydi, raqobat paytida esa telefoniya
+# (asterisk/coturn) ustun chiqadi. Ular real vaqt rejimida ishlaydi va
+# kechikishga sezgir - ovoz uzilib qolmasligi uchun shu muhim.
+# Standart qiymat 1024. Telefoniyaga 2048 (ikki barobar ustunlik).
+#
+# mem_limit esa QATTIQ - u himoya chegarasi, taqsimot emas. Chegaradan
+# oshgan konteynerni Docker o'ldiradi, shuning uchun qiymatlar hozirgi
+# haqiqiy sarfdan (o'lchangan) ancha yuqori olingan.
 # MUHIM (audit'da topilgan): standart Docker json-file log drayveri hech
 # qanday chegarasiz - TRACE darajasidagi loglash (endi o'chirilgan) bilan
 # birga disk vaqt o'tishi bilan to'lib ketishi mumkin edi. Har bir xizmatga
@@ -12,6 +27,9 @@ services:
   db:
     image: postgres:16-alpine
     container_name: service-core-db
+    # PostgreSQL (hozir ~45 MB)
+    mem_limit: 512m
+    cpu_shares: 1024
     logging: *default-logging
     environment:
       - POSTGRES_DB=service_db
@@ -47,6 +65,9 @@ services:
   backend:
     build: ./backend-java
     container_name: service-core-backend
+    # Spring Boot/JVM - heap uchun zaxira kerak (hozir ~390 MB)
+    mem_limit: 1g
+    cpu_shares: 1024
     logging: *default-logging
     ports:
       # MUHIM (xavfsizlik, 2026-07-31 auditda topilgan): avval "8082:8080" -
@@ -112,6 +133,9 @@ services:
   frontend:
     build: ./frontend-admin
     container_name: service-core-frontend
+    # nginx statik (hozir ~8 MB)
+    mem_limit: 128m
+    cpu_shares: 512
     logging: *default-logging
     ports:
       # MUHIM (xavfsizlik, 2026-07-31 auditda topilgan): avval "3005:80" -
@@ -134,6 +158,9 @@ services:
   tunnel:
     image: cloudflare/cloudflared:latest
     container_name: service-core-tunnel
+    # cloudflared (hozir ~18 MB)
+    mem_limit: 128m
+    cpu_shares: 512
     logging: *default-logging
     restart: always
     network_mode: "service:proxy"
@@ -152,6 +179,9 @@ services:
   proxy:
     image: nginx:alpine
     container_name: service-core-proxy
+    # nginx (hozir ~10 MB)
+    mem_limit: 128m
+    cpu_shares: 512
     logging: *default-logging
     restart: always
     dns:
@@ -184,6 +214,9 @@ services:
   asterisk:
     image: andrius/asterisk:22
     container_name: service-core-asterisk
+    # real vaqt PBX - eng yuqori ustuvorlik (hozir ~70 MB)
+    mem_limit: 512m
+    cpu_shares: 2048
     # MUHIM (jonli sinovda topilgan xato, tuzatildi): "hostname:" ko'rsatilmasa
     # Docker konteynerga tasodifiy raqamdan boshlanishi mumkin bo'lgan hex ID
     # (masalan "17b9ed4a32bb") beradi - Asterisk buni transport-ws uchun
@@ -269,6 +302,9 @@ services:
   coturn:
     image: coturn/coturn:latest
     container_name: service-core-coturn
+    # real vaqt media relay (hozir ~12 MB)
+    mem_limit: 256m
+    cpu_shares: 2048
     logging: *default-logging
     restart: always
     ports:
