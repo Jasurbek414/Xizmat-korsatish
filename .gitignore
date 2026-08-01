@@ -55,6 +55,17 @@ asterisk-config/ari.conf
 # haqiqiy trunk/operator parollari - _placeholder.conf'dan tashqari hammasi.
 asterisk-config/pjsip.d/*.conf
 !asterisk-config/pjsip.d/_placeholder.conf
+
+# Kutish musiqasi (music-on-hold) audio fayllari. Git kod uchun, media uchun
+# emas - bir necha MB'lik audio har commit'da repo tarixiga yopishib qoladi va
+# uni keyin olib tashlash qiyin. Papka tuzilishi saqlanishi uchun .gitkeep va
+# ko'rsatma yozilgan README.md ataylab ISTISNO qilingan.
+# DIQQAT: shu sababli audio fayl deploy paytida QO'LDA ko'chiriladi - yangi
+# serverga o'rnatishda buni unutmang, aks holda mijoz kutishda jimlik eshitadi.
+asterisk-config/moh/*
+!asterisk-config/moh/.gitkeep
+!asterisk-config/moh/README.md
+
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
