@@ -28,6 +28,9 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     restart: always
+    networks:
+      default:
+        ipv4_address: 172.19.0.12
     # MUHIM (2026-07-31 auditda topilgan): "depends_on: db" FAQAT konteyner
     # ishga tushganini bildiradi, PostgreSQL so'rovga TAYYOR ekanini emas.
     # Shu sababli har ko'tarilishda backend baza tayyor bo'lishidan oldin
@@ -92,6 +95,19 @@ services:
         # qarang) - shunchaki konteyner ishga tushishini emas.
         condition: service_healthy
     restart: always
+    networks:
+      default:
+        ipv4_address: 172.19.0.13
+    # Spring Boot ishga tushishi ~10-12 soniya oladi, shuning uchun
+    # start_period ataylab uzun. Autentifikatsiyasiz yetadigan endpoint
+    # yo'q, shuning uchun oddiy TCP tekshiruvi - port ochilganini bilish
+    # kifoya (ilova ko'tarilmasa port ham ochilmaydi).
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z 127.0.0.1 8080 || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
 
   frontend:
     build: ./frontend-admin
@@ -105,6 +121,15 @@ services:
       # lokal debug uchun kerak.
       - "127.0.0.1:3005:80"
     restart: always
+    networks:
+      default:
+        ipv4_address: 172.19.0.11
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1/ || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
 
   tunnel:
     image: cloudflare/cloudflared:latest
@@ -139,6 +164,16 @@ services:
     depends_on:
       - frontend
       - backend
+    networks:
+      default:
+        ipv4_address: 172.19.0.10
+    healthcheck:
+      # nginx 3005 (frontend) va 8080 (API) portlarida tinglaydi - 80 da EMAS.
+      test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1:3005/ || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
 
   # MUHIM (migratsiya, 2026-07): UzTelecom trunk FreeSWITCH orqali ro'yxatdan
   # o'tishni rad etib, faqat Asterisk integratsiyasini talab qilgani uchun
@@ -191,6 +226,12 @@ services:
       - ./asterisk-config/http.conf:/etc/asterisk/http.conf:ro
       - ./asterisk-config/ari.conf:/etc/asterisk/ari.conf:ro
       - ./asterisk-config/rtp.conf:/etc/asterisk/rtp.conf:ro
+      # MUHIM (2026-07-31 auditda topilgan): konteynerda ovoz qurilmasi yo'q,
+      # lekin chan_alsa/chan_oss/chan_console modullari uni ochishga urinib
+      # har ishga tushishda ~41 ta ALSA xatosini yozardi - haqiqiy xatolar shu
+      # shovqin ichida ko'rinmay qolardi. Bu fayl image'ning O'Z modules.conf
+      # nusxasi asosida yozilgan (autoload va mavjud noload'lar saqlangan).
+      - ./asterisk-config/modules.conf:/etc/asterisk/modules.conf:ro
       # AsteriskTrunkConfigWriter/AsteriskExtensionConfigWriter (backend) shu
       # papkaga yozadi - pjsip.conf oxiridagi "#include pjsip.d/*.conf" orqali
       # avtomatik o'qiladi (backend'dagi bir xil bind mount'ga qarang).
@@ -204,6 +245,12 @@ services:
       # shu papkaga qo'yish kifoya - Asterisk qayta ishga tushirilganda avtomatik topadi.
       - ./asterisk-config/moh:/var/lib/asterisk/moh
       - asterisk_data:/var/lib/asterisk
+    # Statik IP SHART: rtp.conf'dagi ice_host_candidates aynan shu manzilga
+    # bog'langan (172.19.0.15 => 192.168.100.11). Ikkalasi bir vaqtda
+    # o'zgarishi kerak, aks holda ovoz jimgina ulanmay qoladi.
+    networks:
+      default:
+        ipv4_address: 172.19.0.15
 
   # TURN server (coturn) - WebRTC ovoz (media) relay.
   # MUHIM SABAB: server Docker Desktop/WSL2 (Windows) da ishlaydi - u WebRTC
@@ -233,6 +280,17 @@ services:
       - "443:443/tcp"
     volumes:
       - ./coturn-certs:/certs:ro
+    networks:
+      default:
+        ipv4_address: 172.19.0.14
+    healthcheck:
+      # coturn image'ida wget/curl/nc yo'q, faqat bash bor - shuning uchun
+      # bash'ning o'z /dev/tcp mexanizmi bilan TCP portni tekshiramiz.
+      test: ["CMD-SHELL", "timeout 3 bash -c '</dev/tcp/127.0.0.1/3478' || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
     command:
       - "-n"
       - "--log-file=stdout"
@@ -263,7 +321,42 @@ services:
       - "--no-dtls"
       - "--no-cli"
       - "--no-multicast-peers"
+      # DIQQAT (2026-07-31 da sinab ko'rilgan va QAYTARILGAN): coturn ishga
+      # tushganda "WARNING: NO EXPLICIT RELAY ADDRESS(ES) ARE CONFIGURED" deb
+      # ogohlantiradi va relay manzili sifatida ichki Docker IP'sini
+      # (172.19.0.14) ko'rsatadi. Buni "--external-ip=192.168.100.11" bilan
+      # tuzatishga urinish XATO - bu topologiyada relay manzilini BRAUZER
+      # emas, ASTERISK ishlatadi (brauzer uni o'z SDP nomzodi sifatida
+      # e'lon qiladi, Asterisk esa o'sha manzilga media yuboradi).
+      # Asterisk Docker tarmog'i ICHIDA, shuning uchun unga aynan ichki
+      # manzil kerak. Jonli o'lchandi (asterisk konteyneridan):
+      #     192.168.100.11:3478  (chiqarilgan)   -> yetadi
+      #     192.168.100.11:49160 (chiqarilmagan) -> ConnectionRefused
+      #     172.19.0.14:3478     (ichki)         -> yetadi
+      # Relay portlari (49160-49200) host'ga ATAYLAB chiqarilmagan - butun
+      # loyihaning asosiy g'oyasi shu: Docker Desktop (Windows) UDP
+      # forwarding'i ishonchsiz, shuning uchun brauzer coturn'ga TCP 3478
+      # orqali ulanadi, coturn esa Asterisk'ga ICHKI tarmoq orqali uzatadi -
+      # buzuq host UDP yo'li butunlay chetlab o'tiladi.
+      # XULOSA: bu ogohlantirish shu arxitektura uchun ZARARSIZ, tuzatmang.
 
 volumes:
   postgres_data:
   asterisk_data:
+
+# MUHIM (2026-07-31 auditda topilgan JIDDIY xato): avval tarmoq umuman
+# e'lon qilinmagan edi - Docker standart tarmoq yaratib, konteynerlarga
+# IP'larni ISHGA TUSHISH TARTIBIGA qarab berardi. Ular har "compose up"
+# da aralashardi: masalan asterisk 172.19.0.5 dan 172.19.0.7 ga o'tib
+# ketgan, .5 ni esa coturn olgan. Bu rtp.conf'dagi ice_host_candidates
+# mappingini JIMGINA buzardi (u aniq IP'ga bog'langan) - ya'ni ovoz
+# tuzatishi ba'zan ishlab, ba'zan ishlamasdi va buni tushunish qiyin edi.
+# Endi har bir xizmatning IP'si qat'iy belgilangan.
+# Dinamik taqsimot .2 dan boshlanadi, shuning uchun to'qnashuvdan xoli
+# bo'lish uchun ataylab .10 dan yuqorisi tanlangan.
+networks:
+  default:
+    ipam:
+      config:
+        - subnet: 172.19.0.0/16
+          gateway: 172.19.0.1
