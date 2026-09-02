@@ -1,9 +1,11 @@
 import React from 'react';
-import { ShoppingBag, Edit2, Trash2 } from 'lucide-react';
+import { ShoppingBag, Edit2, Trash2, MapPin } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+import TablePagination, { usePagination } from '../../components/TablePagination';
 
 const ClientsTable = ({ filteredClients, getClientStats, handleOpenClientDetails, setSelectedClient, setShowOrderModal, setEditingClient, setShowEditModal, handleDeleteClient }) => {
   const { t } = useTranslation();
+  const pg = usePagination(filteredClients);
 
   return (
     <div className="glass-card rounded-2xl overflow-hidden shadow-sm dark:shadow-none bg-white dark:bg-transparent">
@@ -21,23 +23,26 @@ const ClientsTable = ({ filteredClients, getClientStats, handleOpenClientDetails
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100 dark:divide-white/5 text-slate-700 dark:text-gray-300 text-xs font-medium">
-            {filteredClients.length === 0 ? (
+            {pg.total === 0 ? (
               <tr>
                 <td colSpan="7" className="p-8 text-center text-slate-400 dark:text-gray-500 font-semibold">
                   Mijozlar topilmadi
                 </td>
               </tr>
             ) : (
-              filteredClients.map((c, idx) => {
-                const stats = getClientStats(c.full_name);
+              pg.pageItems.map((c, idx) => {
+                const stats = getClientStats(c.id);
                 return (
                   <tr 
                     key={c.id} 
                     onClick={() => handleOpenClientDetails(c)}
                     className="hover:bg-slate-50/50 dark:hover:bg-white/2 transition cursor-pointer"
                   >
+                    {/* Tartib raqami BUTUN ro'yxat bo'yicha - har sahifada
+                        1 dan boshlansa, 3-sahifadagi "1" kim ekanini aytib
+                        bo'lmasdi. */}
                     <td className="p-4 text-center text-slate-400 dark:text-gray-500 font-mono font-bold w-12">
-                      {idx + 1}
+                      {pg.startIndex + idx + 1}
                     </td>
                     <td className="p-4 font-semibold text-slate-800 dark:text-white flex items-center gap-3">
                       <div className="w-8 h-8 rounded-xl bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 flex items-center justify-center font-bold text-xs">
@@ -46,8 +51,17 @@ const ClientsTable = ({ filteredClients, getClientStats, handleOpenClientDetails
                       {c.full_name}
                     </td>
                     <td className="p-4 text-slate-800 dark:text-gray-200 font-mono font-bold">{c.phone}</td>
-                    <td className="p-4 text-slate-500 dark:text-gray-400 truncate max-w-[200px]" title={c.address}>
-                      {c.address || 'Kiritilmagan'}
+                    <td className="p-4 text-slate-500 dark:text-gray-400 max-w-[200px]" title={c.address}>
+                      <div className="flex items-center gap-1.5">
+                        <span className="truncate">{c.address || 'Kiritilmagan'}</span>
+                        {/* Haydovchi mobil ilovada aniq GPS nuqtasini
+                            belgilagan bo'lsa - shu belgi ko'rinadi. */}
+                        {c.latitude != null && c.longitude != null && (
+                          <span title="GPS bilan aniqlangan aniq joylashuv">
+                            <MapPin className="w-3 h-3 text-indigo-500 shrink-0" />
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td className="p-4 text-slate-700 dark:text-gray-300 font-bold font-['Outfit']">{stats.orderCount} ta</td>
                     <td className="p-4 text-indigo-600 dark:text-indigo-400 font-extrabold font-['Outfit']">
@@ -89,6 +103,8 @@ const ClientsTable = ({ filteredClients, getClientStats, handleOpenClientDetails
           </tbody>
         </table>
       </div>
+
+      <TablePagination {...pg} />
     </div>
   );
 };

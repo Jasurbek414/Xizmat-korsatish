@@ -58,13 +58,13 @@ class FinanceSummaryScreen extends StatelessWidget {
                   ],
                 ),
                 const SizedBox(height: 24),
-                const Text(
+                Text(
                   "Tranzaksiya qo'shish",
                   style: TextStyle(
                     fontFamily: 'Outfit',
                     fontWeight: FontWeight.bold,
                     fontSize: 14,
-                    color: AppTheme.textPrimary,
+                    color: AppTheme.textPrimaryOf(context),
                   ),
                 ),
                 const SizedBox(height: 12),
@@ -124,7 +124,7 @@ class FinanceSummaryScreen extends StatelessWidget {
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
           title: Text(
             type == 'INCOME' ? "Kirim qo'shish" : "Chiqim qo'shish",
-            style: const TextStyle(color: AppTheme.textPrimary, fontSize: 14, fontWeight: FontWeight.bold),
+            style: TextStyle(color: AppTheme.textPrimaryOf(context), fontSize: 14, fontWeight: FontWeight.bold),
           ),
           content: SingleChildScrollView(
             child: Column(
@@ -133,20 +133,20 @@ class FinanceSummaryScreen extends StatelessWidget {
                 TextField(
                   controller: amountController,
                   keyboardType: TextInputType.number,
-                  style: const TextStyle(color: AppTheme.textPrimary, fontSize: 13),
-                  decoration: const InputDecoration(
+                  style: TextStyle(color: AppTheme.textPrimaryOf(context), fontSize: 13),
+                  decoration: InputDecoration(
                     labelText: "Summa (so'm)",
-                    labelStyle: TextStyle(color: AppTheme.textSecondary, fontSize: 11),
+                    labelStyle: TextStyle(color: AppTheme.textSecondaryOf(context), fontSize: 11),
                   ),
                 ),
                 const SizedBox(height: 10),
                 DropdownButtonFormField<String>(
                   value: selectedCategory,
                   dropdownColor: const Color(0xff1f2937),
-                  style: const TextStyle(color: AppTheme.textPrimary, fontSize: 13),
-                  decoration: const InputDecoration(
+                  style: TextStyle(color: AppTheme.textPrimaryOf(context), fontSize: 13),
+                  decoration: InputDecoration(
                     labelText: "Kategoriya",
-                    labelStyle: TextStyle(color: AppTheme.textSecondary, fontSize: 11),
+                    labelStyle: TextStyle(color: AppTheme.textSecondaryOf(context), fontSize: 11),
                   ),
                   items: categories.map((cat) {
                     return DropdownMenuItem<String>(
@@ -173,10 +173,10 @@ class FinanceSummaryScreen extends StatelessWidget {
                 const SizedBox(height: 10),
                 TextField(
                   controller: descriptionController,
-                  style: const TextStyle(color: AppTheme.textPrimary, fontSize: 13),
-                  decoration: const InputDecoration(
+                  style: TextStyle(color: AppTheme.textPrimaryOf(context), fontSize: 13),
+                  decoration: InputDecoration(
                     labelText: "Tavsif / Izoh",
-                    labelStyle: TextStyle(color: AppTheme.textSecondary, fontSize: 11),
+                    labelStyle: TextStyle(color: AppTheme.textSecondaryOf(context), fontSize: 11),
                   ),
                 ),
               ],
@@ -185,7 +185,7 @@ class FinanceSummaryScreen extends StatelessWidget {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(dialogContext),
-              child: const Text("Bekor qilish", style: TextStyle(color: AppTheme.textSecondary, fontSize: 12)),
+              child: Text("Bekor qilish", style: TextStyle(color: AppTheme.textSecondaryOf(context), fontSize: 12)),
             ),
             ElevatedButton(
               onPressed: () {
@@ -237,7 +237,7 @@ class _BalanceCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: AppTheme.cardColor.withOpacity(0.5),
+        color: AppTheme.cardColorOf(context).withOpacity(0.5),
         borderRadius: BorderRadius.circular(20),
         border: Border.all(color: color.withOpacity(0.15)),
       ),
@@ -246,12 +246,12 @@ class _BalanceCard extends StatelessWidget {
         children: [
           Icon(icon, color: color, size: large ? 26 : 20),
           const SizedBox(height: 10),
-          Text(label, style: const TextStyle(color: AppTheme.textSecondary, fontSize: 12)),
+          Text(label, style: TextStyle(color: AppTheme.textSecondaryOf(context), fontSize: 12)),
           const SizedBox(height: 4),
           Text(
             '${amount.toStringAsFixed(0)} so\'m',
             style: TextStyle(
-              color: AppTheme.textPrimary,
+              color: AppTheme.textPrimaryOf(context),
               fontFamily: 'Outfit',
               fontWeight: FontWeight.bold,
               fontSize: large ? 24 : 16,

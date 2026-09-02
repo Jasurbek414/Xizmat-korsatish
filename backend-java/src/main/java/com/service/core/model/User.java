@@ -6,6 +6,7 @@ import lombok.*;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.List;
@@ -58,6 +59,12 @@ public class User implements UserDetails {
 
     @Column(name = "salary_type")
     private String salaryType;
+
+    // Ishga rasman kirgan sana - oylik generatsiyada oy o'rtasida ishga
+    // kirgan xodimga proporsional (kunlar soniga qarab) maosh hisoblash
+    // hamda hisobotda "necha oy/yil ishlagani"ni ko'rsatish uchun ishlatiladi.
+    @Column(name = "hire_date")
+    private LocalDate hireDate;
 
     @Column(name = "fcm_token", length = 255)
     private String fcmToken;

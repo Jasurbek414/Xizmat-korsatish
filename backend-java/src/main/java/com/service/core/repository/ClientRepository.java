@@ -10,5 +10,15 @@ import java.util.UUID;
 @Repository
 public interface ClientRepository extends JpaRepository<Client, UUID> {
     List<Client> findByCompanyId(UUID companyId);
+    /**
+     * MUHIM (jonli holatda topilgan xato, tuzatildi): oddiy findByCompanyId
+     * hech qanday tartibga rioya qilmaydi (Postgres uni jismoniy qator
+     * tartibida qaytarardi, bu esa VAQT o'tishi bilan o'zgarishi mumkin -
+     * VACUUM, indeks qayta qurilishi va h.k.). Natijada admin panelda yangi
+     * qo'shilgan mijoz ro'yxat TEPASIDA emas, o'rtada biror joyda
+     * "yo'qolib" ko'rinardi. ClientController.getClients() endi shuni
+     * ishlatadi - eng yangi mijoz doim birinchi.
+     */
+    List<Client> findByCompanyIdOrderByCreatedAtDesc(UUID companyId);
     Optional<Client> findByCompanyIdAndPhone(UUID companyId, String phone);
 }

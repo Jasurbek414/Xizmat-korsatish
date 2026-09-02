@@ -3,6 +3,7 @@ package com.service.core.exception;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.ResponseEntity;
@@ -34,6 +35,25 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of(
                 "message", "Bu yozuvni o'chirib bo'lmaydi - unga bog'liq boshqa ma'lumotlar mavjud " +
                         "(masalan buyurtmalar yoki to'lovlar). Avval o'sha bog'liq yozuvlarni o'chiring."
+        ));
+    }
+
+    /**
+     * Optimistik lock (Order/Debt/Salary'dagi @Version) mos kelmasa - ya'ni shu
+     * yozuv accept/pay/confirm so'rovlari orasida parallel boshqa so'rov
+     * tomonidan allaqachon o'zgartirilgan bo'lsa. Bu shart-tekshir-yoz
+     * (check-then-act) yorig'i orqali bitta buyurtma/qarz/oylik uchun ikkita
+     * marta pul tranzaksiyasi yozilib ketishining oldini oladi (masalan ikki
+     * marta tez bosish yoki tarmoq xatosidan keyin qayta yuborish natijasida).
+     * Mijozga 409 qaytariladi - u ma'lumotni qayta yuklab, joriy holatni
+     * ko'rib, kerak bo'lsa qayta urinishi kerak.
+     */
+    @ExceptionHandler(ObjectOptimisticLockingFailureException.class)
+    public ResponseEntity<?> handleOptimisticLock(ObjectOptimisticLockingFailureException e) {
+        log.warn("Optimistik lock ziddiyati: {}", e.getMessage());
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of(
+                "message", "Bu yozuv siz uni ochganingizdan beri boshqa so'rov tomonidan o'zgartirildi. " +
+                        "Sahifani yangilab, joriy holatni tekshiring."
         ));
     }
 

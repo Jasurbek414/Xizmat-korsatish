@@ -1,13 +1,13 @@
 import React from 'react';
-import { DollarSign, ArrowDownRight, Clock, ShieldAlert } from 'lucide-react';
+import { DollarSign, ArrowDownRight, Clock, ShieldAlert, Users, Banknote, CreditCard } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { formatCurrency } from '../../utils/format';
 
-const FinanceStats = ({ balance, dailyExpenses, expectedFunds, pendingHandoversSum = 0 }) => {
+const FinanceStats = ({ balance, dailyExpenses, expectedFunds, pendingHandoversSum = 0, pendingPayroll = 0, paymentBreakdown = { cash: 0, card: 0 } }) => {
   const { t, i18n } = useTranslation();
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-5">
       {/* Joriy Balans */}
       <div className="glass-card p-6 rounded-2xl flex items-center justify-between shadow-sm dark:shadow-none bg-white dark:bg-[#111827]/80">
         <div className="space-y-1">
@@ -61,6 +61,49 @@ const FinanceStats = ({ balance, dailyExpenses, expectedFunds, pendingHandoversS
         </div>
         <div className="w-10 h-10 rounded-xl bg-emerald-500/5 flex items-center justify-center text-emerald-600 dark:text-emerald-400">
           <Clock className="w-5 h-5" />
+        </div>
+      </div>
+
+      {/* Hisoblangan, lekin to'lanmagan ish haqi - avval Buxgalteriyada
+          umuman ko'rinmasdi, faqat "Xodimlar maoshi" sahifasida bor edi. */}
+      <div className="glass-card p-6 rounded-2xl flex items-center justify-between shadow-sm dark:shadow-none bg-white dark:bg-[#111827]/80">
+        <div className="space-y-1">
+          <p className="text-[10px] font-bold text-slate-400 dark:text-gray-500 uppercase tracking-wider">Hisoblangan, To'lanmagan Ish Haqi</p>
+          <h3 className="text-xl font-extrabold text-amber-600 dark:text-amber-400 font-['Outfit']">
+            {formatCurrency(pendingPayroll, i18n.language)}
+          </h3>
+          <p className="text-[9px] text-slate-400 dark:text-gray-500 mt-1">Yaqinda to'lanishi kerak bo'lgan maosh majburiyati</p>
+        </div>
+        <div className="w-10 h-10 rounded-xl bg-amber-500/5 flex items-center justify-center text-amber-600 dark:text-amber-400">
+          <Users className="w-5 h-5" />
+        </div>
+      </div>
+
+      {/* Naqd tushum - buyurtma to'lovlaridan kassaga topshirilgan naqd qism */}
+      <div className="glass-card p-6 rounded-2xl flex items-center justify-between shadow-sm dark:shadow-none bg-white dark:bg-[#111827]/80">
+        <div className="space-y-1">
+          <p className="text-[10px] font-bold text-slate-400 dark:text-gray-500 uppercase tracking-wider">Naqd Tushum</p>
+          <h3 className="text-xl font-extrabold text-emerald-600 dark:text-emerald-400 font-['Outfit']">
+            {formatCurrency(paymentBreakdown.cash, i18n.language)}
+          </h3>
+          <p className="text-[9px] text-slate-400 dark:text-gray-500 mt-1">Kassaga topshirilgan buyurtma to'lovlaridan naqd qism</p>
+        </div>
+        <div className="w-10 h-10 rounded-xl bg-emerald-500/5 flex items-center justify-center text-emerald-600 dark:text-emerald-400">
+          <Banknote className="w-5 h-5" />
+        </div>
+      </div>
+
+      {/* Karta tushum */}
+      <div className="glass-card p-6 rounded-2xl flex items-center justify-between shadow-sm dark:shadow-none bg-white dark:bg-[#111827]/80">
+        <div className="space-y-1">
+          <p className="text-[10px] font-bold text-slate-400 dark:text-gray-500 uppercase tracking-wider">Karta Tushum</p>
+          <h3 className="text-xl font-extrabold text-blue-600 dark:text-blue-400 font-['Outfit']">
+            {formatCurrency(paymentBreakdown.card, i18n.language)}
+          </h3>
+          <p className="text-[9px] text-slate-400 dark:text-gray-500 mt-1">Kassaga topshirilgan buyurtma to'lovlaridan karta qismi</p>
+        </div>
+        <div className="w-10 h-10 rounded-xl bg-blue-500/5 flex items-center justify-center text-blue-600 dark:text-blue-400">
+          <CreditCard className="w-5 h-5" />
         </div>
       </div>
     </div>

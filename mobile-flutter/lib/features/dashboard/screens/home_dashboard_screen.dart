@@ -77,10 +77,35 @@ class HomeDashboardScreen extends StatelessWidget {
         final zoneBoundary = OrderZoneBoundary.fromStatuses(statuses);
         final isDriver = role.contains('DRIVER');
         final isWorkshopStaff = role.contains('SEH') || role.contains('FACTORY') || role == 'WORKER';
+        // MUHIM (jonli xato, tuzatildi): haydovchi/sex xodimi uchun avval
+        // bu yerda faqat sex zonasida emasligi (yoki aksincha) tekshirilardi
+        // - to'lovi allaqachon qabul qilingan (haqiqatda TUGAGAN)
+        // buyurtmalar ham "So'nggi buyurtmalar"da ko'rinaverardi. Endi
+        // OrderZoneBoundary.isCompleted() - Tarix va Buyurtmalar
+        // ekranlarida ishlatiladigan BIR XIL qoida - bilan ham filtrlanadi.
+        // ADMIN/MENEJER/DISPETCHER uchun o'zgarmaydi - ular nazorat uchun
+        // tugagan buyurtmalarni ham "so'nggi"da ko'rishi kerak.
         final visibleOrders = orders.where((o) {
-          if (isDriver) return !zoneBoundary.isAtWorkshop(o);
+          if (isDriver) return !zoneBoundary.isAtWorkshop(o) && !zoneBoundary.isCompleted(o);
           if (isWorkshopStaff) return zoneBoundary.isAtWorkshop(o);
           return true; // ADMIN/MENEJER/DISPETCHER - hammasini ko'radi
+        }).toList();
+
+        // MUHIM (jonli xato, tuzatildi): status-kartalari ("Jami" yonidagi
+        // har bir status uchun son) avval BARCHA kompaniya statuslari
+        // bo'yicha chizilardi - haydovchida sex-zonasi statuslari
+        // (masalan "korxonada", "yuvilmoqda") HAR DOIM 0 ko'rsatardi, chunki
+        // o'sha statusdagi buyurtmalar `visibleOrders`dan butunlay
+        // chiqarib tashlangan (yashirin) - garchi haqiqatda o'sha statusda
+        // ko'plab buyurtma bo'lsa ham. Bu "sonlar noto'g'ri" degan
+        // taassurot qoldirardi. Endi status kartalari ham xuddi shu
+        // ko'rinish qoidasi bilan filtrlanadi - haydovchiga faqat pickup/
+        // delivery, sex xodimiga faqat workshop statuslari ko'rsatiladi.
+        final visibleStatuses = statuses.where((s) {
+          final z = zoneBoundary.zoneOfStatus(s);
+          if (isDriver) return z != OrderZone.workshop;
+          if (isWorkshopStaff) return z == OrderZone.workshop;
+          return true;
         }).toList();
 
         // MUHIM (audit'da topilgan kamchilik, to'ldirildi): haydovchi
@@ -120,12 +145,12 @@ class HomeDashboardScreen extends StatelessWidget {
                     .animate()
                     .fadeIn(delay: 60.ms, duration: 350.ms)
                     .slideY(begin: 0.08),
-              _statsRow(visibleOrders, statuses).animate().fadeIn(delay: 80.ms, duration: 350.ms).slideY(begin: 0.08),
+              _statsRow(visibleOrders, visibleStatuses).animate().fadeIn(delay: 80.ms, duration: 350.ms).slideY(begin: 0.08),
               _quickActions(context).animate().fadeIn(delay: 160.ms, duration: 350.ms).slideY(begin: 0.08),
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 18, 16, 8),
                 child: Row(children: [
-                  Text('So\'nggi buyurtmalar', style: AppTheme.display(16, weight: FontWeight.w700)),
+                  Text('So\'nggi buyurtmalar', style: AppTheme.display(16, weight: FontWeight.w700, color: AppTheme.textPrimaryOf(context))),
                   const Spacer(),
                   if (newIds.isNotEmpty) StatusPill('${newIds.length} yangi', AppTheme.primary, dot: true),
                 ]),
@@ -263,6 +288,11 @@ class HomeDashboardScreen extends StatelessWidget {
         const SizedBox(width: 12),
         Expanded(
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            // ESLATMA: bu kartaning foni (amberSoft) ATAYLAB ikkala rejimda
+            // ham bir xil (och, sobit) rang - shu sabab matn rangi ham
+            // ATAYLAB SOBIT (kontekstga bog'liq emas) qoldirilgan, aks holda
+            // tungi rejimda matn och (light) fon ustida yana ochroq bo'lib,
+            // o'qib bo'lmay qolardi.
             Text('Kassaga topshirilmagan',
                 style: AppTheme.text(12, weight: FontWeight.w600, color: AppTheme.textSecondary)),
             const SizedBox(height: 2),
@@ -300,15 +330,15 @@ class HomeDashboardScreen extends StatelessWidget {
   Widget _quickActions(BuildContext context) {
     final actions = <Widget>[];
     if (permissions.has(PermissionKeys.mobileGps)) {
-      actions.add(_actionCard(LucideIcons.map, 'Xarita', AppTheme.blue, AppTheme.blueSoft,
+      actions.add(_actionCard(context, LucideIcons.map, 'Xarita', AppTheme.blue, AppTheme.blueSoft,
           () => _open(context, 'Xarita', const DriverMapScreen())));
     }
     if (permissions.has(PermissionKeys.mobileFinanceView)) {
-      actions.add(_actionCard(LucideIcons.wallet, 'Moliya', AppTheme.teal, AppTheme.tealSoft,
+      actions.add(_actionCard(context, LucideIcons.wallet, 'Moliya', AppTheme.teal, AppTheme.tealSoft,
           () => _open(context, 'Moliya', const FinanceSummaryScreen())));
     }
     if (permissions.has(PermissionKeys.mobileTeamView)) {
-      actions.add(_actionCard(LucideIcons.users, 'Jamoa', AppTheme.purple, AppTheme.purpleSoft,
+      actions.add(_actionCard(context, LucideIcons.users, 'Jamoa', AppTheme.purple, AppTheme.purpleSoft,
           () => _open(context, 'Jamoa', const TeamScreen())));
     }
     if (actions.isEmpty) return const SizedBox.shrink();
@@ -323,7 +353,7 @@ class HomeDashboardScreen extends StatelessWidget {
     );
   }
 
-  Widget _actionCard(IconData icon, String label, Color color, Color soft, VoidCallback onTap) {
+  Widget _actionCard(BuildContext context, IconData icon, String label, Color color, Color soft, VoidCallback onTap) {
     return AppCard(
       onTap: onTap,
       padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
@@ -335,7 +365,7 @@ class HomeDashboardScreen extends StatelessWidget {
           child: Icon(icon, size: 21, color: color),
         ),
         const SizedBox(height: 9),
-        Text(label, style: AppTheme.text(12.5, weight: FontWeight.w700)),
+        Text(label, style: AppTheme.text(12.5, weight: FontWeight.w700, color: AppTheme.textPrimaryOf(context))),
       ]),
     );
   }

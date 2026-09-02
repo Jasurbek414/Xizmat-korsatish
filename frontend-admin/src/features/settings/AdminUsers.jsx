@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { api } from '../../services/api';
+import { confirmDialog } from '../../services/confirmDialog';
+import { showToast } from '../../services/toast';
 import { Plus, Trash2, Edit3, ShieldAlert, Lock, ToggleLeft, ToggleRight, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
@@ -67,7 +69,7 @@ const AdminUsers = ({ currentAuthUser }) => {
     if (!newUser.username || !newUser.full_name || !newUser.password) return;
 
     if (users.some(u => u.username.toLowerCase() === newUser.username.toLowerCase())) {
-      alert('Ushbu logindagi foydalanuvchi tizimda mavjud!');
+      showToast('Ushbu logindagi foydalanuvchi tizimda mavjud!');
       return;
     }
 
@@ -108,10 +110,10 @@ const AdminUsers = ({ currentAuthUser }) => {
   const handleDelete = async (id) => {
     const target = users.find(u => u.id === id);
     if (currentAuthUser && currentAuthUser.username === target?.username) {
-      alert('O\'zingizning hisobingizni o\'chira olmaysiz!');
+      showToast('O\'zingizning hisobingizni o\'chira olmaysiz!');
       return;
     }
-    if (!window.confirm("Haqiqatan ham ushbu foydalanuvchini o'chirmoqchimisiz?")) return;
+    if (!(await confirmDialog("Haqiqatan ham ushbu foydalanuvchini o'chirmoqchimisiz?"))) return;
 
     try {
       await api.deleteEmployee(id);
@@ -123,7 +125,7 @@ const AdminUsers = ({ currentAuthUser }) => {
 
   const toggleStatus = async (user) => {
     if (currentAuthUser && currentAuthUser.username === user.username) {
-      alert('O\'zingizning hisobingiz holatini o\'zgartira olmaysiz!');
+      showToast('O\'zingizning hisobingiz holatini o\'zgartira olmaysiz!');
       return;
     }
 
@@ -147,7 +149,7 @@ const AdminUsers = ({ currentAuthUser }) => {
       loadUsers();
       setShowPasswordModal(null);
       setNewPassword('');
-      alert('Parol muvaffaqiyatli o\'zgartirildi!');
+      showToast('Parol muvaffaqiyatli o\'zgartirildi!', 'success');
     } catch (err) {
       console.error("Failed to reset password:", err);
     }

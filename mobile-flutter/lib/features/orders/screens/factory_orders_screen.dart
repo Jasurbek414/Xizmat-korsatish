@@ -245,7 +245,7 @@ class _FactoryOrdersScreenState extends State<FactoryOrdersScreen> {
               color: active ? color.withOpacity(0.12) : Colors.transparent,
               borderRadius: BorderRadius.circular(14),
               border: Border.all(
-                color: active ? color : AppTheme.borderColor,
+                color: active ? color : AppTheme.borderOf(context),
                 width: active ? 1.5 : 1,
               ),
             ),
@@ -254,13 +254,13 @@ class _FactoryOrdersScreenState extends State<FactoryOrdersScreen> {
               children: [
                 Text(
                   label,
-                  style: AppTheme.text(11.5, weight: FontWeight.w700, color: active ? color : AppTheme.textSecondary),
+                  style: AppTheme.text(11.5, weight: FontWeight.w700, color: active ? color : AppTheme.textSecondaryOf(context)),
                   textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: 3),
                 Text(
                   '$count',
-                  style: AppTheme.text(13, weight: FontWeight.w800, color: active ? color : AppTheme.textMuted),
+                  style: AppTheme.text(13, weight: FontWeight.w800, color: active ? color : AppTheme.textMutedOf(context)),
                 ),
               ],
             ),

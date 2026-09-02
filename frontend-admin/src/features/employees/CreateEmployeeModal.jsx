@@ -18,6 +18,7 @@ const CreateEmployeeModal = ({ isOpen, onClose, employee, onSubmit }) => {
   const [password, setPassword] = useState('');
   const [salary, setSalary] = useState('');
   const [salaryType, setSalaryType] = useState('MONTHLY');
+  const [hireDate, setHireDate] = useState('');
   const [roles, setRoles] = useState([]);
   const [error, setError] = useState('');
 
@@ -45,6 +46,7 @@ const CreateEmployeeModal = ({ isOpen, onClose, employee, onSubmit }) => {
         setPassword(employee.password || '');
         setSalary(employee.salary ? employee.salary.toString() : '');
         setSalaryType(employee.salary_type || employee.salaryType || 'MONTHLY');
+        setHireDate((employee.hire_date || employee.hireDate || '').slice(0, 10));
       } else {
         setFullName('');
         setUsername('');
@@ -53,9 +55,10 @@ const CreateEmployeeModal = ({ isOpen, onClose, employee, onSubmit }) => {
         setStatus('ACTIVE');
         setLat('41.311081');
         setLng('69.240562');
-        setPassword('admin'); // Default password for new employees
+        setPassword('');
         setSalary('');
         setSalaryType('MONTHLY');
+        setHireDate('');
       }
       setError('');
     }
@@ -72,6 +75,11 @@ const CreateEmployeeModal = ({ isOpen, onClose, employee, onSubmit }) => {
       return;
     }
 
+    if (!isEdit && !password.trim()) {
+      setError("Iltimos xodim uchun parol kiriting");
+      return;
+    }
+
     const payload = {
       id: isEdit ? employee.id : 'u' + Date.now(),
       full_name: fullName,
@@ -82,6 +90,7 @@ const CreateEmployeeModal = ({ isOpen, onClose, employee, onSubmit }) => {
       password: password.trim(),
       salary: salary ? salary.trim() : '',
       salary_type: salaryType,
+      hire_date: hireDate || '',
       lat: role === 'WORKER_DRIVER' ? parseFloat(lat) || 41.311081 : null,
       lng: role === 'WORKER_DRIVER' ? parseFloat(lng) || 69.240562 : null
     };
@@ -226,6 +235,18 @@ const CreateEmployeeModal = ({ isOpen, onClose, employee, onSubmit }) => {
               <option value="DAILY">Kunlik (Daily)</option>
               <option value="HOURLY">Soatbay (Hourly)</option>
             </select>
+          </div>
+
+          {/* Hire Date */}
+          <div>
+            <label className="block text-slate-500 dark:text-gray-400 mb-1">Ishga kirgan sana</label>
+            <input
+              type="date"
+              value={hireDate}
+              onChange={(e) => setHireDate(e.target.value)}
+              className="w-full glass-input rounded-xl px-3 py-2 text-slate-800 dark:text-white focus:outline-none"
+            />
+            <p className="text-[9px] text-slate-400 mt-1 font-normal">Oylik hisoblanganda shu sanadan boshlab proporsional hisoblanadi.</p>
           </div>
 
           {/* Location coordinates (optional, drivers only) */}

@@ -18,13 +18,13 @@ class TeamScreen extends StatelessWidget {
         length: 2,
         child: Column(
           children: [
-            const TabBar(
+            TabBar(
               tabs: [
                 Tab(text: 'Xodimlar'),
                 Tab(text: 'Xarita'),
               ],
               labelColor: AppTheme.primaryColor,
-              unselectedLabelColor: AppTheme.textSecondary,
+              unselectedLabelColor: AppTheme.textSecondaryOf(context),
             ),
             Expanded(
               child: BlocBuilder<TeamCubit, TeamState>(

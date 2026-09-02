@@ -40,18 +40,14 @@ class OrdersRepository {
     return _api.put('/orders/$orderId/accept');
   }
 
-  /// Gilam o'lchovini (eni×bo'yi) yangilash - sex xodimi o'lchagach.
-  Future<void> updateItemMeasurements(String orderId, String itemId, double length, double width) {
-    return _api.put('/orders/$orderId/items/$itemId', data: {'length': length, 'width': width});
-  }
-
-  /// Gilam yozuvini yangilash - nom, o'lcham, va/yoki soni.
-  Future<void> updateOrderItem(String orderId, String itemId, {String? name, double? length, double? width, int? quantity}) {
+  /// Gilam yozuvini yangilash - nom, o'lcham, soni va/yoki ALOHIDA narxi.
+  Future<void> updateOrderItem(String orderId, String itemId, {String? name, double? length, double? width, int? quantity, double? price}) {
     final data = <String, dynamic>{};
     if (name != null) data['name'] = name;
     if (length != null) data['length'] = length;
     if (width != null) data['width'] = width;
     if (quantity != null) data['quantity'] = quantity;
+    if (price != null) data['price'] = price;
     return _api.put('/orders/$orderId/items/$itemId', data: data);
   }
 
@@ -62,12 +58,36 @@ class OrdersRepository {
     return _api.put('/orders/$orderId/price', data: data);
   }
 
+  /// Haydovchi mijoz manziliga borganda joriy GPS koordinatasini shu
+  /// buyurtmaga (va mijozning o'ziga, backendda) yozadi - keyingi
+  /// buyurtmalarda xarita navigatsiyasi aniq nuqtaga olib borishi uchun.
+  Future<void> updateOrderLocation(String orderId, double latitude, double longitude) {
+    return _api.put('/orders/$orderId/location',
+        data: {'latitude': latitude, 'longitude': longitude});
+  }
+
   Future<void> updateStatus(String orderId, String statusId) {
     return _api.put('/orders/$orderId/status', data: {'status_id': statusId});
   }
 
-  Future<void> collectPayment(String orderId, double amount) {
-    return _api.put('/orders/$orderId/collect-payment', data: {'amount': amount});
+  /// paymentMethod: 'CASH' (standart), 'CARD' yoki 'MIXED'. MIXED bo'lsa
+  /// cashAmount/cardAmount ikkalasi ham berilishi shart (yig'indisi amount'ga teng).
+  Future<void> collectPayment(
+    String orderId,
+    double amount, {
+    String paymentMethod = 'CASH',
+    double? cashAmount,
+    double? cardAmount,
+  }) {
+    final data = <String, dynamic>{
+      'amount': amount,
+      'payment_method': paymentMethod,
+    };
+    if (paymentMethod == 'MIXED') {
+      data['cash_amount'] = cashAmount ?? 0;
+      data['card_amount'] = cardAmount ?? 0;
+    }
+    return _api.put('/orders/$orderId/collect-payment', data: data);
   }
 
   Future<void> updateOrderItemStatus(String orderId, String itemId, String status) {

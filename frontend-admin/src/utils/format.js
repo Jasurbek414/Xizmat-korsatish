@@ -12,9 +12,20 @@ export const formatDate = (dateStr, lang = 'uz') => {
   if (!dateStr) return '';
   const date = new Date(dateStr);
   if (isNaN(date.getTime())) return dateStr;
-  
+
   return date.toLocaleDateString(
     lang === 'en' ? 'en-US' : lang === 'ru' ? 'ru-RU' : 'uz-UZ',
     { year: 'numeric', month: '2-digit', day: '2-digit' }
+  );
+};
+
+export const formatDateTime = (dateStr, lang = 'uz') => {
+  if (!dateStr) return '';
+  const date = new Date(dateStr);
+  if (isNaN(date.getTime())) return dateStr;
+
+  return date.toLocaleString(
+    lang === 'en' ? 'en-US' : lang === 'ru' ? 'ru-RU' : 'uz-UZ',
+    { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }
   );
 };

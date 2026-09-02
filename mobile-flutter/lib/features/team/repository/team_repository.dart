@@ -3,6 +3,9 @@ import '../../../core/network/api_client.dart';
 class TeamMember {
   final String id;
   final String fullName;
+  /// Tizimga kirish logini. Haydovchi ekranlarida ishlatilmaydi, boshqaruv
+  /// (Xodimlar) bo'limida login almashtirish uchun kerak.
+  final String username;
   final String phone;
   final String role;
   final String status;
@@ -13,6 +16,7 @@ class TeamMember {
   TeamMember({
     required this.id,
     required this.fullName,
+    this.username = '',
     required this.phone,
     required this.role,
     required this.status,
@@ -35,6 +39,7 @@ class TeamMember {
     return TeamMember(
       id: json['id'] ?? '',
       fullName: json['fullName'] ?? '',
+      username: json['username'] ?? '',
       phone: json['phone'] ?? '',
       role: json['role'] ?? '',
       status: json['status'] ?? 'ACTIVE',

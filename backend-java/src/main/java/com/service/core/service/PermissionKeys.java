@@ -27,6 +27,14 @@ public final class PermissionKeys {
     // ham) doim ko'rinardi. Endi haqiqiy, boshqariladigan ruxsat.
     public static final String TELEPHONY = "telephony";
 
+    /**
+     * VEB PANELGA KIRISH huquqi. Modul emas - kirish darvozasi: bu kalit
+     * o'chirilgan rol egasi servicecore.ecos.uz ga UMUMAN login qila olmaydi
+     * (mobil ilova esa avvalgidek ishlayveradi). Haydovchi/ishchi/sex xodimi
+     * uchun o'chirilgan.
+     */
+    public static final String WEB_LOGIN = "web_login";
+
     // Mobil ilova modullari (yangi)
     public static final String MOBILE_ORDERS = "mobile_orders";
     public static final String MOBILE_GPS = "mobile_gps";
@@ -44,7 +52,7 @@ public final class PermissionKeys {
     public static final String RECORD_EXPENSE = "record_expense";
 
     public static final List<String> ALL = List.of(
-            CLIENTS, EMPLOYEES, ORDERS, FINANCE, SALARIES, SETTINGS, MAP, TELEPHONY,
+            CLIENTS, EMPLOYEES, ORDERS, FINANCE, SALARIES, SETTINGS, MAP, TELEPHONY, WEB_LOGIN,
             MOBILE_ORDERS, MOBILE_GPS, MOBILE_FINANCE_VIEW, MOBILE_TEAM_VIEW, MOBILE_CHAT, MOBILE_SALARY_VIEW,
             ASSIGN_MEASUREMENT_UNIT, UPDATE_ORDER_STATUS, WRITE_ORDER_NOTES, SET_ORDER_PRICE, RECORD_INCOME, RECORD_EXPENSE
     );

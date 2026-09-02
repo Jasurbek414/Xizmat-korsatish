@@ -24,6 +24,7 @@ public class CompanyController {
     }
 
     @GetMapping
+    @PreAuthorize("@perm.has('settings')")
     public ResponseEntity<?> getCompanySettings() {
         String tenantId = TenantContext.getCurrentTenant();
         if (tenantId == null) {
@@ -55,7 +56,15 @@ public class CompanyController {
         if (request.containsKey("phone")) company.setPhone((String) request.get("phone"));
         if (request.containsKey("email")) company.setEmail((String) request.get("email"));
         if (request.containsKey("address")) company.setAddress((String) request.get("address"));
-        
+        if (request.containsKey("latitude")) {
+            Object v = request.get("latitude");
+            company.setLatitude(v == null ? null : Double.parseDouble(v.toString()));
+        }
+        if (request.containsKey("longitude")) {
+            Object v = request.get("longitude");
+            company.setLongitude(v == null ? null : Double.parseDouble(v.toString()));
+        }
+
         if (request.containsKey("minOrderPrice")) {
             company.setMinOrderPrice(Integer.parseInt(request.get("minOrderPrice").toString()));
         }
@@ -82,6 +91,29 @@ public class CompanyController {
             }
         }
 
+        if (request.containsKey("customExpenseCategories")) {
+            Object raw = request.get("customExpenseCategories");
+            if (raw instanceof List<?> rawList) {
+                company.setCustomExpenseCategories(rawList.stream()
+                        .map(Object::toString)
+                        .map(String::trim)
+                        .filter(s -> !s.isBlank())
+                        .distinct()
+                        .collect(Collectors.toCollection(ArrayList::new)));
+            }
+        }
+        if (request.containsKey("customIncomeCategories")) {
+            Object raw = request.get("customIncomeCategories");
+            if (raw instanceof List<?> rawList) {
+                company.setCustomIncomeCategories(rawList.stream()
+                        .map(Object::toString)
+                        .map(String::trim)
+                        .filter(s -> !s.isBlank())
+                        .distinct()
+                        .collect(Collectors.toCollection(ArrayList::new)));
+            }
+        }
+
         if (request.containsKey("smsEnabled")) {
             company.setSmsEnabled((Boolean) request.get("smsEnabled"));
         }
@@ -92,5 +124,53 @@ public class CompanyController {
 
         Company saved = companyRepository.save(company);
         return ResponseEntity.ok(saved);
+    }
+
+    /**
+     * Xarita bo'limi (Xodimlar Monitoringi) uchun - korxonaning markaziy
+     * koordinatasi. ATAYIN alohida, yengil endpoint: to'liq
+     * getCompanySettings() 'settings' huquqini talab qiladi (va smsApiToken
+     * kabi maxfiy maydonlarni ham qaytaradi) - lekin Xarita bo'limiga
+     * 'map' huquqi bilan kiradigan xodimlar (masalan Dispetcher) 'settings'
+     * huquqiga ega bo'lmasligi mumkin. Shu sabab faqat koordinata (hech
+     * qanday sir emas) alohida, kengroq ruxsat bilan ochilgan.
+     */
+    public record CompanyLocationResponse(Double latitude, Double longitude) {
+    }
+
+    @GetMapping("/location")
+    @PreAuthorize("@perm.has('map','settings')")
+    public ResponseEntity<?> getCompanyLocation() {
+        String tenantId = TenantContext.getCurrentTenant();
+        if (tenantId == null) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of("message", "Tenant ID is missing"));
+        }
+        Company company = companyRepository.findById(UUID.fromString(tenantId)).orElse(null);
+        if (company == null) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("message", "Kompaniya topilmadi"));
+        }
+        return ResponseEntity.ok(new CompanyLocationResponse(company.getLatitude(), company.getLongitude()));
+    }
+
+    @PutMapping("/location")
+    @PreAuthorize("@perm.has('map','settings')")
+    public ResponseEntity<?> updateCompanyLocation(@RequestBody Map<String, Object> request) {
+        String tenantId = TenantContext.getCurrentTenant();
+        if (tenantId == null) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of("message", "Tenant ID is missing"));
+        }
+        Object latObj = request.get("latitude");
+        Object lngObj = request.get("longitude");
+        if (latObj == null || lngObj == null) {
+            return ResponseEntity.badRequest().body(Map.of("message", "latitude va longitude kiritilishi shart"));
+        }
+        Company company = companyRepository.findById(UUID.fromString(tenantId)).orElse(null);
+        if (company == null) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("message", "Kompaniya topilmadi"));
+        }
+        company.setLatitude(Double.parseDouble(latObj.toString()));
+        company.setLongitude(Double.parseDouble(lngObj.toString()));
+        Company saved = companyRepository.save(company);
+        return ResponseEntity.ok(new CompanyLocationResponse(saved.getLatitude(), saved.getLongitude()));
     }
 }

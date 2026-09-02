@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { Plus, MessageSquare } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { api } from '../services/api';
+import { confirmDialog } from '../services/confirmDialog';
+import PageLoader from '../components/PageLoader';
 import { addNotification } from '../store/mockDb';
 
 // Import modular sub-components
@@ -14,6 +16,7 @@ import CreateOrderModal from './orders/CreateOrderModal';
 const Orders = ({ tab }) => {
   const { t } = useTranslation();
   const [orders, setOrders] = useState([]);
+  const [pageLoading, setPageLoading] = useState(true);
   const [statuses, setStatuses] = useState([]);
   const [clients, setClients] = useState([]);
   const [services, setServices] = useState([]);
@@ -29,6 +32,9 @@ const Orders = ({ tab }) => {
   // Filters
   const [search, setSearch] = useState('');
   const [selectedStatusId, setSelectedStatusId] = useState('all');
+  // Kalendar orqali tanlangan sana (YYYY-MM-DD) yoki null. Ro'yxatni shu kun
+  // bo'yicha filtrlaydi VA yangi buyurtma o'sha kunga yoziladi.
+  const [selectedDate, setSelectedDate] = useState(null);
   
   // Form State
   const [newOrder, setNewOrder] = useState({
@@ -37,18 +43,31 @@ const Orders = ({ tab }) => {
     service_id: '',
     worker_id: '',
     address: '',
-    description: ''
+    description: '',
+    // Summa xizmat tanlanganda avtomatik to'ladi, lekin qo'lda
+    // o'zgartirilishi mumkin (kelishilgan narx katalogdan farq qilsa).
+    price: ''
   });
   const [companySettings, setCompanySettings] = useState({});
 
   const mapOrders = (ordersData) => {
     return ordersData.map(o => ({
       id: o.id,
-      client_name: o.client ? (o.client.fullName || o.client.full_name) : '',
-      client_phone: o.client ? (o.client.phone || '') : '',
-      client_address: o.client ? (o.client.address || '') : '',
-      service_name: o.service ? (o.service.nameUz || o.service.name_uz) : '',
-      worker_name: o.worker ? (o.worker.fullName || o.worker.full_name) : 'Biriktirilmagan',
+      // `?? ''` MUHIM: obyekt kelgan-u, ichida nom maydoni bo'lmagan holat
+      // (lazy proxy) `undefined` qoldirardi - pastdagi filtr va jadval shunda
+      // yiqilardi. Endi eng yomon holatda bo'sh satr bo'ladi.
+      client_id: o.client ? o.client.id : '',
+      client_name: (o.client ? (o.client.fullName || o.client.full_name) : '') ?? '',
+      client_phone: (o.client ? o.client.phone : '') ?? '',
+      client_address: (o.client ? o.client.address : '') ?? '',
+      // MUHIM (audit'da topilgan xato, tuzatildi): avval faqat xizmat NOMI
+      // saqlanardi, ID emas - tahrirlashda xizmat ISM bo'yicha QAYTA
+      // qidirilardi (pastga q. handleOpenEdit). Ikkita bir xil nomli xizmat
+      // bo'lsa (yoki nom keyin o'zgartirilgan bo'lsa), buyurtma BOSHQA
+      // xizmatga bog'lanib, narx xato hisoblanishi mumkin edi.
+      service_id: o.service ? o.service.id : '',
+      service_name: (o.service ? (o.service.nameUz || o.service.name_uz) : '') ?? '',
+      worker_name: (o.worker ? (o.worker.fullName || o.worker.full_name) : 'Biriktirilmagan') ?? 'Biriktirilmagan',
       worker_id: o.worker ? o.worker.id : '',
       worker_phone: o.worker ? (o.worker.phone || '') : '',
       status_id: o.status ? o.status.id : '',
@@ -67,13 +86,21 @@ const Orders = ({ tab }) => {
   useEffect(() => {
     const loadData = async () => {
       try {
+        // MUHIM: har bir so'rov ALOHIDA .catch bilan o'ralgan (Promise.all
+        // o'rniga) - aks holda BITTA ruxsat yetishmasa (masalan Dispetcher/
+        // Menejerda "settings" huquqi yo'q, shuning uchun getCompanySettings
+        // 403 qaytaradi), butun Buyurtmalar sahifasi bo'sh qolardi. Jonli
+        // aniqlangan: bu sabab Buyurtmalar moduli DISPATCHER va MANAGER
+        // rollari uchun butunlay ishlamas edi. companySettings faqat SMS
+        // simulyatsiyasi uchun ishlatiladi - yo'q bo'lsa shu funksiya jimgina
+        // o'chadi, qolgan sahifa to'liq ishlayveradi.
         const [ordersData, statusesData, clientsData, servicesData, workersData, settingsData] = await Promise.all([
           api.getOrders(),
           api.getOrderStatuses(),
           api.getClients(),
           api.getServices(),
           api.getDrivers(),
-          api.getCompanySettings()
+          api.getCompanySettings({ silent403: true }).catch(() => ({}))
         ]);
         setOrders(mapOrders(ordersData));
         setStatuses(statusesData.map(s => ({
@@ -90,6 +117,8 @@ const Orders = ({ tab }) => {
         setCompanySettings(settingsData);
       } catch (err) {
         console.error("Failed to load orders data:", err);
+      } finally {
+        setPageLoading(false);
       }
     };
     loadData();
@@ -135,12 +164,28 @@ const Orders = ({ tab }) => {
     setCreateOrderError(null);
 
     try {
+      // MUHIM (jonli holatda topilgan xato, tuzatildi): buyurtma
+      // TAHRIRLANAYOTGANDA, agar telefon raqami o'zgartirilmagan bo'lsa,
+      // ASL mijoz ID'si to'g'ridan-to'g'ri ishlatiladi - pastdagi
+      // `endsWith` qidiruvi ATLAB O'TILADI. Sabab: `endsWith` raqamning
+      // faqat OXIRGI qismini solishtiradi - agar ikkita mijozning raqami
+      // bir xil oxirgi raqamlar bilan tugasa (yoki oldin xato mijoz
+      // yaratilgan bo'lsa), tahrirlash BOSHQA mijozga o'tkazib yuborishi
+      // mumkin edi. Raqam ATAYIN o'zgartirilsa - pastdagi mantiq
+      // (topilsa ishlatish, topilmasa yangi mijoz yaratish) ishlayveradi.
+      let client = null;
+      if (editingOrder && editingOrder.client_id && newOrder.client_phone === editingOrder.client_phone) {
+        client = { id: editingOrder.client_id, address: editingOrder.client_address, full_name: editingOrder.client_name };
+      }
+
       // Find client in current loaded list (matching phone)
       const cleanNewPhone = newOrder.client_phone.replace(/\D/g, '');
-      let client = clients.find(c => {
-        const cleanPhone = c.phone ? c.phone.replace(/\D/g, '') : '';
-        return cleanPhone && cleanPhone.endsWith(cleanNewPhone) && cleanNewPhone.length >= 7;
-      });
+      if (!client) {
+        client = clients.find(c => {
+          const cleanPhone = c.phone ? c.phone.replace(/\D/g, '') : '';
+          return cleanPhone && cleanPhone.endsWith(cleanNewPhone) && cleanNewPhone.length >= 7;
+        });
+      }
 
       if (!client) {
         // Create new client in backend
@@ -150,10 +195,29 @@ const Orders = ({ tab }) => {
           address: newOrder.address
         });
         client = createdClient;
-        
+
         // Refresh clients state
         const updatedClients = await api.getClients();
         setClients(updatedClients);
+      } else {
+        // MUHIM (jonli holatda topilgan xato, tuzatildi): mavjud mijoz
+        // (ID orqali yoki telefon bo'yicha) topilganda, shu forma
+        // maydonidagi ISM hech qachon Mijoz yozuvining o'ziga qaytarilmasdi -
+        // faqat YANGI mijoz yaratilganda ism to'g'ri saqlanardi. Buyurtmani
+        // TAHRIRLAB, "Mijoz ismi"ni o'zgartirsa (masalan kirillchadan
+        // lotinchaga), bu o'zgarish jimgina yo'qolib ketardi. Endi ism
+        // saqlangan qiymatdan farq qilsa, mijoz yozuvi ham yangilanadi.
+        const currentName = (client.full_name || client.fullName || '').trim();
+        const typedName = newOrder.client_name.trim();
+        if (typedName && typedName !== currentName) {
+          await api.updateClient(client.id, {
+            full_name: typedName,
+            phone: newOrder.client_phone,
+            address: client.address || ''
+          });
+          const updatedClients = await api.getClients();
+          setClients(updatedClients);
+        }
       }
 
       // Create or update the order
@@ -162,11 +226,22 @@ const Orders = ({ tab }) => {
         client_id: client.id,
         service_id: newOrder.service_id,
         worker_id: newOrder.worker_id || null,
-        price: services.find(s => s.id === newOrder.service_id)?.price || 0,
+        // Qo'lda kiritilgan summa ustuvor; bo'sh qoldirilsa xizmat narxi.
+        price: newOrder.price !== '' && newOrder.price != null
+          ? Number(newOrder.price)
+          : (services.find(s => s.id === newOrder.service_id)?.price || 0),
         address: newOrder.address || client.address || '',
         description: newOrder.description || '',
         status_id: firstStatus
       };
+
+      // Kalendarda sana tanlangan bo'lsa, buyurtma O'SHA kunga yoziladi -
+      // shunda ro'yxatdan tushib qolgan eski buyurtmani keyin ham to'g'ri
+      // sana bilan kiritish mumkin. Yangi buyurtma yaratilgandagina
+      // qo'llanadi: mavjud buyurtmani tahrirlashda sanasi o'zgarmasligi kerak.
+      if (selectedDate && !editingOrder) {
+        orderPayload.created_at = selectedDate;
+      }
 
       if (editingOrder) {
         await api.updateOrder(editingOrder.id, orderPayload);
@@ -186,7 +261,8 @@ const Orders = ({ tab }) => {
         service_id: '',
         worker_id: '',
         address: '',
-        description: ''
+        description: '',
+        price: ''
       });
 
       // Trigger notification
@@ -260,20 +336,35 @@ const Orders = ({ tab }) => {
 
   const handleOpenEdit = (order) => {
     setEditingOrder(order);
-    const clientObj = clients.find(c => (c.fullName || c.full_name) === order.client_name);
+    // MUHIM (jonli holatda topilgan xato, tuzatildi): avval mijoz ISM
+    // bo'yicha `clients` ro'yxatidan qidirilardi - agar boshqa mijoz ham
+    // XUDDI SHU ismga ega bo'lsa (masalan bir nechta "Aziz"), `.find()`
+    // ro'yxatdagi BIRINCHI mos kelganini qaytarardi, ya'ni bu buyurtmaga
+    // umuman aloqasi yo'q boshqa odamning telefon raqami tahrirlash
+    // formasiga yozilib qolardi. `order.client_phone` (mapOrders orqali
+    // buyurtmaning O'Z mijozidan to'g'ridan-to'g'ri olingan) - hech qanday
+    // qidiruvsiz, doim to'g'ri.
     setNewOrder({
-      client_phone: clientObj ? clientObj.phone : '',
+      client_phone: order.client_phone || '',
       client_name: order.client_name,
-      service_id: services.find(s => s.nameUz === order.service_name || s.name_uz === order.service_name)?.id || '',
+      // MUHIM (audit'da topilgan, tuzatildi): avval nom bo'yicha QAYTA
+      // qidirilardi (yuqoridagi client_phone bilan bir xil turdagi xato) -
+      // endi buyurtmaning O'Z xizmat ID'si (mapOrders orqali) to'g'ridan-to'g'ri
+      // ishlatiladi.
+      service_id: order.service_id || '',
       worker_id: order.worker_id || '',
       address: order.address,
-      description: order.description || ''
+      description: order.description || '',
+      // MUHIM (audit'da topilgan): bu maydon to'ldirilmasa, saqlashda
+      // "bo'sh bo'lsa katalog narxi" fallback'i doim ishga tushib, kelishilgan
+      // narxni jim-jit katalog narxi bilan almashtirib yuborardi.
+      price: order.price != null ? order.price : ''
     });
     setShowCreateModal(true);
   };
 
   const handleDeleteOrder = async (id) => {
-    if (!window.confirm("Haqiqatan ham ushbu buyurtmani o'chirib yubormoqchimisiz?")) return;
+    if (!(await confirmDialog("Haqiqatan ham ushbu buyurtmani o'chirib yubormoqchimisiz?"))) return;
     try {
       await api.deleteOrder(id);
       const ordersData = await api.getOrders();
@@ -284,16 +375,56 @@ const Orders = ({ tab }) => {
   };
 
   // Filter orders by search and status tab
-  const filteredOrders = orders.filter(o => {
-    const matchesSearch = 
-      o.client_name.toLowerCase().includes(search.toLowerCase()) || 
-      o.worker_name.toLowerCase().includes(search.toLowerCase()) ||
-      o.service_name.toLowerCase().includes(search.toLowerCase());
-    
-    const matchesStatus = selectedStatusId === 'all' || o.status_id === selectedStatusId;
+  //
+  // MUHIM (jonli xatolik, 2026-08-04): avval bu yerda to'g'ridan-to'g'ri
+  // `o.client_name.toLowerCase()` chaqirilardi. Agar backend buyurtma bilan
+  // birga `client`/`service` obyektini TO'LIQ yubormasa (masalan Hibernate
+  // lazy proxy tufayli faqat `{id}` kelsa), mapOrders o'sha maydonga
+  // `undefined` yozardi va bu qator butun Buyurtmalar sahifasini yiqitardi -
+  // tashqaridan bu "qidiruv ishlamayapti" bo'lib ko'rinadi. Endi barcha
+  // qiymatlar String()'ga o'raladi, ya'ni bitta nuqsonli yozuv sahifani
+  // buzmaydi.
+  //
+  // Qidiruv maydoni ham kengaytirildi: foydalanuvchilar ko'pincha TELEFON
+  // RAQAMI yoki MANZIL bo'yicha qidiradi, lekin avval faqat mijoz/xodim/
+  // xizmat nomi tekshirilardi va natija bo'sh chiqardi.
+  const query = search.trim().toLowerCase();
 
-    return matchesSearch && matchesStatus;
+  // Sana filtri mahalliy vaqt bo'yicha solishtiriladi. `toISOString()`
+  // ATAYIN ishlatilmadi - u UTC'ga o'tkazadi va O'zbekiston (UTC+5)
+  // ertalabki buyurtmalarini oldingi kunga tashlab yuborardi.
+  const localDateKey = (value) => {
+    if (!value) return null;
+    const d = new Date(value);
+    if (Number.isNaN(d.getTime())) return null;
+    const pad = (n) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  };
+
+  const filteredOrders = orders.filter(o => {
+    const matchesStatus = selectedStatusId === 'all' || o.status_id === selectedStatusId;
+    if (!matchesStatus) return false;
+
+    if (selectedDate && localDateKey(o.created_at) !== selectedDate) return false;
+
+    if (!query) return true;
+
+    const haystack = [
+      o.client_name,
+      o.client_phone,
+      o.worker_name,
+      o.service_name,
+      o.address,
+      o.client_address,
+      o.description
+    ]
+      .map(v => String(v ?? '').toLowerCase())
+      .join(' ');
+
+    return haystack.includes(query);
   });
+
+  if (pageLoading) return <PageLoader />;
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -320,8 +451,11 @@ const Orders = ({ tab }) => {
         setSearch={setSearch} 
         selectedStatusId={selectedStatusId} 
         setSelectedStatusId={setSelectedStatusId} 
-        statuses={statuses} 
-        orders={orders} 
+        statuses={statuses}
+        orders={orders}
+        selectedDate={selectedDate}
+        setSelectedDate={setSelectedDate}
+        onAddOrderForDate={() => { setEditingOrder(null); setCreateOrderError(null); setShowCreateModal(true); }}
       />
 
       {/* Orders List Table */}

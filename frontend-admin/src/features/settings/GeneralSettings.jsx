@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { api } from '../../services/api';
+import { showToast } from '../../services/toast';
 import { Check, Info, AlertTriangle } from 'lucide-react';
 
 const GeneralSettings = () => {
@@ -38,7 +39,7 @@ const GeneralSettings = () => {
       setResetConfirmText('');
     } catch (err) {
       console.error("Failed to reset finance:", err);
-      alert(err.message || "Moliyani 0ga tushirishda xatolik yuz berdi.");
+      showToast(err.message || "Moliyani 0ga tushirishda xatolik yuz berdi.");
     } finally {
       setResetting(false);
     }
@@ -54,8 +55,8 @@ const GeneralSettings = () => {
           company_address: data.address || '',
           company_email: data.email || '',
           currency: 'so\'m',
-          min_order_price: data.minOrderPrice || 15000,
-          driver_kpi_percent: data.driverKpiPercent || 10,
+          min_order_price: data.minOrderPrice != null ? data.minOrderPrice : 15000,
+          driver_kpi_percent: data.driverKpiPercent != null ? data.driverKpiPercent : 10,
           work_start_time: data.workStartTime || '08:00',
           work_end_time: data.workEndTime || '22:00',
           measurement_units: (data.measurementUnits && data.measurementUnits.length > 0)
@@ -83,7 +84,7 @@ const GeneralSettings = () => {
     } catch (err) {
       console.error("Failed to update measurement units:", err);
       setSettings(prev => ({ ...prev, measurement_units: previous }));
-      alert(err.message || "O'lchov birligini saqlashda xatolik yuz berdi.");
+      showToast(err.message || "O'lchov birligini saqlashda xatolik yuz berdi.");
     }
   };
 
@@ -105,7 +106,7 @@ const GeneralSettings = () => {
       setTimeout(() => setSaved(false), 3000);
     } catch (err) {
       console.error("Failed to update company settings:", err);
-      alert(err.message || "Sozlamalarni saqlashda xatolik yuz berdi.");
+      showToast(err.message || "Sozlamalarni saqlashda xatolik yuz berdi.");
     }
   };
 

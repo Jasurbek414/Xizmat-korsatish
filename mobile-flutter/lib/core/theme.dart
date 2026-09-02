@@ -202,10 +202,31 @@ class AppTheme {
   // ------------------------------------------------------------------
   static Color bgOf(BuildContext context) => Theme.of(context).scaffoldBackgroundColor;
   static Color surfaceOf(BuildContext context) => Theme.of(context).cardColor;
+  static Color cardColorOf(BuildContext context) => Theme.of(context).cardColor;
+  // MUHIM (audit'da topilgan xato, tuzatildi): "surfaceAlt" (masalan input
+  // fillColor, ikkinchi darajali fon) uchun ColorScheme'da mos joy yo'q edi -
+  // shu sabab bu yordamchi avval umuman mavjud emas edi va butun ilova
+  // bo'ylab bunday joylarda doim YORUG' rejim rangi (AppTheme.surfaceAlt)
+  // qattiq yozilgan edi. inputDecorationTheme.fillColor orqali _buildTheme'ga
+  // uzatilgan haqiqiy (light/dark) qiymatni o'qiymiz.
+  static Color surfaceAltOf(BuildContext context) =>
+      Theme.of(context).inputDecorationTheme.fillColor ?? surfaceOf(context);
   static Color borderOf(BuildContext context) => Theme.of(context).dividerColor;
   static Color textPrimaryOf(BuildContext context) => Theme.of(context).textTheme.bodyLarge!.color!;
   static Color textSecondaryOf(BuildContext context) => Theme.of(context).textTheme.bodyMedium!.color!;
   static Color textMutedOf(BuildContext context) => Theme.of(context).textTheme.labelSmall!.color!;
+  /// Kartalar/modallar soyasi - tungi rejimda och (light) soya deyarli
+  /// ko'rinmaydi, shuning uchun yorug'lik darajasiga qarab moslashtiriladi
+  /// (avval har doim `cardShadow` getter orqali qattiq yorug' soya olinardi).
+  static List<BoxShadow> cardShadowOf(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return isDark
+        ? [
+            BoxShadow(color: Colors.black.withOpacity(0.3), blurRadius: 22, offset: const Offset(0, 10)),
+            BoxShadow(color: Colors.black.withOpacity(0.15), blurRadius: 2, offset: const Offset(0, 1)),
+          ]
+        : cardShadow;
+  }
 
   // --- Soyalar ---
   static List<BoxShadow> get cardShadow => [

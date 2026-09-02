@@ -32,9 +32,9 @@ class AppButton extends StatelessWidget {
       AppBtn.blue => AppTheme.blue,
       AppBtn.navy => AppTheme.navy,
       AppBtn.danger => AppTheme.dangerColor,
-      AppBtn.ghost => AppTheme.surface,
+      AppBtn.ghost => AppTheme.surfaceOf(context),
     };
-    final fg = ghost ? AppTheme.textPrimary : Colors.white;
+    final fg = ghost ? AppTheme.textPrimaryOf(context) : Colors.white;
 
     final child = loading
         ? SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2.2, color: fg))
@@ -60,7 +60,7 @@ class AppButton extends StatelessWidget {
           alignment: Alignment.center,
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(AppTheme.rMd),
-            border: ghost ? Border.all(color: AppTheme.borderColor) : null,
+            border: ghost ? Border.all(color: AppTheme.borderOf(context)) : null,
             boxShadow: kind == AppBtn.green
                 ? [BoxShadow(color: AppTheme.primary.withOpacity(0.28), blurRadius: 20, offset: const Offset(0, 10), spreadRadius: -8)]
                 : null,
@@ -86,7 +86,7 @@ class AppIconButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final c = color ?? AppTheme.primary;
     return Material(
-      color: bg ?? AppTheme.surface,
+      color: bg ?? AppTheme.surfaceOf(context),
       borderRadius: BorderRadius.circular(12),
       child: InkWell(
         onTap: onTap,
@@ -97,7 +97,7 @@ class AppIconButton extends StatelessWidget {
           alignment: Alignment.center,
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(12),
-            border: bg == null ? Border.all(color: AppTheme.borderColor) : null,
+            border: bg == null ? Border.all(color: AppTheme.borderOf(context)) : null,
           ),
           child: Icon(icon, size: size * 0.44, color: c),
         ),

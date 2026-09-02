@@ -3,13 +3,17 @@ package com.service.core.controller;
 import com.service.core.model.Order;
 import com.service.core.model.OrderItem;
 import com.service.core.model.OrderStatus;
+import com.service.core.model.User;
 import com.service.core.repository.OrderRepository;
 import com.service.core.repository.OrderItemRepository;
 import com.service.core.repository.OrderStatusRepository;
+import com.service.core.repository.UserRepository;
 import com.service.core.tenant.TenantContext;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
 import java.math.BigDecimal;
@@ -28,11 +32,51 @@ public class OrderItemController {
     private final OrderRepository orderRepository;
     private final OrderItemRepository orderItemRepository;
     private final OrderStatusRepository orderStatusRepository;
+    private final UserRepository userRepository;
 
-    public OrderItemController(OrderRepository orderRepository, OrderItemRepository orderItemRepository, OrderStatusRepository orderStatusRepository) {
+    public OrderItemController(OrderRepository orderRepository, OrderItemRepository orderItemRepository,
+                                OrderStatusRepository orderStatusRepository, UserRepository userRepository) {
         this.orderRepository = orderRepository;
         this.orderItemRepository = orderItemRepository;
         this.orderStatusRepository = orderStatusRepository;
+        this.userRepository = userRepository;
+    }
+
+    private User getCurrentUser() {
+        Object principal = SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+        if (!(principal instanceof String username)) {
+            return null;
+        }
+        return userRepository.findByUsername(username).orElse(null);
+    }
+
+    // MUHIM (jonli so'rov: "kim buyurtma olsa, aynan o'sha akkaunt
+    // yozilishi kerak"): haydovchidan farqli o'laroq, sex hodimi hech
+    // qachon buyurtmani aniq "qabul qilaman" deb bosmaydi - sex navbati
+    // (FactoryOrdersScreen) UMUMIY, istalgan sex hodimi istalgan
+    // buyurtmani ochib o'lchov/narx kiritishi mumkin. Shu sabab
+    // `sexWorker` avtomatik ravishda BIRINCHI marta shu buyurtmaga
+    // (o'lchov/narx orqali) tegingan sex hodimiga qarab belgilanadi.
+    //
+    // MUHIM (jonli xato, DARHOL tuzatildi): bu yerda avval `order.worker`
+    // ("hozirgi egasi") HAM sex hodimiga qayta yozib yuborilardi. Lekin
+    // mobil ilovaning haydovchi ekrani xuddi shu `worker_id`ni "bu MENING
+    // buyurtmam"ligini tekshirish uchun ishlatadi (_isMine) - shu sabab
+    // sex hodimi birinchi marta o'lchov kiritgan zahoti, haydovchi
+    // buyurtmani "o'zinikidan chiqarib qo'yilgan"dek ko'rib qolar va
+    // buyurtma sexdan qaytib kelganda "To'lovni qabul qilish" tugmasi
+    // UMUMAN chiqmay qolardi. `worker` endi TEGILMAYDI - faqat `sexWorker`
+    // (alohida, qo'shimcha yozuv sifatida) belgilanadi.
+    private void autoClaimForSexWorker(Order order) {
+        if (order.getSexWorker() != null) {
+            return;
+        }
+        User currentUser = getCurrentUser();
+        if (currentUser == null || !"WORKER_SEH".equals(currentUser.getRole())) {
+            return;
+        }
+        order.setSexWorker(currentUser);
+        orderRepository.save(order);
     }
 
     /**
@@ -43,24 +87,44 @@ public class OrderItemController {
      * "dona"/"kg"/"litr"/"metr" - soni bo'yicha) hisoblash rejimini belgilaydi.
      */
     private void recalculatePrice(Order order) {
+        if (order.getService() == null) {
+            return;
+        }
+
         List<OrderItem> items = orderItemRepository.findByOrderId(order.getId());
-        if (items.isEmpty() || order.getService() == null) {
+        if (items.isEmpty()) {
+            // MUHIM (audit'da topilgan): oxirgi mahsulot o'chirilgach bu yerdan
+            // shartsiz qaytib ketilardi - natijada buyurtma narxi ESKI (nolga
+            // teng bo'lmagan) qiymatda "osilib" qolar edi, garchi endi hech
+            // qanday mahsulot biriktirilmagan bo'lsa ham.
+            order.setPrice(BigDecimal.ZERO);
+            orderRepository.save(order);
             return;
         }
 
         String unit = order.getService().getMeasurementUnit();
         boolean isAreaBased = "m²".equals(unit) || (unit != null && unit.toLowerCase().replace(".", "").contains("kv"));
 
-        BigDecimal total;
-        if (isAreaBased) {
-            total = items.stream()
-                    .map(i -> i.getLength().multiply(i.getWidth()).multiply(BigDecimal.valueOf(i.getQuantity())))
-                    .reduce(BigDecimal.ZERO, BigDecimal::add);
-        } else {
-            total = BigDecimal.valueOf(items.stream().mapToInt(OrderItem::getQuantity).sum());
+        // MUHIM (jonli so'rov bo'yicha qo'shildi): har bir gilam sex xodimi
+        // tomonidan ALOHIDA narxlanishi mumkin (item.price). Shu narx
+        // qo'yilgan bo'lsa - AYNAN o'sha ishlatiladi; qo'yilmagan (null/0)
+        // gilamlar uchun esa avvalgidek xizmat narxi x o'lchov bo'yicha
+        // AVTOMATIK hisoblanadi. Buyurtmaning umumiy narxi - shu ikkisining
+        // (qo'lda + avtomatik) yig'indisi.
+        BigDecimal total = BigDecimal.ZERO;
+        for (OrderItem item : items) {
+            BigDecimal itemPrice = item.getPrice();
+            if (itemPrice != null && itemPrice.compareTo(BigDecimal.ZERO) > 0) {
+                total = total.add(itemPrice);
+                continue;
+            }
+            BigDecimal basis = isAreaBased
+                    ? item.getLength().multiply(item.getWidth()).multiply(BigDecimal.valueOf(item.getQuantity()))
+                    : BigDecimal.valueOf(item.getQuantity());
+            total = total.add(basis.multiply(order.getService().getPrice()));
         }
 
-        order.setPrice(total.multiply(order.getService().getPrice()));
+        order.setPrice(total);
         orderRepository.save(order);
     }
 
@@ -119,18 +183,31 @@ public class OrderItemController {
         Integer quantity = request.containsKey("quantity") ? Integer.parseInt(request.get("quantity").toString()) : 1;
         String status = request.getOrDefault("status", "ACCEPTED").toString();
 
-        OrderItem item = OrderItem.builder()
-                .order(order)
-                .name(name)
-                .length(length)
-                .width(width)
-                .quantity(quantity)
-                .status(status)
-                .build();
-
-        OrderItem saved = orderItemRepository.save(item);
+        // MUHIM (jonli so'rov bo'yicha qo'shildi): avval "soni=5" BITTA
+        // OrderItem yozuviga yozilardi - sex hodimi buni BITTA gilam
+        // sifatida ko'rar va o'lchov/narx faqat SHU BITTA yozuvga (demak
+        // barcha 5 tasiga BIR XIL o'lchamda) tegishli bo'lardi. Aslida har
+        // bir gilamning o'z eni/bo'yi/narxi bor. Shu sabab haydovchi
+        // "5 ta" deb kiritsa, sex uchun ALOHIDA-ALOHIDA 5 ta yozuv
+        // yaratiladi (har biri quantity=1) - har biri mustaqil o'lchanadi
+        // va narxlanadi. Bir nechta bo'lsa, chalkashmasligi uchun nomi
+        // "Gilam 1", "Gilam 2" ... tarzida raqamlanadi.
+        List<OrderItem> createdItems = new java.util.ArrayList<>();
+        int rowCount = Math.max(1, quantity);
+        for (int i = 1; i <= rowCount; i++) {
+            String itemName = rowCount > 1 ? name + " " + i : name;
+            OrderItem item = OrderItem.builder()
+                    .order(order)
+                    .name(itemName)
+                    .length(length)
+                    .width(width)
+                    .quantity(1)
+                    .status(status)
+                    .build();
+            createdItems.add(orderItemRepository.save(item));
+        }
         recalculatePrice(order);
-        return ResponseEntity.status(HttpStatus.CREATED).body(saved);
+        return ResponseEntity.status(HttpStatus.CREATED).body(createdItems);
     }
 
     @PutMapping("/{itemId}")
@@ -155,6 +232,8 @@ public class OrderItemController {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("message", "Mahsulot topilmadi"));
         }
 
+        autoClaimForSexWorker(order);
+
         if (request.containsKey("name")) {
             item.setName(request.get("name").toString());
         }
@@ -167,6 +246,9 @@ public class OrderItemController {
         if (request.containsKey("quantity")) {
             item.setQuantity(Integer.parseInt(request.get("quantity").toString()));
         }
+        if (request.containsKey("price")) {
+            item.setPrice(new BigDecimal(request.get("price").toString()));
+        }
         if (request.containsKey("status")) {
             item.setStatus(request.get("status").toString());
         }
@@ -177,6 +259,7 @@ public class OrderItemController {
     }
 
     @DeleteMapping("/{itemId}")
+    @Transactional
     public ResponseEntity<?> deleteItem(@PathVariable UUID orderId, @PathVariable UUID itemId) {
         String tenantId = TenantContext.getCurrentTenant();
         if (tenantId == null) {
@@ -198,8 +281,29 @@ public class OrderItemController {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("message", "Mahsulot topilmadi"));
         }
 
-        orderItemRepository.delete(item);
-        recalculatePrice(order);
+        // MUHIM (jonli xato: gilam o'chirilgandan keyin ham ro'yxatda qolaverardi):
+        // `order` bu so'rov boshida `items`ni EAGER + cascade=ALL bilan
+        // yuklab olgan (xotirada eskirgan holatda). Oddiy
+        // `orderItemRepository.delete(item)` chaqiruvi entity-darajasida
+        // o'chirishga urinar edi, lekin `order.items` kolleksiyasidan
+        // orphan sifatida chiqarilmagani sabab Hibernate flush vaqtida
+        // buni tiklab (yoki hech qachon flush qilmay) qoldirar edi -
+        // natijada API 200 qaytarsa ham bazada hech narsa o'zgarmasdi.
+        // To'g'ridan-to'g'ri JPQL bulk-delete + persistence context'ni
+        // tozalash (clearAutomatically) bu butun muammoni chetlab
+        // o'tadi - entity lifecycle/cascade bilan hech qanday ishi yo'q.
+        int deletedCount = orderItemRepository.deleteItemById(orderId, itemId);
+        if (deletedCount == 0) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("message", "Mahsulot topilmadi"));
+        }
+
+        // Kontekst tozalanganidan keyin `order` DETACHED bo'lib qoladi -
+        // recalculatePrice() bazadan butunlay TOZA holatda qayta o'qib olishi
+        // uchun uni qaytadan yuklaymiz.
+        Order freshOrder = orderRepository.findById(orderId).orElse(null);
+        if (freshOrder != null) {
+            recalculatePrice(freshOrder);
+        }
         return ResponseEntity.ok(Map.of("message", "Mahsulot muvaffaqiyatli o'chirildi"));
     }
 }

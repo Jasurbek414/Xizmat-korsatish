@@ -20,6 +20,14 @@ const SuperadminLoginPage = ({ setAuth }) => {
       const user = data.user;
 
       if (user.role !== 'SUPERADMIN') {
+        // MUHIM (audit'da topilgan, xavfsizlik): api.login() muvaffaqiyatli
+        // javobni ushbu tekshiruvdan OLDIN localStorage'ga yozib bo'ladi -
+        // avval bu yerda faqat setError() chaqirilib, sessiya saqlanib
+        // qolardi. Oddiy ADMIN hisobi shu portaldan xato kirishga urinsa,
+        // ekranda "noto'g'ri portal" xabarini ko'radi-yu, sahifani qayta
+        // yuklasa (App.jsx localStorage'dan tiklaydi) to'liq huquq bilan
+        // /spd'ga kirib qolishi mumkin edi.
+        await api.logout();
         setError(t('superadmin.login_wrong_portal'));
         return;
       }

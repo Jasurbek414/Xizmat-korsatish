@@ -8,7 +8,12 @@ import '../repository/team_repository.dart';
 /// Menejer/dispetcher uchun: barcha faol haydovchilarning joriy joylashuvi.
 class TeamMapScreen extends StatelessWidget {
   final List<TeamMember> drivers;
-  const TeamMapScreen({super.key, required this.drivers});
+
+  /// Belgi (marker) bosilganda chaqiriladi - tafsilot panelini ochish uchun.
+  /// `null` bo'lsa belgilar oddiy ko'rinishda qoladi (eski xatti-harakat).
+  final void Function(TeamMember)? onDriverTap;
+
+  const TeamMapScreen({super.key, required this.drivers, this.onDriverTap});
 
   @override
   Widget build(BuildContext context) {
@@ -40,13 +45,23 @@ class TeamMapScreen extends StatelessWidget {
                     point: latlong.LatLng(d.latitude!, d.longitude!),
                     width: 130,
                     height: 60,
+                    child: GestureDetector(
+                    onTap: onDriverTap == null ? null : () => onDriverTap!(d),
                     child: Column(
                       children: [
                         Icon(LucideIcons.truck, color: markerColor, size: 28),
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                           decoration: BoxDecoration(
-                            color: AppTheme.darkSurface,
+                            // ATAYLAB tema-mustaqil (har doim OQ): bu xarita
+                            // ustidagi yorliq (marker label) - agar tungi
+                            // rejimda matn/fon boshqa joylardagi kabi
+                            // avtomatik almashsa, xarita plitkalari (har doim
+                            // yorug') ustida qorong'i matn o'qib bo'lmay
+                            // qoladi. Shu sabab quyidagi matn rangi ham
+                            // ATAYLAB qattiq (AppTheme.textPrimary/Secondary)
+                            // qoldirilgan - ikkalasi bir-biriga mos kelishi shart.
+                            color: AppTheme.surface,
                             borderRadius: BorderRadius.circular(6),
                             border: stale ? Border.all(color: AppTheme.textSecondary.withOpacity(0.5)) : null,
                           ),
@@ -70,6 +85,7 @@ class TeamMapScreen extends StatelessWidget {
                           ),
                         ),
                       ],
+                    ),
                     ),
                   );
                 },

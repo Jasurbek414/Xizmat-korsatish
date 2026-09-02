@@ -46,7 +46,7 @@ class _DriverOrdersScreenState extends State<DriverOrdersScreen> {
   /// bitta manba DriverOrdersScreen, FactoryOrdersScreen va
   /// HomeDashboardScreen'ning barchasida ishlatiladi, mos kelmaslik xavfisiz.
   bool _isDeliveryReady(Order o, OrderZoneBoundary zone) =>
-      zone.isDelivery(o) && o.paymentStatus == 'PENDING';
+      zone.isDelivery(o) && !zone.isCompleted(o);
 
   @override
   Widget build(BuildContext context) {
@@ -221,29 +221,29 @@ class _DriverOrdersScreenState extends State<DriverOrdersScreen> {
               color: active ? color.withOpacity(0.12) : Colors.transparent,
               borderRadius: BorderRadius.circular(14),
               border: Border.all(
-                color: active ? color : AppTheme.borderColor,
+                color: active ? color : AppTheme.borderOf(context),
                 width: active ? 1.5 : 1,
               ),
             ),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(icon, size: 16, color: active ? color : AppTheme.textSecondary),
+                Icon(icon, size: 16, color: active ? color : AppTheme.textSecondaryOf(context)),
                 const SizedBox(width: 6),
                 Text(
                   label,
-                  style: AppTheme.text(12, weight: FontWeight.w700, color: active ? color : AppTheme.textSecondary),
+                  style: AppTheme.text(12, weight: FontWeight.w700, color: active ? color : AppTheme.textSecondaryOf(context)),
                 ),
                 const SizedBox(width: 4),
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
                   decoration: BoxDecoration(
-                    color: active ? color : AppTheme.bg,
+                    color: active ? color : AppTheme.bgOf(context),
                     borderRadius: BorderRadius.circular(99),
                   ),
                   child: Text(
                     '$count',
-                    style: AppTheme.text(10, weight: FontWeight.w800, color: active ? Colors.white : AppTheme.textMuted),
+                    style: AppTheme.text(10, weight: FontWeight.w800, color: active ? Colors.white : AppTheme.textMutedOf(context)),
                   ),
                 ),
               ],

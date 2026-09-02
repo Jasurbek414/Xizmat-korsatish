@@ -26,7 +26,13 @@ public class ServiceController {
         this.companyRepository = companyRepository;
     }
 
+    // MUHIM: yozish (POST/PUT/DELETE) faqat 'orders'ga cheklangan, lekin O'QISH shart emas —
+    // mobil ilovadagi haydovchilar (faqat 'mobile_orders' huquqiga ega, 'orders'ga EMAS)
+    // buyurtma yaratishda xizmatlar katalogini shu endpointdan oladi
+    // (mobile-flutter/lib/features/orders/repository/orders_repository.dart:108). Faqat
+    // 'orders' talab qilinsa, haydovchi mobil ilovasi 403 bilan buziladi.
     @GetMapping
+    @PreAuthorize("@perm.has('orders','mobile_orders')")
     public ResponseEntity<?> getServices() {
         String tenantId = TenantContext.getCurrentTenant();
         if (tenantId == null) {

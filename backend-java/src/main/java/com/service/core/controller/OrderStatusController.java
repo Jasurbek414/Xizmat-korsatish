@@ -30,7 +30,12 @@ public class OrderStatusController {
         this.orderRepository = orderRepository;
     }
 
+    // MUHIM: yozish (POST/PUT/DELETE) faqat 'orders'ga cheklangan, lekin O'QISH shart emas —
+    // mobil ilovadagi haydovchilar (faqat 'mobile_orders' huquqiga ega) buyurtma holatlarini
+    // ko'rish uchun shu endpointdan foydalanadi (mobile-flutter/lib/features/orders/repository/
+    // orders_repository.dart:93). Faqat 'orders' talab qilinsa, haydovchi ilovasi buziladi.
     @GetMapping
+    @PreAuthorize("@perm.has('orders','mobile_orders')")
     public ResponseEntity<?> getStatuses() {
         String tenantId = TenantContext.getCurrentTenant();
         if (tenantId == null) {
@@ -138,6 +143,23 @@ public class OrderStatusController {
         // biriktirilgan buyurtmalar bazadagi FK cheklovi tufayli xatolikka uchramasligi uchun
         // ularning status maydoni o'chirishdan oldin bo'shatiladi (mavjud tarixi saqlanib qoladi).
         List<Order> affectedOrders = orderRepository.findByStatusId(id);
+
+        // MUHIM (audit'da topilgan xato, tuzatildi): FAOL (hali kassaga
+        // topshirilmagan, paymentStatus != HANDED_OVER) buyurtmalar uchun
+        // status'ni null qilib qo'yish xavfli - mobil ilova (OrderZoneBoundary)
+        // status=null buyurtmani "hali boshlanmagan" (pickup) zonaga qaytarib
+        // qo'yadi, garchi u aslida deyarli tugagan (masalan sexda) bo'lsa ham -
+        // buyurtma hech kimning ekranida to'g'ri joyda ko'rinmay "yo'qolib"
+        // qoladi. Tarixga o'tgan (HANDED_OVER) buyurtmalar uchun bu xavfsiz
+        // (ular endi hech qanday ish oqimida faol emas), shu sabab FAQAT faol
+        // buyurtmalari bo'lgan statusni o'chirish taqiqlanadi.
+        boolean hasActiveOrders = affectedOrders.stream()
+                .anyMatch(order -> !"HANDED_OVER".equals(order.getPaymentStatus()));
+        if (hasActiveOrders) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of(
+                    "message", "Bu statusda hali faol (tugallanmagan) buyurtmalar bor - avval ularni boshqa statusga o'tkazing yoki yakunlang"));
+        }
+
         for (Order order : affectedOrders) {
             order.setStatus(null);
         }

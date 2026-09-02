@@ -212,9 +212,34 @@ class OrdersCubit extends Cubit<OrdersState> {
     }
   }
 
-  Future<void> collectOrderPayment(Order order, double amount) async {
+  /// Haydovchi mijoz manziliga borganda joriy GPS koordinatasini belgilaydi -
+  /// backend buni buyurtmaga VA mijozning o'ziga yozadi (keyingi
+  /// buyurtmalar uchun ham qayta ishlatiladi).
+  Future<void> setOrderLocation(Order order, double latitude, double longitude) async {
     try {
-      await _repository.collectPayment(order.id, amount);
+      await _repository.updateOrderLocation(order.id, latitude, longitude);
+      await refresh();
+    } on ApiException catch (e) {
+      emit(OrdersError(e.message));
+      rethrow;
+    }
+  }
+
+  Future<void> collectOrderPayment(
+    Order order,
+    double amount, {
+    String paymentMethod = 'CASH',
+    double? cashAmount,
+    double? cardAmount,
+  }) async {
+    try {
+      await _repository.collectPayment(
+        order.id,
+        amount,
+        paymentMethod: paymentMethod,
+        cashAmount: cashAmount,
+        cardAmount: cardAmount,
+      );
       await refresh();
     } on ApiException catch (e) {
       emit(OrdersError(e.message));

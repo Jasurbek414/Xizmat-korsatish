@@ -1,6 +1,6 @@
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
-import 'package:flutter/material.dart' show Color;
+import 'package:flutter/material.dart' show Color, WidgetsFlutterBinding;
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
 import '../repository/notification_repository.dart';
@@ -17,11 +17,50 @@ const _ordersChannel = AndroidNotificationChannel(
   playSound: true,
 );
 
-/// Background holatda kelgan xabarlarni qayta ishlaydi. Odatiy "notification"
-/// turidagi push xabarlar OS tomonidan avtomatik ko'rsatiladi - bu funksiya
-/// kelajakda faqat ma'lumot (data-only) xabarlar uchun kerak bo'lishi mumkin.
+const _updatesChannel = AndroidNotificationChannel(
+  'app_updates_channel',
+  'Yangilanishlar',
+  description: 'Ilovaning yangi versiyasi chiqqanda bildirishnoma',
+  importance: Importance.high,
+  playSound: true,
+);
+
+/// Background/o'chirilgan holatda kelgan xabarlarni qayta ishlaydi. "APP_UPDATE"
+/// ma'lumot (data-only) turida yuboriladi - shuning uchun OS uni O'ZI ko'rsata
+/// olmaydi (oddiy "notification" bloki yo'q). Bu yerda alohida isolate ishga
+/// tushgani uchun pluginni qaytadan ishga tushirish SHART.
 @pragma('vm:entry-point')
-Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {}
+Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
+  if (message.data['type'] != 'APP_UPDATE') return;
+
+  WidgetsFlutterBinding.ensureInitialized();
+  final plugin = FlutterLocalNotificationsPlugin();
+  const androidInit = AndroidInitializationSettings('@drawable/ic_stat_notify');
+  await plugin.initialize(const InitializationSettings(android: androidInit));
+  await plugin
+      .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
+      ?.createNotificationChannel(_updatesChannel);
+
+  final version = message.data['version'] ?? '';
+  final body = message.data['message'] ?? "Ilovaning yangi versiyasi mavjud.";
+  await plugin.show(
+    DateTime.now().millisecondsSinceEpoch ~/ 1000,
+    version.isEmpty ? 'Yangilanish mavjud' : 'Yangilanish mavjud — $version',
+    body,
+    NotificationDetails(
+      android: AndroidNotificationDetails(
+        _updatesChannel.id,
+        _updatesChannel.name,
+        channelDescription: _updatesChannel.description,
+        importance: Importance.high,
+        priority: Priority.high,
+        playSound: true,
+        color: _brandColor,
+        styleInformation: BigTextStyleInformation(body),
+      ),
+    ),
+  );
+}
 
 /// Yangi buyurtma tayinlanganda ovozli push bildirishnoma ko'rsatish uchun
 /// Firebase Cloud Messaging integratsiyasi. Agar `google-services.json`
@@ -37,6 +76,11 @@ class PushNotificationService {
   /// buyurtmalar ro'yxatini DARHOL jimgina yangilash uchun ishlatadi (webdan
   /// yangi buyurtma tayinlanishi bilan haydovchi telefonida paydo bo'lishi uchun).
   static void Function(RemoteMessage message)? onMessageReceived;
+
+  /// "app_updates" mavzusi (topic) orqali "APP_UPDATE" turidagi xabar
+  /// kelganda chaqiriladi - `main.dart` bunga ulanib, yangilanish
+  /// tekshiruvini darhol qayta ishga tushiradi.
+  static void Function()? onAppUpdateReceived;
 
   static Future<void> initialize() async {
     if (_initialized) return;
@@ -54,11 +98,10 @@ class PushNotificationService {
     await _localNotifications.initialize(
       const InitializationSettings(android: androidInit),
     );
-    await _localNotifications
-        .resolvePlatformSpecificImplementation<
-          AndroidFlutterLocalNotificationsPlugin
-        >()
-        ?.createNotificationChannel(_ordersChannel);
+    final androidPlugin = _localNotifications
+        .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
+    await androidPlugin?.createNotificationChannel(_ordersChannel);
+    await androidPlugin?.createNotificationChannel(_updatesChannel);
 
     FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
     await FirebaseMessaging.instance.requestPermission(
@@ -68,10 +111,38 @@ class PushNotificationService {
     );
 
     FirebaseMessaging.onMessage.listen(_showForegroundNotification);
+
+    // MUHIM (audit'da topilgan): FCM tokeni faqat login'da bir marta
+    // backend'ga yuborilardi. Lekin Firebase tokenni istalgan vaqt (ilova
+    // qayta o'rnatilganda, ma'lumotlari tozalanganda va h.k.) ROTATSIYA
+    // qilishi mumkin - shu holatda backend ESKI (endi ishlamaydigan)
+    // tokenga push yuborishda davom etardi va foydalanuvchi hech qanday
+    // xatoni ko'rmasdan push-bildirishnomalarni butunlay olmay qolardi.
+    FirebaseMessaging.instance.onTokenRefresh.listen((newToken) {
+      NotificationRepository().registerToken(newToken).catchError((_) {});
+    });
+
+    // "app_updates" mavzusiga OBUNA - ALOHIDA token kerak emas, superadmin
+    // bitta xabarni shu mavzuga yuborsa, u OBUNA BO'LGAN barcha qurilmalarga
+    // (kompaniyadan qat'i nazar) yetadi. Tarmoq bo'lmasa jimgina o'tkaziladi -
+    // ilova ishga tushishiga to'sqinlik qilmasligi kerak.
+    try {
+      await FirebaseMessaging.instance.subscribeToTopic('app_updates');
+    } catch (_) {}
+
     _available = true;
   }
 
   static void _showForegroundNotification(RemoteMessage message) {
+    // "APP_UPDATE" - data-only xabar, oddiy "notification" bloki bo'lmasligi
+    // mumkin, shuning uchun ALOHIDA tekshiriladi va ilovaga darhol xabar
+    // beriladi (yangilanish tekshiruvini qayta ishga tushirish uchun).
+    if (message.data['type'] == 'APP_UPDATE') {
+      try {
+        onAppUpdateReceived?.call();
+      } catch (_) {}
+    }
+
     // Ilovaga xabar beramiz - buyurtmalar ro'yxati darhol yangilanadi.
     try {
       onMessageReceived?.call(message);

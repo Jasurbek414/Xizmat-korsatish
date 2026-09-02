@@ -8,6 +8,7 @@ import '../../../core/theme.dart';
 import '../../../models/user.dart';
 import '../../gps/widgets/shift_toggle_button.dart';
 import '../../notifications/services/push_notification_service.dart';
+import '../../notifications/widgets/notification_bell.dart';
 import '../../orders/bloc/orders_cubit.dart';
 import '../../orders/screens/create_order_screen.dart';
 import '../../orders/screens/driver_orders_screen.dart';
@@ -56,15 +57,15 @@ class _MainDashboardState extends State<MainDashboard> with WidgetsBindingObserv
   bool get _isFactory => !widget.user.role.contains('DRIVER');
 
   /// AppBar sarlavhasi - rolга mos: haydovchiga salom + ism, sex hodimiga rol nomi.
-  Widget _headerTitle() {
+  Widget _headerTitle(BuildContext context) {
     if (_isFactory) {
-      return const Column(
+      return Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Sex xodimi', style: TextStyle(fontFamily: 'Outfit', fontSize: 20, fontWeight: FontWeight.w800, color: AppTheme.textPrimary, height: 1.05)),
-          SizedBox(height: 2),
-          Text('Bugungi ishlar', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: AppTheme.textSecondary)),
+          Text('Sex xodimi', style: TextStyle(fontFamily: 'Outfit', fontSize: 20, fontWeight: FontWeight.w800, color: AppTheme.textPrimaryOf(context), height: 1.05)),
+          const SizedBox(height: 2),
+          Text('Bugungi ishlar', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: AppTheme.textSecondaryOf(context))),
         ],
       );
     }
@@ -72,13 +73,13 @@ class _MainDashboardState extends State<MainDashboard> with WidgetsBindingObserv
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text('Assalomu alaykum 👋', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: AppTheme.textSecondary)),
+        Text('Assalomu alaykum 👋', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: AppTheme.textSecondaryOf(context))),
         const SizedBox(height: 2),
         Text(
           widget.user.fullName,
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
-          style: const TextStyle(fontFamily: 'Outfit', fontSize: 20, fontWeight: FontWeight.w800, color: AppTheme.textPrimary, height: 1.05),
+          style: TextStyle(fontFamily: 'Outfit', fontSize: 20, fontWeight: FontWeight.w800, color: AppTheme.textPrimaryOf(context), height: 1.05),
         ),
       ],
     );
@@ -167,9 +168,12 @@ class _MainDashboardState extends State<MainDashboard> with WidgetsBindingObserv
       value: _ordersCubit,
       child: AdaptiveDashboardShell(
         title: widget.user.fullName,
-        titleWidget: _headerTitle(),
+        titleWidget: _headerTitle(context),
         permissions: widget.permissions,
-        actions: widget.permissions.canTrackGps ? const [ShiftToggleButton()] : null,
+        actions: [
+          const Padding(padding: EdgeInsets.only(right: 8), child: NotificationBell()),
+          if (widget.permissions.canTrackGps) const Padding(padding: EdgeInsets.only(right: 12), child: ShiftToggleButton()),
+        ],
         centerIcon: LucideIcons.plus,
         centerLabel: _isFactory ? 'Qabul qilish' : 'Yangi buyurtma',
         onCenterTap: _canSeeOrders ? _openCreateOrder : null,

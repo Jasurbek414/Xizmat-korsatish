@@ -1,7 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Download, Calendar } from 'lucide-react';
+import { Plus, Download, Calendar, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { api } from '../services/api';
+import { confirmDialog } from '../services/confirmDialog';
+import { showToast } from '../services/toast';
+import PageLoader from '../components/PageLoader';
+import { formatDateTime } from '../utils/format';
 
 // Import modular components
 import FinanceStats from './finance/FinanceStats';
@@ -49,27 +53,60 @@ const Finance = ({ tab }) => {
   // Pending Handovers from Drivers
   const [pendingHandovers, setPendingHandovers] = useState([]);
   const [pendingHandoversSum, setPendingHandoversSum] = useState(0);
+  const [paymentBreakdown, setPaymentBreakdown] = useState({ cash: 0, card: 0 });
+  const [selectedHandover, setSelectedHandover] = useState(null);
 
   // Pending Transactions from Drivers
   const [pendingTransactions, setPendingTransactions] = useState([]);
   const [pendingTransactionsSum, setPendingTransactionsSum] = useState(0);
 
   // Form State
-  const [newTx, setNewTx] = useState({ type: 'INCOME', amount: '', category: 'ORDER_PAYMENT', description: '', wallet_id: 'cash' });
+  const [newTx, setNewTx] = useState({ type: 'INCOME', amount: '', category: 'ORDER_PAYMENT', description: '', wallet_id: 'cash', date: '', status: 'CONFIRMED' });
+
+  // Kompaniya o'zi qo'shgan qo'shimcha kirim/chiqim kategoriyalari (standart
+  // ro'yxat ustiga) - CreateTxModal.jsx'dagi "+ Yangi kategoriya" orqali boshqariladi.
+  const [customCategories, setCustomCategories] = useState({ expense: [], income: [] });
+
+  // Hisoblangan, lekin hali to'lanmagan ish haqi (Salaries.jsx bilan bir xil formula)
+  const [pendingPayroll, setPendingPayroll] = useState(0);
 
   // Loading database items on mount or tab change
+  const [pageLoading, setPageLoading] = useState(true);
+
   const loadData = async () => {
     try {
-      const [txsData, statsData, ordersData, pendingHandoversData, pendingTxsData, statusesData, debtsData, budgetsData] = await Promise.all([
+      // MUHIM: getOrders/getOrderStatuses/getSalaries ALOHIDA .catch bilan
+      // o'ralgan - bular "orders" yoki "salaries" huquqini talab qiladi,
+      // Buxgalter (orders yo'q) va Dispetcher (salaries yo'q) rollarida bu
+      // huquqlar yo'q. Avval bittasi 403 qaytarsa BUTUN Moliya sahifasi
+      // (asosiy "finance" huquqi bilan ochilishi kerak bo'lgan qism ham)
+      // bo'sh qolardi - jonli aniqlangan, Buxgalter uchun bu yagona ishlaydi
+      // deb kutilgan modul edi.
+      const [txsData, statsData, ordersData, pendingHandoversData, pendingTxsData, statusesData, debtsData, budgetsData, salariesData, companyData] = await Promise.all([
         api.getTransactions(),
         api.getFinanceStats(),
-        api.getOrders(),
+        api.getOrders({ silent403: true }).catch(() => []),
         api.getPendingHandovers(),
         api.getPendingTransactions(),
-        api.getOrderStatuses(),
+        api.getOrderStatuses({ silent403: true }).catch(() => []),
         api.getDebts(),
-        api.getBudgets()
+        api.getBudgets(),
+        api.getSalaries({ silent403: true }).catch(() => []),
+        api.getCompanySettings({ silent403: true }).catch(() => null)
       ]);
+
+      setCustomCategories({
+        expense: (companyData && companyData.customExpenseCategories) || [],
+        income: (companyData && companyData.customIncomeCategories) || []
+      });
+
+      // Hisoblangan, lekin hali to'lanmagan ish haqi - Buxgalteriyada avval
+      // umuman ko'rinmasdi, "qancha pul chiqishi kutilyapti" degan savolga
+      // javob yo'q edi. Salaries.jsx bilan AYNAN bir xil formula.
+      const pendingPayrollSum = (salariesData || [])
+        .filter(s => s.status === 'UNPAID')
+        .reduce((sum, s) => sum + s.baseSalary + s.bonus - s.deductions, 0);
+      setPendingPayroll(pendingPayrollSum);
 
       // MUHIM (audit'da topilgan xato, tuzatildi): "Kutilayotgan mablag'lar"
       // (hali yakunlanmagan buyurtmalar summasi) avval qattiq yozilgan, hech
@@ -108,10 +145,25 @@ const Finance = ({ tab }) => {
         category: t.category,
         description: t.description || '',
         created_at: t.createdAt || t.created_at,
-        wallet_id: 'cash'
+        wallet_id: 'cash',
+        payment_method: t.paymentMethod || null,
+        cash_amount: t.cashAmount || 0,
+        card_amount: t.cardAmount || 0,
+        // Faqat ORDER_PAYMENT tranzaksiyalarida to'ldirilgan (buyurtma
+        // avtomatik yaratgan kirim) - qo'lda kiritilgan kirim/chiqimlarda null.
+        // Tafsilot modalida buyurtma raqami/tarkibini ko'rsatish uchun kerak.
+        order: t.order || null
       }));
 
       setTransactions(mappedTxs);
+
+      // Buyurtma to'lovlarining naqd/karta bo'yicha taqsimoti - faqat
+      // kassaga TASDIQLANGAN topshirilgan (ORDER_PAYMENT INCOME) summalar
+      // hisobga olinadi, hali kuryerda turgan (pending) pul bu yerga kirmaydi.
+      const orderPaymentTxs = mappedTxs.filter(t => t.category === 'ORDER_PAYMENT' && t.type === 'INCOME');
+      const cashReceived = orderPaymentTxs.reduce((sum, t) => sum + (t.cash_amount || 0), 0);
+      const cardReceived = orderPaymentTxs.reduce((sum, t) => sum + (t.card_amount || 0), 0);
+      setPaymentBreakdown({ cash: cashReceived, card: cardReceived });
       setOrdersList(ordersData);
       setPendingHandovers(pendingHandoversData || []);
       setPendingTransactions(pendingTxsData || []);
@@ -149,6 +201,8 @@ const Finance = ({ tab }) => {
 
     } catch (err) {
       console.error("Failed to load finance data:", err);
+    } finally {
+      setPageLoading(false);
     }
   };
 
@@ -166,32 +220,87 @@ const Finance = ({ tab }) => {
         type: newTx.type,
         amount: parseFloat(newTx.amount),
         category: newTx.category,
-        description: newTx.description
+        description: newTx.description,
+        created_at: newTx.date || undefined,
+        status: newTx.status === 'PENDING' ? 'PENDING' : undefined
       });
 
-      const tx = {
-        id: saved.id,
-        type: saved.type,
-        amount: saved.amount,
-        category: saved.category,
-        description: saved.description || '',
-        created_at: saved.createdAt,
-        wallet_id: 'cash'
-      };
+      // PENDING (rejalashtirilgan) yozuv balansga hali qo'shilmaydi - u
+      // "Tasdiq kutayotgan tranzaksiyalar" ro'yxatida ko'rinishi kerak,
+      // ro'yxatga esa faqat CONFIRMED bo'lganlar qo'shiladi (server ham
+      // getTransactions()da faqat CONFIRMED'ni qaytaradi).
+      if (saved.status === 'CONFIRMED') {
+        const tx = {
+          id: saved.id,
+          type: saved.type,
+          amount: saved.amount,
+          category: saved.category,
+          description: saved.description || '',
+          created_at: saved.createdAt,
+          wallet_id: 'cash'
+        };
+        setTransactions(prev => [tx, ...prev]);
 
-      setTransactions(prev => [tx, ...prev]);
+        // Refresh stats
+        const statsData = await api.getFinanceStats();
+        setTotals({
+          income: statsData.totalIncome,
+          expense: statsData.totalExpense,
+          balance: statsData.balance
+        });
+      } else {
+        setPendingTransactions(prev => [saved, ...prev]);
+        setPendingTransactionsSum(prev => prev + saved.amount);
+      }
+
       setShowTxModal(false);
-      setNewTx({ type: 'INCOME', amount: '', category: 'ORDER_PAYMENT', description: '', wallet_id: 'cash' });
+      setNewTx({ type: 'INCOME', amount: '', category: 'ORDER_PAYMENT', description: '', wallet_id: 'cash', date: '', status: 'CONFIRMED' });
+    } catch (err) {
+      console.error("Failed to add transaction:", err);
+    }
+  };
 
-      // Refresh stats
+  // Standart ro'yxatga (SALARY, OFFICE_EXPENSE, ...) qo'shimcha, kompaniya
+  // o'zi xohlagan yangi kirim/chiqim kategoriyasini qo'shadi - measurementUnits
+  // (Sozlamalar > Umumiy) bilan bir xil naqsh: darhol serverga saqlanadi.
+  const handleAddCategory = async (txType, rawName) => {
+    const name = rawName.trim();
+    if (!name) return null;
+
+    const field = txType === 'INCOME' ? 'income' : 'expense';
+    const current = customCategories[field];
+    if (current.some(c => c.toLowerCase() === name.toLowerCase())) return name;
+
+    const updated = [...current, name];
+    const payloadKey = txType === 'INCOME' ? 'customIncomeCategories' : 'customExpenseCategories';
+    try {
+      await api.updateCompanySettings({ [payloadKey]: updated });
+      setCustomCategories(prev => ({ ...prev, [field]: updated }));
+      return name;
+    } catch (err) {
+      showToast(err.message || "Yangi kategoriya qo'shishda xatolik yuz berdi");
+      return null;
+    }
+  };
+
+  // MUHIM: haqiqatan o'chirilgan bo'lsa true, bekor qilingan/xato bo'lsa
+  // false qaytaradi - FinanceTable'dagi tafsilot modali shu qiymatga qarab
+  // (faqat muvaffaqiyatli o'chirilganda) o'zini yopadi.
+  const handleDeleteTx = async (txId) => {
+    if (!(await confirmDialog("Ushbu tranzaksiyani butunlay o'chirasizmi? Bu amalni qaytarib bo'lmaydi.", { danger: true }))) return false;
+    try {
+      await api.deleteTransaction(txId);
+      setTransactions(prev => prev.filter(t => t.id !== txId));
       const statsData = await api.getFinanceStats();
       setTotals({
         income: statsData.totalIncome,
         expense: statsData.totalExpense,
         balance: statsData.balance
       });
+      return true;
     } catch (err) {
-      console.error("Failed to add transaction:", err);
+      showToast(err.message || "Tranzaksiyani o'chirishda xatolik yuz berdi");
+      return false;
     }
   };
 
@@ -203,7 +312,7 @@ const Finance = ({ tab }) => {
     if (input === null) return;
     const actualAmount = parseFloat(input);
     if (isNaN(actualAmount) || actualAmount < 0) {
-      window.alert("Noto'g'ri summa kiritildi!");
+      showToast("Noto'g'ri summa kiritildi!");
       return;
     }
     try {
@@ -211,7 +320,7 @@ const Finance = ({ tab }) => {
       loadData();
     } catch (err) {
       console.error("Failed to confirm cash handover:", err);
-      window.alert("Xatolik yuz berdi: " + (err.message || err));
+      showToast("Xatolik yuz berdi: " + (err.message || err));
     }
   };
 
@@ -234,12 +343,12 @@ const Finance = ({ tab }) => {
         created_at: saved.createdAt
       }]);
     } catch (err) {
-      window.alert(err.message || "Qarz yozishda xatolik yuz berdi");
+      showToast(err.message || "Qarz yozishda xatolik yuz berdi");
     }
   };
 
   const handlePayDebt = async (debtId) => {
-    if (!window.confirm("Ushbu qarzni so'ndirilgan deb belgilaysizmi? Bu amal Moliya balansiga ta'sir qiladi.")) return;
+    if (!(await confirmDialog("Ushbu qarzni so'ndirilgan deb belgilaysizmi? Bu amal Moliya balansiga ta'sir qiladi.", { danger: false }))) return;
     try {
       await api.payDebt(debtId);
       setDebts(prev => prev.map(d => d.id === debtId ? { ...d, status: 'PAID' } : d));
@@ -248,7 +357,7 @@ const Finance = ({ tab }) => {
       setTotals({ income: statsData.totalIncome, expense: statsData.totalExpense, balance: statsData.balance });
       loadData();
     } catch (err) {
-      window.alert(err.message || "Qarzni to'lashda xatolik yuz berdi");
+      showToast(err.message || "Qarzni to'lashda xatolik yuz berdi");
     }
   };
 
@@ -258,18 +367,18 @@ const Finance = ({ tab }) => {
       await api.updateBudget(category, limit);
       setBudgets(prev => prev.map(b => b.category === category ? { ...b, limit } : b));
     } catch (err) {
-      window.alert(err.message || "Byudjet limitini saqlashda xatolik yuz berdi");
+      showToast(err.message || "Byudjet limitini saqlashda xatolik yuz berdi");
     }
   };
 
   const handleConfirmTransaction = async (txId) => {
-    if (!window.confirm("Ushbu kuryer tranzaksiyasini tasdiqlab, kassaga qabul qilasizmi?")) return;
+    if (!(await confirmDialog("Ushbu kuryer tranzaksiyasini tasdiqlab, kassaga qabul qilasizmi?", { danger: false }))) return;
     try {
       await api.confirmTransaction(txId);
       loadData();
     } catch (err) {
       console.error("Failed to confirm transaction:", err);
-      window.alert("Xatolik yuz berdi: " + (err.message || err));
+      showToast("Xatolik yuz berdi: " + (err.message || err));
     }
   };
 
@@ -434,6 +543,8 @@ const Finance = ({ tab }) => {
 
   const chartPaths = getChartCoordinates();
 
+  if (pageLoading) return <PageLoader />;
+
   return (
     <div className="space-y-6 animate-fade-in text-xs font-semibold">
       
@@ -511,55 +622,226 @@ const Finance = ({ tab }) => {
       {activeTab === 'TRANSACTIONS' && (
         <div className="space-y-6 animate-fade-in">
           {/* Stats Cards */}
-          <FinanceStats 
-            balance={statsForSelectedDate.balance} 
-            dailyExpenses={statsForSelectedDate.dailyExpenses} 
-            expectedFunds={expectedFundsForSelectedDate} 
+          <FinanceStats
+            balance={statsForSelectedDate.balance}
+            dailyExpenses={statsForSelectedDate.dailyExpenses}
+            expectedFunds={expectedFundsForSelectedDate}
             pendingHandoversSum={pendingHandoversSum}
+            pendingPayroll={pendingPayroll}
+            paymentBreakdown={paymentBreakdown}
           />
 
-          {/* Kassaga topshirish kutilayotgan pullar (kuryerlar tomonidan olingan) */}
-          {pendingHandovers.length > 0 && (
-            <div className="glass-card p-5 rounded-2xl border border-slate-200 dark:border-white/5 bg-white dark:bg-[#111827]/80 space-y-3">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h4 className="text-xs font-extrabold text-slate-800 dark:text-white tracking-tight flex items-center gap-1.5 font-['Outfit']">
-                    📥 Kassaga topshirilishi kutilayotgan pullar (Kuryerlarda)
-                  </h4>
-                  <p className="text-[10px] text-slate-400 dark:text-gray-500 font-medium">
-                    Kuryerlar mijozlardan qabul qilib olgan, lekin hali kassaga topshirmagan mablag'lar
-                  </p>
-                </div>
-                <span className="text-[10px] font-bold text-amber-600 bg-amber-500/10 px-2 py-0.5 rounded-md">
-                  {pendingHandovers.length} ta kutilmoqda
-                </span>
-              </div>
+          {/* Kassaga topshirish kutilayotgan pullar (kuryerlar tomonidan olingan) -
+              har bir TO'LOV (buyurtma) uchun alohida karta. Karta ustiga
+              bosilganda to'liq tafsilot modal oynada ochiladi (setSelectedHandover). */}
+          {pendingHandovers.length > 0 && (() => {
+            const cardCount = pendingHandovers.filter(o => o.paymentMethod === 'CARD').length;
+            const mixedCount = pendingHandovers.filter(o => o.paymentMethod === 'MIXED').length;
+            const cashCount = pendingHandovers.length - cardCount - mixedCount;
 
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {pendingHandovers.map(oh => (
-                  <div key={oh.id} className="p-3 rounded-xl border border-slate-200 dark:border-white/5 bg-slate-50 dark:bg-white/2 flex items-center justify-between gap-3 text-[10px]">
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-1">
-                        <span className="font-extrabold text-slate-700 dark:text-gray-300">
+            return (
+              <div className="glass-card p-5 rounded-2xl border border-slate-200 dark:border-white/5 bg-white dark:bg-[#111827]/80 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h4 className="text-xs font-extrabold text-slate-800 dark:text-white tracking-tight flex items-center gap-1.5 font-['Outfit']">
+                      📥 Kassaga topshirilishi kutilayotgan pullar (Kuryerlarda)
+                    </h4>
+                    <p className="text-[10px] text-slate-400 dark:text-gray-500 font-medium">
+                      Kuryerlar mijozlardan qabul qilib olgan, lekin hali kassaga topshirmagan mablag'lar - tafsilot uchun kartaga bosing
+                    </p>
+                  </div>
+                  <span className="text-[10px] font-bold text-amber-600 bg-amber-500/10 px-2 py-0.5 rounded-md whitespace-nowrap">
+                    {pendingHandovers.length} ta kutilmoqda
+                    {cashCount > 0 ? ` · ${cashCount} naqd` : ''}
+                    {cardCount > 0 ? ` · ${cardCount} karta` : ''}
+                    {mixedCount > 0 ? ` · ${mixedCount} aralash` : ''}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {pendingHandovers.map(oh => (
+                    <button
+                      key={oh.id}
+                      onClick={() => setSelectedHandover(oh)}
+                      className="p-3 rounded-xl border border-slate-200 dark:border-white/5 bg-slate-50 dark:bg-white/2 hover:bg-slate-100 dark:hover:bg-white/5 transition cursor-pointer text-left text-[10px] space-y-1"
+                    >
+                      <div className="flex items-center justify-between gap-1">
+                        <span className="font-extrabold text-slate-700 dark:text-gray-300 truncate">
                           {oh.worker ? oh.worker.fullName : "Noma'lum xodim"}
                         </span>
-                        <span className="text-[8px] text-slate-400">({oh.worker ? oh.worker.username : ""})</span>
+                        <span className="text-[8px] text-slate-400 font-mono shrink-0">№{oh.id ? oh.id.slice(0, 8).toUpperCase() : '—'}</span>
                       </div>
-                      <p className="text-slate-400 text-[8px] font-medium leading-none">
-                        Buyurtma: {oh.description || "Tavsif yo'q"}
+                      <p className="text-slate-400 text-[8px] font-medium leading-none truncate">
+                        {oh.description || "Tavsif yo'q"}
                       </p>
-                      <p className="text-[9px] font-bold text-amber-600 font-['Outfit']">
-                        {new Intl.NumberFormat('uz-UZ').format(oh.collectedPrice)} UZS
+                      <div className="flex items-center gap-1.5">
+                        <p className="text-[9px] font-bold text-amber-600 font-['Outfit']">
+                          {new Intl.NumberFormat('uz-UZ').format(oh.collectedPrice)} UZS
+                        </p>
+                        {oh.paymentMethod && (
+                          <span className={`text-[7px] font-bold px-1.5 py-0.5 rounded shrink-0 ${
+                            oh.paymentMethod === 'CARD' ? 'bg-blue-500/10 text-blue-600' :
+                            oh.paymentMethod === 'MIXED' ? 'bg-purple-500/10 text-purple-600' :
+                            'bg-emerald-500/10 text-emerald-600'
+                          }`}>
+                            {oh.paymentMethod === 'CARD' ? 'KARTA' : oh.paymentMethod === 'MIXED' ? 'ARALASH' : 'NAQD'}
+                          </span>
+                        )}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            );
+          })()}
+
+          {/* Bitta to'lovning to'liq tafsiloti - karta bosilganda ochiladigan modal.
+              /pending-handovers backend'dan TO'LIQ Order obyektini qaytaradi
+              (client, service, items, price bilan) - shu sabab bu yerda
+              faqat to'lov emas, buyurtmaning o'zi haqida ham to'liq
+              ma'lumot ko'rsatish mumkin (raqami, mijoz, xizmat, gilamlar). */}
+          {selectedHandover && (
+            <div className="fixed inset-0 bg-black/50 dark:bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => setSelectedHandover(null)}>
+              <div
+                className="glass-card rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl animate-scale-in bg-white dark:bg-[#111827] border border-slate-200 dark:border-white/5 text-xs font-semibold flex flex-col max-h-[90vh]"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="flex justify-between items-center border-b border-slate-100 dark:border-white/5 pb-2">
+                  <div>
+                    <h3 className="text-sm font-bold text-slate-800 dark:text-white font-['Outfit']">Buyurtma tafsiloti</h3>
+                    <p className="text-[9px] text-slate-400 font-mono">
+                      Buyurtma № {selectedHandover.id ? selectedHandover.id.slice(0, 8).toUpperCase() : "Noma'lum"}
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => setSelectedHandover(null)}
+                    className="p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-white/5 text-slate-500 dark:text-gray-400 transition cursor-pointer"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+
+                <div className="space-y-2.5 overflow-y-auto pr-1">
+                  <div className="grid grid-cols-2 gap-2.5 bg-slate-50 dark:bg-white/2 p-3 rounded-xl border border-slate-100 dark:border-white/5">
+                    <div>
+                      <p className="text-[9px] text-slate-400 font-bold uppercase">Kuryer</p>
+                      <p className="text-slate-800 dark:text-white font-bold">
+                        {selectedHandover.worker ? selectedHandover.worker.fullName : "Noma'lum xodim"}
+                      </p>
+                      {selectedHandover.worker && (
+                        <p className="text-[9px] text-slate-400 font-mono">@{selectedHandover.worker.username}</p>
+                      )}
+                    </div>
+                    <div>
+                      <p className="text-[9px] text-slate-400 font-bold uppercase">Xizmat turi</p>
+                      <p className="text-slate-800 dark:text-white font-bold">
+                        {selectedHandover.service ? selectedHandover.service.nameUz : "Noma'lum"}
                       </p>
                     </div>
-                    <button
-                      onClick={() => handleConfirmHandover(oh.id, oh.collectedPrice)}
-                      className="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-[8px] transition cursor-pointer shadow-xs whitespace-nowrap"
-                    >
-                      Qabul qildim
-                    </button>
                   </div>
-                ))}
+
+                  <div>
+                    <p className="text-[9px] text-slate-400 font-bold uppercase">Mijoz</p>
+                    <p className="text-slate-800 dark:text-white font-bold">
+                      {selectedHandover.client ? selectedHandover.client.fullName : "Noma'lum mijoz"}
+                    </p>
+                    <p className="text-[10px] text-slate-500 dark:text-gray-400 font-mono">
+                      {selectedHandover.client ? selectedHandover.client.phone : ''}
+                    </p>
+                    {selectedHandover.address && (
+                      <p className="text-[10px] text-slate-400 mt-0.5">📍 {selectedHandover.address}</p>
+                    )}
+                  </div>
+
+                  {selectedHandover.description && (
+                    <div>
+                      <p className="text-[9px] text-slate-400 font-bold uppercase">Izoh</p>
+                      <p className="text-slate-700 dark:text-gray-300">{selectedHandover.description}</p>
+                    </div>
+                  )}
+
+                  {selectedHandover.items && selectedHandover.items.length > 0 && (
+                    <div>
+                      <p className="text-[9px] text-slate-400 font-bold uppercase mb-1">
+                        Buyurtma tarkibi ({selectedHandover.items.length} ta)
+                      </p>
+                      <div className="border border-slate-100 dark:border-white/5 rounded-xl divide-y divide-slate-100 dark:divide-white/5 overflow-hidden max-h-28 overflow-y-auto">
+                        {selectedHandover.items.map(item => (
+                          <div key={item.id} className="px-2.5 py-1.5 flex justify-between items-center text-[10px]">
+                            <span className="text-slate-600 dark:text-gray-300">
+                              {item.name} — {item.quantity} dona ({Number(item.length).toFixed(1)}×{Number(item.width).toFixed(1)} m)
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="grid grid-cols-2 gap-2.5">
+                    <div>
+                      <p className="text-[9px] text-slate-400 font-bold uppercase">Buyurtma yaratilgan</p>
+                      <p className="text-slate-700 dark:text-gray-300 font-mono">{formatDateTime(selectedHandover.createdAt)}</p>
+                    </div>
+                    <div>
+                      <p className="text-[9px] text-slate-400 font-bold uppercase">To'lov qabul qilingan</p>
+                      <p className="text-slate-700 dark:text-gray-300 font-mono">{formatDateTime(selectedHandover.updatedAt)}</p>
+                    </div>
+                  </div>
+
+                  <div>
+                    <p className="text-[9px] text-slate-400 font-bold uppercase">To'lov usuli</p>
+                    <span className={`inline-block mt-0.5 text-[9px] font-bold px-2 py-0.5 rounded ${
+                      selectedHandover.paymentMethod === 'CARD' ? 'bg-blue-500/10 text-blue-600' :
+                      selectedHandover.paymentMethod === 'MIXED' ? 'bg-purple-500/10 text-purple-600' :
+                      'bg-emerald-500/10 text-emerald-600'
+                    }`}>
+                      {selectedHandover.paymentMethod === 'CARD' ? 'KARTA' : selectedHandover.paymentMethod === 'MIXED' ? 'ARALASH' : 'NAQD'}
+                    </span>
+                  </div>
+                  {selectedHandover.paymentMethod === 'MIXED' && (
+                    <div className="grid grid-cols-2 gap-2 text-[10px] bg-slate-50 dark:bg-white/2 p-2.5 rounded-xl border border-slate-100 dark:border-white/5">
+                      <div>
+                        <p className="text-slate-400">Naqd qismi</p>
+                        <p className="font-bold text-slate-800 dark:text-white">{new Intl.NumberFormat('uz-UZ').format(selectedHandover.cashAmount || 0)} UZS</p>
+                      </div>
+                      <div>
+                        <p className="text-slate-400">Karta qismi</p>
+                        <p className="font-bold text-slate-800 dark:text-white">{new Intl.NumberFormat('uz-UZ').format(selectedHandover.cardAmount || 0)} UZS</p>
+                      </div>
+                    </div>
+                  )}
+
+                  {selectedHandover.price !== selectedHandover.collectedPrice && (
+                    <div className="flex justify-between items-center px-3 py-2 rounded-xl bg-slate-50 dark:bg-white/2 border border-slate-100 dark:border-white/5 text-[10px]">
+                      <span className="text-slate-400">Buyurtma summasi</span>
+                      <span className="font-bold text-slate-600 dark:text-gray-300">{new Intl.NumberFormat('uz-UZ').format(selectedHandover.price)} UZS</span>
+                    </div>
+                  )}
+                  <div className="flex justify-between items-center bg-amber-500/5 px-3 py-2.5 rounded-xl border border-amber-500/10">
+                    <span className="font-extrabold text-amber-600 uppercase text-[9px] tracking-wide">Qabul qilingan summa</span>
+                    <span className="font-black text-sm text-amber-600 font-['Outfit']">
+                      {new Intl.NumberFormat('uz-UZ').format(selectedHandover.collectedPrice)} UZS
+                    </span>
+                  </div>
+                </div>
+
+                <div className="flex justify-end gap-2 pt-2 border-t border-slate-100 dark:border-white/5">
+                  <button
+                    onClick={() => setSelectedHandover(null)}
+                    className="bg-slate-100 hover:bg-slate-200 dark:bg-white/5 dark:hover:bg-white/10 text-slate-600 dark:text-gray-300 px-4 py-2 rounded-xl transition cursor-pointer"
+                  >
+                    Yopish
+                  </button>
+                  <button
+                    onClick={() => {
+                      handleConfirmHandover(selectedHandover.id, selectedHandover.collectedPrice);
+                      setSelectedHandover(null);
+                    }}
+                    className="premium-btn text-white px-4 py-2 rounded-xl transition cursor-pointer"
+                  >
+                    Qabul qildim
+                  </button>
+                </div>
               </div>
             </div>
           )}
@@ -632,13 +914,19 @@ const Finance = ({ tab }) => {
               categories={categories} 
               wallets={wallets}
             />
-            <FinanceTable filteredTx={filteredTx} wallets={wallets} />
+            <FinanceTable filteredTx={filteredTx} wallets={wallets} onDeleteTx={handleDeleteTx} />
           </div>
         </div>
       )}
 
       {activeTab === 'PL' && (
-        <PLReport transactions={filteredTx} />
+        // MUHIM (audit'da topilgan): `filteredTx` Tranzaksiyalar bo'limidagi
+        // qidiruv/filtr holatiga bog'liq va bo'limlar orasida saqlanib qoladi -
+        // agar admin "EXPENSE" yoki bitta kategoriya bo'yicha filtrlab, keyin
+        // shu yerga o'tsa, hisobot to'liq emas, o'sha filtrlangan qism asosida
+        // hisoblanib, soxta (masalan nol daromadli) natija ko'rsatardi.
+        // BudgetManager pastda to'liq `transactions`ni oladi - shu bilan izchil.
+        <PLReport transactions={transactions} />
       )}
 
       {activeTab === 'DEBTS' && (
@@ -659,13 +947,15 @@ const Finance = ({ tab }) => {
       )}
 
       {/* Modals */}
-      <CreateTxModal 
-        isOpen={showTxModal} 
-        onClose={() => setShowTxModal(false)} 
-        newTx={newTx} 
-        setNewTx={setNewTx} 
-        onSubmit={handleAddTx} 
+      <CreateTxModal
+        isOpen={showTxModal}
+        onClose={() => setShowTxModal(false)}
+        newTx={newTx}
+        setNewTx={setNewTx}
+        onSubmit={handleAddTx}
         wallets={wallets}
+        customCategories={customCategories}
+        onAddCategory={handleAddCategory}
       />
 
 

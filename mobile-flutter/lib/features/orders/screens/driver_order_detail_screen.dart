@@ -1,11 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../../../core/network/api_exception.dart';
 import '../../../core/theme.dart';
 import '../../../models/order.dart';
+import '../../../ui/app_ui.dart';
 import '../bloc/orders_cubit.dart';
+import '../order_zone.dart';
 import 'detail_common.dart';
 
 /// HAYDOVCHI zakaz tafsiloti - to'liq ishlovchi tugmalar bilan:
@@ -33,22 +37,31 @@ class DriverOrderDetailScreen extends StatefulWidget {
 class _DriverOrderDetailScreenState extends State<DriverOrderDetailScreen> {
   bool _isProcessing = false;
 
+  // MUHIM (jonli xato: "haydovchida 'Bajarmoqda: Xodim' bo'lib chiqib
+  // qolgan"): avval umumiy `workerId` tekshirilardi - lekin bu maydonda
+  // SEX HODIMI ham turishi mumkin (masalan gilam to'g'ridan-to'g'ri sexga
+  // olib kelingan, haydovchisiz "yo'lga tushgan" buyurtma). Bunday holatda
+  // buyurtma yetkazish bosqichiga chiqqanda ham, hech qanday haydovchi uni
+  // "o'zimniki" deb bilolmasdi. Endi FAQAT `driverId` tekshiriladi.
   bool get _isMine =>
       widget.currentUserId.isNotEmpty &&
-      widget.order.workerId == widget.currentUserId;
+      widget.order.driverId == widget.currentUserId;
 
   Order get order => widget.order;
   List<OrderStatusInfo> get statuses => widget.statuses;
 
-  /// Tarix (o'tgan) buyurtma ekanligini tekshiradi — yakunlangan
-  /// yoki to'lov qilingan buyurtmalar tahrirlanmasligi kerak.
-  bool get _isCompleted {
-    final sorted = [...statuses]..sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
-    final lastId = sorted.isNotEmpty ? sorted.last.id : null;
-    final atLast = lastId != null && order.status?.id == lastId;
-    final paid = order.paymentStatus.isNotEmpty && order.paymentStatus != 'PENDING';
-    return atLast || paid;
-  }
+  /// Tarix (o'tgan) buyurtma ekanligini tekshiradi — to'lov qilingan
+  /// buyurtmalar tahrirlanmasligi kerak.
+  ///
+  /// MUHIM (jonli xato, tuzatildi): avval "oxirgi statusga yetgan"
+  /// shartini HAM (to'lovdan mustaqil) tekshirardi - sex sexdan
+  /// haydovchiga TOPSHIRISH signali sifatida oxirgi statusni qo'ysa,
+  /// to'lov hali PENDING bo'lsa ham buyurtma DARHOL "yakunlangan"
+  /// hisoblanib, haydovchi uni qabul qila olmas/yetkaza olmas edi. Endi
+  /// OrderZoneBoundary.isCompleted() bilan BIR XIL - FAQAT to'lov
+  /// qabul qilinganda tugagan hisoblanadi.
+  bool get _isCompleted =>
+      OrderZoneBoundary.fromStatuses(statuses).isCompleted(order);
 
   Future<void> _call(String phone) async {
     final clean = phone.replaceAll(RegExp(r'[^0-9+]'), '');
@@ -59,9 +72,16 @@ class _DriverOrderDetailScreenState extends State<DriverOrderDetailScreen> {
 
   Future<void> _openMap() async {
     final Uri uri;
-    if (order.latitude != null && order.longitude != null) {
+    // MUHIM: buyurtmaning O'ZIDA koordinata bo'lmasa (masalan bu funksiya
+    // qo'shilishidan OLDIN yaratilgan eski buyurtma), mijozning saqlangan
+    // lokatsiyasi (avvalgi buyurtmada belgilangan bo'lishi mumkin) zaxira
+    // sifatida ishlatiladi - matn manzildan OLDIN, chunki koordinata
+    // har doim aniqroq.
+    final lat = order.latitude ?? order.client.latitude;
+    final lng = order.longitude ?? order.client.longitude;
+    if (lat != null && lng != null) {
       uri = Uri.parse(
-          'https://www.google.com/maps/search/?api=1&query=${order.latitude},${order.longitude}');
+          'https://www.google.com/maps/search/?api=1&query=$lat,$lng');
     } else if (order.address.trim().isNotEmpty) {
       uri = Uri.parse(
           'https://www.google.com/maps/search/?api=1&query=${Uri.encodeComponent(order.address)}');
@@ -70,6 +90,62 @@ class _DriverOrderDetailScreenState extends State<DriverOrderDetailScreen> {
     }
     if (await canLaunchUrl(uri)) {
       await launchUrl(uri, mode: LaunchMode.externalApplication);
+    }
+  }
+
+  bool _markingLocation = false;
+
+  /// Haydovchi mijoz manziliga BORGANDA bosadigan tugma - joriy GPS
+  /// koordinatasini oladi va buyurtmaga (backend orqali mijozning o'ziga
+  /// ham) yozadi. Ruxsat so'rash naqshi shift_toggle_button.dart bilan bir
+  /// xil - farqli o'laroq bu yerda faqat BIR MARTALIK o'qish kerak, "doim
+  /// ruxsat" (fon xizmati uchun) shart emas.
+  Future<void> _markLocation() async {
+    var permission = await Geolocator.checkPermission();
+    if (permission == LocationPermission.denied) {
+      permission = await Geolocator.requestPermission();
+    }
+    if (permission == LocationPermission.denied ||
+        permission == LocationPermission.deniedForever) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('GPS ruxsati talab qilinadi'),
+          backgroundColor: AppTheme.dangerColor,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+
+    setState(() => _markingLocation = true);
+    try {
+      final position = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
+      );
+      if (!mounted) return;
+      await context
+          .read<OrdersCubit>()
+          .setOrderLocation(order, position.latitude, position.longitude);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('Joylashuv belgilandi'),
+          backgroundColor: AppTheme.primary,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(e is ApiException ? e.message : 'Joylashuvni olib bo\'lmadi'),
+          backgroundColor: AppTheme.dangerColor,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _markingLocation = false);
     }
   }
 
@@ -101,7 +177,7 @@ class _DriverOrderDetailScreenState extends State<DriverOrderDetailScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(dctx, false),
-            child: Text('Bekor', style: TextStyle(color: Theme.of(context).brightness == Brightness.dark ? AppTheme.darkTextSecondaryColor : AppTheme.textSecondary)),
+            child: Text('Bekor', style: TextStyle(color: Theme.of(context).brightness == Brightness.dark ? AppTheme.darkTextSecondaryColor : AppTheme.textSecondaryOf(context))),
           ),
           FilledButton(
             style: FilledButton.styleFrom(backgroundColor: AppTheme.primary),
@@ -172,7 +248,7 @@ class _DriverOrderDetailScreenState extends State<DriverOrderDetailScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(dctx, false),
-            child: Text('Bekor', style: TextStyle(color: Theme.of(context).brightness == Brightness.dark ? AppTheme.darkTextSecondaryColor : AppTheme.textSecondary)),
+            child: Text('Bekor', style: TextStyle(color: Theme.of(context).brightness == Brightness.dark ? AppTheme.darkTextSecondaryColor : AppTheme.textSecondaryOf(context))),
           ),
           FilledButton(
             style: FilledButton.styleFrom(backgroundColor: AppTheme.dangerColor),
@@ -277,7 +353,7 @@ class _DriverOrderDetailScreenState extends State<DriverOrderDetailScreen> {
                 style: TextStyle(
                     color: Theme.of(context).brightness == Brightness.dark
                         ? AppTheme.darkTextSecondaryColor
-                        : AppTheme.textSecondary)),
+                        : AppTheme.textSecondaryOf(context))),
           ),
           FilledButton(
             style: FilledButton.styleFrom(backgroundColor: AppTheme.primary),
@@ -385,7 +461,7 @@ class _DriverOrderDetailScreenState extends State<DriverOrderDetailScreen> {
                 style: TextStyle(
                     color: Theme.of(context).brightness == Brightness.dark
                         ? AppTheme.darkTextSecondaryColor
-                        : AppTheme.textSecondary)),
+                        : AppTheme.textSecondaryOf(context))),
           ),
           FilledButton(
             style: FilledButton.styleFrom(
@@ -426,39 +502,192 @@ class _DriverOrderDetailScreenState extends State<DriverOrderDetailScreen> {
   Future<void> _collectPayment() async {
     final amountCtrl = TextEditingController(
         text: order.price.toStringAsFixed(0));
+    final cashCtrl = TextEditingController();
+    final cardCtrl = TextEditingController();
+    String paymentMethod = 'CASH';
     final formatter = NumberFormat.decimalPattern('uz');
+
+    // Haydovchi mijoz oldida summani o'zi tekshira olishi uchun -
+    // umumiy o'lcham/dona va narx birligi (order.servicePrice) shu yerda
+    // ko'rsatiladi, aks holda faqat tayyor summa bo'lib, uni qanday
+    // hisoblanganini tekshirishning iloji yo'q edi.
+    //
+    // Backend'dagi OrderItemController.recalculatePrice bilan BIR XIL qoida:
+    // masalan "kv. metr" ham maydon bo'yicha hisoblanadi, faqat aniq "m²"
+    // yozilganda emas - aks holda bu yerdagi umumiy m² backend hisoblagan
+    // narxga mos kelmay, noto'g'ri ko'rsatilib qolar edi.
+    final unit = order.measurementUnit.toLowerCase().replaceAll('.', '');
+    final isAreaBased = unit == 'm²' || unit.contains('kv');
+    double totalMeasure = 0;
+    int totalCount = 0;
+    // Ba'zi gilamlarga sex xodimi tomonidan ALOHIDA narx qo'yilgan bo'lishi
+    // mumkin (item.price) - shunday holatda "o'lcham × xizmat narxi" formulasi
+    // haqiqiy summaga mos kelmaydi, shuning uchun pastda shu formula
+    // ko'rsatilmaydi (faqat barcha gilamlar avtomatik narxlanganda ko'rsatiladi).
+    bool hasManualPriceItem = false;
+    for (final item in order.items) {
+      final area = item.length * item.width;
+      totalMeasure += isAreaBased ? (area * item.quantity) : item.quantity.toDouble();
+      totalCount += item.quantity;
+      if (item.price != null && item.price! > 0) {
+        hasManualPriceItem = true;
+      }
+    }
 
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (dctx) => AlertDialog(
+      builder: (dctx) => StatefulBuilder(
+        builder: (dctx, setDialogState) => AlertDialog(
         backgroundColor: Theme.of(context).cardColor,
         shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(18)),
         title: const Text("To'lovni qabul qilish",
             style: TextStyle(
                 fontWeight: FontWeight.w700, fontSize: 16)),
-        content: Column(
+        content: SingleChildScrollView(
+          child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+          if (order.items.isNotEmpty) ...[
+            // Har bir gilamning o'z o'lchami ALOHIDA ko'rsatiladi - haydovchi
+            // mijoz oldida "qaysi gilam noto'g'ri o'lchandi" desa, faqat
+            // umumiy jami bilan buni tekshirib bo'lmaydi. Ro'yxat ICHKI
+            // scroll qiladi - gilamlar soni ko'p bo'lsa ham dialog kichik
+            // ekranda balandlikdan chiqib ketmaydi, jami/summa doim ko'rinadi.
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxHeight: 130),
+              child: SingleChildScrollView(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: order.items.map((item) {
+                    final area = item.length * item.width;
+                    final itemMeasure = isAreaBased
+                        ? (area * item.quantity)
+                        : item.quantity.toDouble();
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 2),
+                      child: Text(
+                          isAreaBased
+                              ? '${item.name}: ${item.quantity} dona (${item.length.toStringAsFixed(1)}×${item.width.toStringAsFixed(1)} m) = ${itemMeasure.toStringAsFixed(1)} ${order.measurementUnit}'
+                              : '${item.name}: ${item.quantity} ${order.measurementUnit}',
+                          style: TextStyle(
+                              color: AppTheme.textSecondaryOf(context), fontSize: 12)),
+                    );
+                  }).toList(),
+                ),
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+                'Jami: $totalCount dona gilam'
+                '${isAreaBased ? ' — ${totalMeasure.toStringAsFixed(1)} ${order.measurementUnit}' : ''}',
+                style: TextStyle(
+                    color: AppTheme.textPrimaryOf(context),
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600)),
+            // Ba'zi gilamlarga alohida narx qo'yilgan bo'lsa, "o'lcham × narx"
+            // formulasi haqiqiy summaga mos kelmaydi - shunday holatda
+            // chalg'itmaslik uchun ko'rsatilmaydi.
+            if (order.servicePrice > 0 && !hasManualPriceItem)
+              Text(
+                  '${totalMeasure.toStringAsFixed(1)} ${order.measurementUnit} × '
+                  '${formatter.format(order.servicePrice)} so\'m = '
+                  '${formatter.format(order.price)} so\'m',
+                  style: TextStyle(
+                      color: AppTheme.textSecondaryOf(context), fontSize: 13)),
+            const SizedBox(height: 6),
+          ],
           Text(
               'Buyurtma summasi: ${formatter.format(order.price)} so\'m',
-              style: const TextStyle(
-                  color: AppTheme.textSecondary, fontSize: 13)),
+              style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14)),
           const SizedBox(height: 12),
-          TextField(
-            controller: amountCtrl,
-            keyboardType: TextInputType.number,
-            decoration: const InputDecoration(
-              labelText: "Olingan summa (so'm)",
-              prefixIcon:
-                  Icon(LucideIcons.wallet, size: 18),
-              suffixText: "so'm",
-            ),
-            style: const TextStyle(
-                fontSize: 14, fontWeight: FontWeight.w600),
+          // To'lov usuli tanlash: Naqd / Karta / Aralash
+          Text("To'lov usuli",
+              style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  color: AppTheme.textSecondaryOf(context))),
+          const SizedBox(height: 6),
+          Row(
+            children: [
+              _PaymentMethodChip(
+                label: 'Naqd',
+                icon: LucideIcons.banknote,
+                selected: paymentMethod == 'CASH',
+                onTap: () => setDialogState(() => paymentMethod = 'CASH'),
+              ),
+              const SizedBox(width: 6),
+              _PaymentMethodChip(
+                label: 'Karta',
+                icon: LucideIcons.creditCard,
+                selected: paymentMethod == 'CARD',
+                onTap: () => setDialogState(() => paymentMethod = 'CARD'),
+              ),
+              const SizedBox(width: 6),
+              _PaymentMethodChip(
+                label: 'Aralash',
+                icon: LucideIcons.layers,
+                selected: paymentMethod == 'MIXED',
+                onTap: () => setDialogState(() => paymentMethod = 'MIXED'),
+              ),
+            ],
           ),
+          const SizedBox(height: 12),
+          if (paymentMethod == 'MIXED') ...[
+            TextField(
+              controller: cashCtrl,
+              keyboardType: TextInputType.number,
+              onChanged: (_) => setDialogState(() {}),
+              decoration: const InputDecoration(
+                labelText: "Naqd qismi (so'm)",
+                prefixIcon: Icon(LucideIcons.banknote, size: 18),
+                suffixText: "so'm",
+              ),
+              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+            ),
+            const SizedBox(height: 10),
+            TextField(
+              controller: cardCtrl,
+              keyboardType: TextInputType.number,
+              onChanged: (_) => setDialogState(() {}),
+              decoration: const InputDecoration(
+                labelText: "Karta qismi (so'm)",
+                prefixIcon: Icon(LucideIcons.creditCard, size: 18),
+                suffixText: "so'm",
+              ),
+              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+            ),
+            const SizedBox(height: 8),
+            Builder(builder: (_) {
+              final cash = double.tryParse(cashCtrl.text.replaceAll(RegExp(r'[^0-9.]'), '')) ?? 0;
+              final card = double.tryParse(cardCtrl.text.replaceAll(RegExp(r'[^0-9.]'), '')) ?? 0;
+              return Text(
+                'Jami: ${formatter.format(cash + card)} so\'m',
+                style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: AppTheme.textSecondaryOf(context)),
+              );
+            }),
+          ] else
+            TextField(
+              controller: amountCtrl,
+              keyboardType: TextInputType.number,
+              decoration: InputDecoration(
+                labelText: paymentMethod == 'CARD'
+                    ? "Karta orqali olingan summa (so'm)"
+                    : "Olingan summa (so'm)",
+                prefixIcon: Icon(
+                    paymentMethod == 'CARD' ? LucideIcons.creditCard : LucideIcons.wallet,
+                    size: 18),
+                suffixText: "so'm",
+              ),
+              style: const TextStyle(
+                  fontSize: 14, fontWeight: FontWeight.w600),
+            ),
         ]),
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(dctx, false),
@@ -466,33 +695,58 @@ class _DriverOrderDetailScreenState extends State<DriverOrderDetailScreen> {
                 style: TextStyle(
                     color: Theme.of(context).brightness == Brightness.dark
                         ? AppTheme.darkTextSecondaryColor
-                        : AppTheme.textSecondary)),
+                        : AppTheme.textSecondaryOf(context))),
           ),
           FilledButton(
             style: FilledButton.styleFrom(
                 backgroundColor: AppTheme.green),
-            onPressed: () => Navigator.pop(dctx, true),
+            onPressed: () {
+              if (paymentMethod == 'MIXED') {
+                final cash = double.tryParse(cashCtrl.text.replaceAll(RegExp(r'[^0-9.]'), '')) ?? 0;
+                final card = double.tryParse(cardCtrl.text.replaceAll(RegExp(r'[^0-9.]'), '')) ?? 0;
+                if (cash + card <= 0) return;
+              }
+              Navigator.pop(dctx, true);
+            },
             child: const Text('Tasdiqlash'),
           ),
         ],
+        ),
       ),
     );
 
     if (confirmed != true) {
       amountCtrl.dispose();
+      cashCtrl.dispose();
+      cardCtrl.dispose();
       return;
     }
 
-    final amount = double.tryParse(
-            amountCtrl.text.replaceAll(RegExp(r'[^0-9.]'), '')) ??
-        0;
+    double amount;
+    double? cashAmount;
+    double? cardAmount;
+    if (paymentMethod == 'MIXED') {
+      cashAmount = double.tryParse(cashCtrl.text.replaceAll(RegExp(r'[^0-9.]'), '')) ?? 0;
+      cardAmount = double.tryParse(cardCtrl.text.replaceAll(RegExp(r'[^0-9.]'), '')) ?? 0;
+      amount = cashAmount + cardAmount;
+    } else {
+      amount = double.tryParse(
+              amountCtrl.text.replaceAll(RegExp(r'[^0-9.]'), '')) ??
+          0;
+    }
     amountCtrl.dispose();
+    cashCtrl.dispose();
+    cardCtrl.dispose();
 
     setState(() => _isProcessing = true);
     try {
-      await context
-          .read<OrdersCubit>()
-          .collectOrderPayment(order, amount);
+      await context.read<OrdersCubit>().collectOrderPayment(
+            order,
+            amount,
+            paymentMethod: paymentMethod,
+            cashAmount: cashAmount,
+            cardAmount: cardAmount,
+          );
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
           content: Row(children: [
@@ -538,7 +792,7 @@ class _DriverOrderDetailScreenState extends State<DriverOrderDetailScreen> {
               Center(
                 child: Container(
                   width: 36, height: 4,
-                  decoration: BoxDecoration(color: AppTheme.borderColor, borderRadius: BorderRadius.circular(2)),
+                  decoration: BoxDecoration(color: AppTheme.borderOf(context), borderRadius: BorderRadius.circular(2)),
                 ),
               ),
               const SizedBox(height: 16),
@@ -546,7 +800,7 @@ class _DriverOrderDetailScreenState extends State<DriverOrderDetailScreen> {
                   style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 17)),
               const SizedBox(height: 4),
               Text('${item.quantity} ta - ${_sizeLabel(item)}',
-                  style: const TextStyle(color: AppTheme.textSecondary, fontSize: 13)),
+                  style: TextStyle(color: AppTheme.textSecondaryOf(context), fontSize: 13)),
               const SizedBox(height: 20),
               // Tahrirlash
               SizedBox(
@@ -599,7 +853,7 @@ class _DriverOrderDetailScreenState extends State<DriverOrderDetailScreen> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
         decoration: BoxDecoration(
-          color: AppTheme.bg.withOpacity(0.3),
+          color: AppTheme.bgOf(context).withOpacity(0.3),
           borderRadius: BorderRadius.circular(12),
         ),
         child: InkWell(
@@ -608,18 +862,18 @@ class _DriverOrderDetailScreenState extends State<DriverOrderDetailScreen> {
           child: Row(children: [
             Container(
               width: 40, height: 40,
-              decoration: BoxDecoration(color: AppTheme.bg, borderRadius: BorderRadius.circular(9)),
-              child: Icon(_isCompleted ? LucideIcons.checkCircle : LucideIcons.layers, size: 18, color: _isCompleted ? AppTheme.green : AppTheme.textMuted),
+              decoration: BoxDecoration(color: AppTheme.bgOf(context), borderRadius: BorderRadius.circular(9)),
+              child: Icon(_isCompleted ? LucideIcons.checkCircle : LucideIcons.layers, size: 18, color: _isCompleted ? AppTheme.green : AppTheme.textMutedOf(context)),
             ),
             const SizedBox(width: 10),
             Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text(item.name.isEmpty ? 'Gilam ${i + 1}' : item.name,
-                  style: const TextStyle(color: AppTheme.textPrimary, fontWeight: FontWeight.w700, fontSize: 13)),
+                  style: TextStyle(color: AppTheme.textPrimaryOf(context), fontWeight: FontWeight.w700, fontSize: 13)),
               Text('${item.quantity} ta - ${_sizeLabel(item)}',
-                  style: const TextStyle(color: AppTheme.textSecondary, fontSize: 11)),
+                  style: TextStyle(color: AppTheme.textSecondaryOf(context), fontSize: 11)),
             ])),
             if (!_isCompleted)
-              const Icon(LucideIcons.chevronRight, size: 16, color: AppTheme.textMuted),
+              Icon(LucideIcons.chevronRight, size: 16, color: AppTheme.textMutedOf(context)),
           ]),
         ),
       ),
@@ -666,7 +920,8 @@ class _DriverOrderDetailScreenState extends State<DriverOrderDetailScreen> {
           final statusColor = AppTheme.hex(o.status?.colorCode ?? '#2563EB');
 
           return ListView(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+            padding: EdgeInsets.fromLTRB(
+                16, 16, 16, 24 + MediaQuery.of(context).padding.bottom),
             children: [
               // Status + price row
               Row(children: [
@@ -684,14 +939,30 @@ class _DriverOrderDetailScreenState extends State<DriverOrderDetailScreen> {
                 onCall: () => _call(o.client.phone),
                 onNavigate: _openMap,
               ),
+              const SizedBox(height: 8),
+
+              // MUHIM: matn manzil ko'pincha noaniq bo'ladi - haydovchi
+              // mijoz uyi oldida turib bosadi, shu aniq nuqta shu mijozning
+              // KEYINGI barcha buyurtmalarida ham qayta ishlatiladi
+              // (backend OrderController.updateOrderLocation).
+              if (!_isCompleted)
+                AppButton(
+                  o.latitude != null && o.longitude != null
+                      ? 'Joylashuv belgilangan (qayta belgilash)'
+                      : 'Joylashuvni belgilash',
+                  icon: LucideIcons.mapPin,
+                  kind: AppBtn.ghost,
+                  loading: _markingLocation,
+                  onTap: _markingLocation ? null : _markLocation,
+                ),
               const SizedBox(height: 12),
 
               // Description
               if (o.description.isNotEmpty) ...[
                 DetailPanel(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  const Text('Izoh', style: TextStyle(color: AppTheme.textMuted, fontSize: 11)),
+                  Text('Izoh', style: TextStyle(color: AppTheme.textMutedOf(context), fontSize: 11)),
                   const SizedBox(height: 3),
-                  Text(o.description, style: const TextStyle(color: AppTheme.textPrimary, fontSize: 13)),
+                  Text(o.description, style: TextStyle(color: AppTheme.textPrimaryOf(context), fontSize: 13)),
                 ])),
                 const SizedBox(height: 12),
               ],
@@ -701,16 +972,49 @@ class _DriverOrderDetailScreenState extends State<DriverOrderDetailScreen> {
                 DetailPanel(
                   child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                     Row(children: [
-                      const Text('Gilamlar', style: TextStyle(color: AppTheme.textPrimary, fontWeight: FontWeight.w700, fontSize: 14)),
+                      Text('Gilamlar', style: TextStyle(color: AppTheme.textPrimaryOf(context), fontWeight: FontWeight.w700, fontSize: 14)),
                       const Spacer(),
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
-                        decoration: BoxDecoration(color: AppTheme.bg, borderRadius: BorderRadius.circular(20)),
-                        child: Text('${o.items.length} ta', style: const TextStyle(color: AppTheme.textSecondary, fontSize: 11, fontWeight: FontWeight.w700)),
+                        decoration: BoxDecoration(color: AppTheme.bgOf(context), borderRadius: BorderRadius.circular(20)),
+                        child: Text('${o.items.length} ta', style: TextStyle(color: AppTheme.textSecondaryOf(context), fontSize: 11, fontWeight: FontWeight.w700)),
                       ),
                     ]),
                     const SizedBox(height: 8),
                     ...o.items.asMap().entries.map((e) => _carpetRow(e.key, e.value)),
+                    if (o.items.length > 1) ...[
+                      const Divider(height: 16),
+                      Builder(builder: (context) {
+                        // Backend'dagi OrderItemController.recalculatePrice bilan
+                        // BIR XIL qoida (masalan "kv. metr" ham maydon bo'yicha
+                        // hisoblanadi, faqat aniq "m²" yozilganda emas).
+                        final unit = o.measurementUnit.toLowerCase().replaceAll('.', '');
+                        final isAreaBased = unit == 'm²' || unit.contains('kv');
+                        double totalMeasure = 0;
+                        for (final item in o.items) {
+                          final area = item.length * item.width;
+                          totalMeasure += isAreaBased
+                              ? (area * item.quantity)
+                              : item.quantity.toDouble();
+                        }
+                        return Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text('Umumiy o\'lcham',
+                                style: TextStyle(
+                                    color: AppTheme.textSecondaryOf(context),
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600)),
+                            Text(
+                                '${totalMeasure.toStringAsFixed(1)} ${o.measurementUnit}',
+                                style: TextStyle(
+                                    color: AppTheme.textPrimaryOf(context),
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w700)),
+                          ],
+                        );
+                      }),
+                    ],
                   ]),
                 ),
                 const SizedBox(height: 8),
@@ -738,7 +1042,7 @@ class _DriverOrderDetailScreenState extends State<DriverOrderDetailScreen> {
 
               // Order status
               DetailPanel(child: Row(children: [
-                const Text('Buyurtma holati', style: TextStyle(color: AppTheme.textPrimary, fontWeight: FontWeight.w700, fontSize: 14)),
+                Text('Buyurtma holati', style: TextStyle(color: AppTheme.textPrimaryOf(context), fontWeight: FontWeight.w700, fontSize: 14)),
                 const Spacer(),
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
@@ -798,25 +1102,34 @@ class _DriverOrderDetailScreenState extends State<DriverOrderDetailScreen> {
       // faqat tushunarsiz xato olardi. Endi biriktirilgan buyurtmada tugma
       // yo'q, faqat kim bajarayotgani ko'rsatiladi. Qayta biriktirish -
       // dispetcherning veb-panel orqali bajaradigan ishi.
-      if (order.workerId != null) {
+      //
+      // MUHIM (jonli xato, tuzatildi): avval `order.workerId != null`
+      // tekshirilardi - lekin bu sex hodimi ushbu buyurtmani band qilib
+      // qo'ygan (masalan o'lchov kiritgan) holatda ham TRUE bo'lardi,
+      // garchi HECH QANDAY haydovchi hali biriktirilmagan bo'lsa ham.
+      // Natijada "Olib ketish/Qabul qilish" tugmasi umuman chiqmay, buyurtma
+      // hech qaysi haydovchiga hech qachon o'tmay qolardi. Endi FAQAT
+      // `driverId` tekshiriladi - sex hodimi band qilgani haydovchiga
+      // to'sqinlik qilmaydi.
+      if (order.driverId != null) {
         return [
           Container(
             width: double.infinity,
             padding: const EdgeInsets.symmetric(vertical: 16),
             decoration: BoxDecoration(
-              color: AppTheme.borderColor.withOpacity(0.3),
+              color: AppTheme.borderOf(context).withOpacity(0.3),
               borderRadius: BorderRadius.circular(14),
             ),
             child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-              const Icon(LucideIcons.userCheck, size: 18, color: AppTheme.textSecondary),
+              Icon(LucideIcons.userCheck, size: 18, color: AppTheme.textSecondaryOf(context)),
               const SizedBox(width: 8),
               Flexible(
                 child: Text(
-                  'Bajarmoqda: ${order.workerName ?? "boshqa xodim"}',
+                  'Bajarmoqda: ${order.driverName ?? "boshqa haydovchi"}',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                      color: AppTheme.textSecondary,
+                  style: TextStyle(
+                      color: AppTheme.textSecondaryOf(context),
                       fontSize: 14,
                       fontWeight: FontWeight.w700),
                 ),
@@ -892,8 +1205,8 @@ class _DriverOrderDetailScreenState extends State<DriverOrderDetailScreen> {
                       .map((s) => s.nameUz)
                       .join(' → ')
               }',
-              style: const TextStyle(
-                  color: AppTheme.textSecondary, fontSize: 11),
+              style: TextStyle(
+                  color: AppTheme.textSecondaryOf(context), fontSize: 11),
             ),
           ],
         ),
@@ -956,5 +1269,61 @@ class _DriverOrderDetailScreenState extends State<DriverOrderDetailScreen> {
             ]),
       ),
     ];
+  }
+}
+
+/// To'lovni qabul qilish oynasida to'lov usulini (Naqd/Karta/Aralash)
+/// tanlash uchun kichik chip tugmasi.
+class _PaymentMethodChip extends StatelessWidget {
+  final String label;
+  final IconData icon;
+  final bool selected;
+  final VoidCallback onTap;
+
+  const _PaymentMethodChip({
+    required this.label,
+    required this.icon,
+    required this.selected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(10),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          decoration: BoxDecoration(
+            color: selected ? AppTheme.primary : Theme.of(context).cardColor,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(
+              color: selected
+                  ? AppTheme.primary
+                  : AppTheme.textSecondaryOf(context).withOpacity(0.25),
+            ),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon,
+                  size: 16,
+                  color: selected ? Colors.white : AppTheme.textSecondaryOf(context)),
+              const SizedBox(height: 3),
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w700,
+                  color: selected ? Colors.white : AppTheme.textSecondaryOf(context),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }

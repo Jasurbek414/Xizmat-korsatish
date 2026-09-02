@@ -30,40 +30,52 @@ class AppBottomNav extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (!hasCenter) {
-      return _bar(Row(children: [
-        for (var i = 0; i < items.length; i++) Expanded(child: _item(i)),
+      return _bar(context, Row(children: [
+        for (var i = 0; i < items.length; i++) Expanded(child: _item(context, i)),
       ]));
     }
     final leftCount = (items.length / 2).ceil();
     Widget half(int start, int end) => Expanded(
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: [for (var i = start; i < end; i++) _item(i)],
+            children: [for (var i = start; i < end; i++) _item(context, i)],
           ),
         );
-    return _bar(Row(children: [
+    return _bar(context, Row(children: [
       half(0, leftCount),
       const SizedBox(width: 62), // markaziy FAB uchun teng joy
       half(leftCount, items.length),
     ]));
   }
 
-  Widget _bar(Widget child) => BottomAppBar(
-        color: AppTheme.surface,
-        elevation: 0,
-        shape: hasCenter ? const CircularNotchedRectangle() : null,
-        notchMargin: 8,
-        height: 70,
-        padding: EdgeInsets.zero,
-        child: Container(
-          decoration: const BoxDecoration(border: Border(top: BorderSide(color: AppTheme.borderColor))),
-          child: child,
-        ),
-      );
+  // Telefonning o'zi gesture-navigatsiya ishlatsa (orqaga qaytish chizig'i),
+  // tizim pastki xavfsiz zonasi bo'lmasa tugmalar shu chiziq ostida/juda
+  // yaqinida qolib, bosilmay qoladi - shuning uchun panel balandligi va
+  // ichki bo'shliq shu zonaga qarab kengaytiriladi.
+  Widget _bar(BuildContext context, Widget child) {
+    // 24px chegara qo'yilgan - ba'zi telefonlarda (masalan 3 tugmali eski
+    // uslubdagi navigatsiya) tizim zonasi 40-48px gacha bo'lishi mumkin,
+    // shuni to'liq qo'shsak panel g'ayritabiiy qalin/baland ko'rinib
+    // qolgan edi. 24px tugmani gesture chizig'idan chiqarish uchun yetarli.
+    final bottomInset = MediaQuery.of(context).padding.bottom.clamp(0.0, 24.0);
+    return BottomAppBar(
+      color: AppTheme.surfaceOf(context),
+      elevation: 0,
+      shape: hasCenter ? const CircularNotchedRectangle() : null,
+      notchMargin: 8,
+      height: 70 + bottomInset,
+      padding: EdgeInsets.zero,
+      child: Container(
+        padding: EdgeInsets.only(bottom: bottomInset),
+        decoration: BoxDecoration(border: Border(top: BorderSide(color: AppTheme.borderOf(context)))),
+        child: child,
+      ),
+    );
+  }
 
-  Widget _item(int i) {
+  Widget _item(BuildContext context, int i) {
     final on = i == selected;
-    final color = on ? AppTheme.primaryDark : AppTheme.textMuted;
+    final color = on ? AppTheme.primaryDark : AppTheme.textMutedOf(context);
     return InkWell(
       onTap: () => onSelect(i),
       borderRadius: BorderRadius.circular(12),
@@ -77,7 +89,7 @@ class AppBottomNav extends StatelessWidget {
             Text(items[i].label,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: AppTheme.text(10, weight: FontWeight.w600, color: on ? AppTheme.primaryDark : AppTheme.textSecondary)),
+                style: AppTheme.text(10, weight: FontWeight.w600, color: on ? AppTheme.primaryDark : AppTheme.textSecondaryOf(context))),
           ],
         ),
       ),

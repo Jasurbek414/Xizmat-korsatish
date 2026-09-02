@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { api } from '../../services/api';
+import { confirmDialog } from '../../services/confirmDialog';
+import { showToast } from '../../services/toast';
 import { Plus, Trash2, ArrowDown, ArrowUp, Edit3, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
@@ -91,17 +93,17 @@ const OrderStatuses = () => {
   const handleDelete = async (id) => {
     const status = statuses.find(s => s.id === id);
     if (status?.is_system) {
-      alert("Ushbu status tizim standarti (Tizim statusi) hisoblanadi. Tizim to'g'ri ishlashi uchun uni o'chirish taqiqlangan.");
+      showToast("Ushbu status tizim standarti (Tizim statusi) hisoblanadi. Tizim to'g'ri ishlashi uchun uni o'chirish taqiqlangan.");
       return;
     }
-    if (!window.confirm("Haqiqatan ham ushbu statusni o'chirib yubormoqchimisiz?")) return;
+    if (!(await confirmDialog("Haqiqatan ham ushbu statusni o'chirib yubormoqchimisiz?"))) return;
 
     try {
       await api.deleteOrderStatus(id);
       setStatuses(prev => prev.filter(s => s.id !== id));
     } catch (err) {
       console.error("Failed to delete status:", err);
-      alert(err.message || "Statusni o'chirishda xatolik yuz berdi.");
+      showToast(err.message || "Statusni o'chirishda xatolik yuz berdi.");
     }
   };
 

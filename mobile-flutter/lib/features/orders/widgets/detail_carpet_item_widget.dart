@@ -54,7 +54,12 @@ class DetailCarpetItemWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isAreaBased = order.measurementUnit == 'm²' || order.measurementUnit == 'metr';
+    // Backend'dagi OrderItemController.recalculatePrice bilan BIR XIL qoida
+    // (masalan "kv. metr" ham maydon bo'yicha hisoblanadi, faqat aniq "m²"
+    // yozilganda emas) - aks holda bu yerda ko'rsatilgan o'lcham backend
+    // hisoblagan narxga mos kelmay qoladi.
+    final unit = order.measurementUnit.toLowerCase().replaceAll('.', '');
+    final isAreaBased = unit == 'm²' || unit.contains('kv');
     final area = item.length * item.width;
     final totalQty = isAreaBased ? (area * item.quantity) : item.quantity.toDouble();
 
@@ -80,7 +85,7 @@ class DetailCarpetItemWidget extends StatelessWidget {
                 isAreaBased
                     ? "${item.quantity} dona (${item.length.toStringAsFixed(1)}x${item.width.toStringAsFixed(1)} m) = ${totalQty.toStringAsFixed(1)} ${order.measurementUnit}"
                     : "${item.quantity} ${order.measurementUnit}",
-                style: const TextStyle(color: AppTheme.textSecondary, fontSize: 10),
+                style: TextStyle(color: AppTheme.textSecondaryOf(context), fontSize: 10),
               ),
             ],
           ),
@@ -165,7 +170,7 @@ class _CheckboxStep extends StatelessWidget {
         Text(
           label,
           style: TextStyle(
-            color: checked ? AppTheme.successColor : AppTheme.textSecondary,
+            color: checked ? AppTheme.successColor : AppTheme.textSecondaryOf(context),
             fontSize: 9,
             fontWeight: checked ? FontWeight.bold : FontWeight.normal,
           ),

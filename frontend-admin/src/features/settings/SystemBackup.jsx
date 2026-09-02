@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { api } from '../../services/api';
+import { showToast } from '../../services/toast';
 import { Download, Lock, Check, AlertTriangle } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
@@ -35,7 +36,7 @@ const SystemBackup = ({ currentAuthUser }) => {
       downloadAnchor.click();
       downloadAnchor.remove();
     } catch (err) {
-      alert(err.message || "Zaxira nusxa olishda xatolik yuz berdi");
+      showToast(err.message || "Zaxira nusxa olishda xatolik yuz berdi");
     } finally {
       setExporting(false);
     }

@@ -3,6 +3,7 @@ import '../../../core/network/api_exception.dart';
 import '../../../core/permissions/permission_keys.dart';
 import '../../../core/storage/secure_storage_service.dart';
 import '../../../models/user.dart';
+import '../../gps/services/background_gps_service.dart';
 
 class SubdomainInfo {
   final String companyId;
@@ -56,12 +57,26 @@ class AuthRepository {
     required String subdomain,
     required String companyId,
   }) async {
+    // MUHIM (2026-08-04 da topilgan): `subdomain` (kompaniya kodi) parametr
+    // sifatida olinardi-yu, so'rovga QO'SHILMASDI. Natijada bir kompaniya
+    // kodini kiritib, boshqa kompaniya xodimining login-paroli bilan kirib
+    // ketish mumkin edi - kod maydoni amalda bezak bo'lib qolgandi.
+    // Endi server uni tekshiradi va mos kelmasa 401 qaytaradi.
     final data = await _api.post(
       '/auth/login',
-      data: {'username': username, 'password': password},
+      data: {
+        'username': username,
+        'password': password,
+        'company_code': subdomain,
+        'client_type': 'MOBILE',
+        // Refresh token AYNAN shu qurilmaga bog'lanadi - boshqa telefonga
+        // ko'chirilsa server sessiyani yopadi.
+        'device_id': await _storage.deviceId(),
+      },
     );
 
     final token = data['token'] as String;
+    final refreshToken = data['refreshToken'] as String?;
     final userJson = Map<String, dynamic>.from(data['user'] as Map);
     final user = User.fromApiJson(userJson, companyId: companyId);
 
@@ -73,6 +88,7 @@ class AuthRepository {
       subdomain: subdomain,
       user: userJson,
       permissions: const {},
+      refreshToken: refreshToken,
     );
 
     final permissions = await _fetchPermissionsForRole(user.role);
@@ -83,6 +99,7 @@ class AuthRepository {
       subdomain: subdomain,
       user: userJson,
       permissions: permissions.toJson(),
+      refreshToken: refreshToken,
     );
 
     return LoginResult(token: token, user: user, permissions: permissions);
@@ -120,7 +137,34 @@ class AuthRepository {
     );
   }
 
-  Future<void> logout() => _storage.clearSession();
+  /// Chiqish. Refresh tokenni SERVERDA ham bekor qiladi - aks holda u
+  /// qurilmadan o'chirilsa ham 30 kun yaroqli qolardi va nusxasi bo'lgan
+  /// odam undan foydalanaverardi.
+  ///
+  /// Tarmoq xatosi chiqishni to'smasligi kerak: server javob bermasa ham
+  /// mahalliy sessiya baribir tozalanadi.
+  Future<void> logout() async {
+    final refreshToken = await _storage.readRefreshToken();
+    if (refreshToken != null && refreshToken.isNotEmpty) {
+      try {
+        await _api.post('/auth/logout', data: {'refresh_token': refreshToken});
+      } catch (_) {
+        // jimgina o'tkazamiz
+      }
+    }
+    await _storage.clearSession();
+
+    // MUHIM (audit'da topilgan xato, tuzatildi): bu yerda avval GPS fon
+    // xizmatining ONLINE holati tozalanmasdi. 401 orqali MAJBURIY chiqishdan
+    // keyin (masalan sessiya boshqa joyda bekor qilingan bo'lsa) haydovchi
+    // qayta kirganda `ShiftToggleButton` hamon "ONLINE" ko'rsatardi - garchi
+    // fon xizmati (token yo'qligi sababli) allaqachon jimgina pauzaga
+    // o'tgan bo'lsa ham. Tugmani bosish esa "ONLINE"dan "OFFLINE"ga
+    // o'tkazishga urinardi (chunki UI ONLINE deb hisoblardi), ya'ni
+    // haydovchi kuzatuvni HAQIQATAN yoqish uchun tugmani IKKI marta bosishi
+    // kerak bo'lib qolardi. Endi chiqishda holat aniq OFFLINE'ga qaytariladi.
+    await BackgroundGpsService.stop();
+  }
 
   Future<String?> readSavedSubdomain() => _storage.readSubdomain();
 }

@@ -30,10 +30,10 @@ class AppCard extends StatelessWidget {
 
     return Container(
       decoration: BoxDecoration(
-        color: AppTheme.surface,
+        color: AppTheme.surfaceOf(context),
         borderRadius: BorderRadius.circular(AppTheme.rLg),
-        border: Border.all(color: highlight ? AppTheme.primary.withOpacity(0.5) : AppTheme.borderColor),
-        boxShadow: AppTheme.cardShadow,
+        border: Border.all(color: highlight ? AppTheme.primary.withOpacity(0.5) : AppTheme.borderOf(context)),
+        boxShadow: AppTheme.cardShadowOf(context),
       ),
       clipBehavior: Clip.antiAlias,
       child: onTap == null
@@ -80,9 +80,9 @@ class StatTile extends StatelessWidget {
             child: Icon(icon, size: 18, color: color),
           ),
           const SizedBox(height: 14),
-          Text(value, style: AppTheme.display(22, weight: FontWeight.w800, height: 1)),
+          Text(value, style: AppTheme.display(22, weight: FontWeight.w800, height: 1, color: AppTheme.textPrimaryOf(context))),
           const SizedBox(height: 2),
-          Text(label, maxLines: 1, overflow: TextOverflow.ellipsis, style: AppTheme.text(11, weight: FontWeight.w600, color: AppTheme.textSecondary)),
+          Text(label, maxLines: 1, overflow: TextOverflow.ellipsis, style: AppTheme.text(11, weight: FontWeight.w600, color: AppTheme.textSecondaryOf(context))),
         ],
       ),
     );
@@ -136,7 +136,7 @@ class CarpetThumb extends StatelessWidget {
       clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppTheme.borderColor),
+        border: Border.all(color: AppTheme.borderOf(context)),
       ),
       child: Stack(children: [
         Positioned.fill(

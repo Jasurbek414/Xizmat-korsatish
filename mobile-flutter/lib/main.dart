@@ -2,12 +2,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'core/network/api_client.dart';
+import 'core/services/update_checker.dart';
+import 'core/services/update_dialog.dart';
 import 'core/storage/secure_storage_service.dart';
 import 'core/theme.dart';
 import 'core/theme_notifier.dart';
 import 'features/auth/bloc/auth_bloc.dart';
 import 'features/auth/screens/login_screen.dart';
 import 'features/dashboard/screens/main_dashboard.dart';
+import 'features/management/management_dashboard.dart';
 import 'features/gps/services/background_gps_service.dart';
 import 'features/notifications/services/push_notification_service.dart';
 
@@ -42,11 +45,34 @@ class MyApp extends StatefulWidget {
 class _MyAppState extends State<MyApp> {
   late final AuthBloc _authBloc;
 
+  // `Navigator` ostidagi ekrandan qat'i nazar (login, haydovchi, admin)
+  // yangilanish oynasini ko'rsatish uchun - alohida BuildContext'ga
+  // bog'lanib qolmaslik uchun global kalit ishlatiladi.
+  static final _navigatorKey = GlobalKey<NavigatorState>();
+
   @override
   void initState() {
     super.initState();
     _authBloc = AuthBloc()..add(AppStartedEvent());
     ApiClient.onUnauthorized = () => _authBloc.add(LogoutEvent());
+
+    // Push orqali "APP_UPDATE" xabari kelganda ham xuddi shu tekshiruvni
+    // qayta ishga tushiramiz - superadmin yangi versiya chiqarganda
+    // xodimlarga darhol bildirishnoma yuborishi mumkin.
+    PushNotificationService.onAppUpdateReceived = () => _checkForUpdate();
+
+    // Ilova ochilishning O'ZIDA (login qilinmagan bo'lsa ham) tekshiradi -
+    // bir kadr kutamiz, aks holda birinchi build tugamasdan Navigator
+    // hali tayyor bo'lmaydi.
+    WidgetsBinding.instance.addPostFrameCallback((_) => _checkForUpdate());
+  }
+
+  Future<void> _checkForUpdate() async {
+    final info = await UpdateChecker.check();
+    if (info == null) return;
+    final ctx = _navigatorKey.currentContext;
+    if (ctx == null || !ctx.mounted) return;
+    await showUpdateDialog(ctx, info);
   }
 
   @override
@@ -63,6 +89,7 @@ class _MyAppState extends State<MyApp> {
         valueListenable: isDarkMode,
         builder: (context, dark, _) {
           return MaterialApp(
+            navigatorKey: _navigatorKey,
             title: 'ServiceCore Mobile Console',
             theme: AppTheme.lightTheme,
             darkTheme: AppTheme.darkTheme,
@@ -112,6 +139,24 @@ class AppNavigator extends StatelessWidget {
                 ),
               ),
             );
+          }
+
+          // BOSHQARUV rollari (ADMIN, MENEJER va admin panelida yaratilgan
+          // istalgan boshqaruv roli) alohida interfeysga yo'naltiriladi.
+          //
+          // Tekshiruv rol NOMIGA emas, RUXSATLARGA qarab: `clients`,
+          // `employees`, `finance`, `salaries`, `settings` kabi admin-panel
+          // modullaridan kamida bittasi yoqilgan bo'lsa - bu boshqaruvchi.
+          // Shu sabab admin panelida yangi rol (masalan "Bo'lim boshlig'i")
+          // yaratilsa, mobil ilova kodini o'zgartirmasdan to'g'ri interfeys
+          // beradi.
+          //
+          // MUHIM: haydovchi, ishchi va sex xodimida bu kalitlarning birortasi
+          // ham yo'q (RoleSeedService'da faqat `mobile_*` beriladi), shuning
+          // uchun ular AVVALGIDEK [MainDashboard]ga tushadi - ularning
+          // interfeysi umuman o'zgarmadi.
+          if (state.permissions.hasAnyManagementModule) {
+            return ManagementDashboard(user: user, permissions: state.permissions);
           }
 
           return MainDashboard(user: user, permissions: state.permissions);

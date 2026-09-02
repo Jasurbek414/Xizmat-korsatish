@@ -40,6 +40,18 @@ public class Company {
     @Column(length = 500)
     private String address;
 
+    /**
+     * Korxonaning aniq GPS markazi - "Xarita" bo'limida boshlang'ich nuqta
+     * sifatida ishlatiladi (avval qattiq yozilgan Toshkent koordinatasi
+     * o'rniga). Admin panelda joriy brauzer joylashuvidan yoki xaritada
+     * qo'lda bosib belgilanadi (CompanyController.updateCompanySettings).
+     */
+    @Column
+    private Double latitude;
+
+    @Column
+    private Double longitude;
+
     @Builder.Default
     @Column(name = "min_order_price")
     private Integer minOrderPrice = 15000;
@@ -89,6 +101,23 @@ public class Company {
     @OrderColumn(name = "position")
     @Builder.Default
     private List<String> measurementUnits = new ArrayList<>(List.of("dona", "kv. metr", "kg", "litr", "metr"));
+
+    // Buxgalteriya > Yangi tranzaksiya oynasidagi standart kategoriyalar
+    // (SALARY, OFFICE_EXPENSE, ...) ustiga kompaniya o'zi qo'shgan qo'shimcha
+    // kirim/chiqim kategoriyalari - measurementUnits bilan bir xil naqsh.
+    @ElementCollection
+    @CollectionTable(name = "company_expense_categories", joinColumns = @JoinColumn(name = "company_id"))
+    @Column(name = "category", length = 100)
+    @OrderColumn(name = "position")
+    @Builder.Default
+    private List<String> customExpenseCategories = new ArrayList<>();
+
+    @ElementCollection
+    @CollectionTable(name = "company_income_categories", joinColumns = @JoinColumn(name = "company_id"))
+    @Column(name = "category", length = 100)
+    @OrderColumn(name = "position")
+    @Builder.Default
+    private List<String> customIncomeCategories = new ArrayList<>();
 
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;

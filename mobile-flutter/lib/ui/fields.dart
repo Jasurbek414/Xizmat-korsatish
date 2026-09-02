@@ -8,7 +8,7 @@ class FieldLabel extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Padding(
         padding: const EdgeInsets.fromLTRB(2, 12, 2, 6),
-        child: Text(text, style: AppTheme.text(12.5, weight: FontWeight.w700)),
+        child: Text(text, style: AppTheme.text(12.5, weight: FontWeight.w700, color: AppTheme.textPrimaryOf(context))),
       );
 }
 
@@ -21,13 +21,13 @@ class MetaLine extends StatelessWidget {
   const MetaLine(this.icon, this.text, {super.key, this.color, this.maxLines = 1});
   @override
   Widget build(BuildContext context) => Row(children: [
-        Icon(icon, size: 13, color: AppTheme.textMuted),
+        Icon(icon, size: 13, color: AppTheme.textMutedOf(context)),
         const SizedBox(width: 5),
         Expanded(
           child: Text(text,
               maxLines: maxLines,
               overflow: TextOverflow.ellipsis,
-              style: AppTheme.text(12, weight: FontWeight.w500, color: color ?? AppTheme.textSecondary)),
+              style: AppTheme.text(12, weight: FontWeight.w500, color: color ?? AppTheme.textSecondaryOf(context))),
         ),
       ]);
 }
@@ -59,10 +59,10 @@ class AppField extends StatelessWidget {
       keyboardType: keyboard,
       onChanged: onChanged,
       maxLines: maxLines,
-      style: AppTheme.text(13.5, weight: FontWeight.w600),
+      style: AppTheme.text(13.5, weight: FontWeight.w600, color: AppTheme.textPrimaryOf(context)),
       decoration: InputDecoration(
         hintText: hint,
-        prefixIcon: icon == null ? null : Icon(icon, size: 18, color: AppTheme.textMuted),
+        prefixIcon: icon == null ? null : Icon(icon, size: 18, color: AppTheme.textMutedOf(context)),
         suffixText: suffix,
       ),
     );

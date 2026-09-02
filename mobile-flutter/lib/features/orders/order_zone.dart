@@ -40,10 +40,16 @@ class OrderZoneBoundary {
   int? get upper => _upper;
 
   OrderZone zoneOf(Order order) {
-    if (_lower == null || _upper == null || order.status == null) {
-      return OrderZone.pickup;
-    }
-    final s = order.status!.sortOrder;
+    if (order.status == null) return OrderZone.pickup;
+    return zoneOfStatus(order.status!);
+  }
+
+  /// Bitta statusning o'zi (buyurtmadan mustaqil) qaysi zonaga tegishli
+  /// ekanini aniqlaydi - status ro'yxatini rolga qarab filtrlashda (masalan
+  /// Bosh sahifadagi status kartalari) kerak bo'ladi.
+  OrderZone zoneOfStatus(OrderStatusInfo status) {
+    if (_lower == null || _upper == null) return OrderZone.pickup;
+    final s = status.sortOrder;
     if (s < _lower) return OrderZone.pickup;
     if (s >= _upper) return OrderZone.delivery;
     return OrderZone.workshop;
@@ -52,6 +58,28 @@ class OrderZoneBoundary {
   bool isPickup(Order order) => zoneOf(order) == OrderZone.pickup;
   bool isAtWorkshop(Order order) => zoneOf(order) == OrderZone.workshop;
   bool isDelivery(Order order) => zoneOf(order) == OrderZone.delivery;
+
+  /// Buyurtma "tugagan" (Tarix'ga tegishli) hisoblanadimi - FAQAT to'lov
+  /// qabul qilingan bo'lsa (paymentStatus PENDING emas).
+  ///
+  /// MUHIM (jonli xato, tuzatildi - IKKI marta): birinchi marta bu qoida
+  /// FAQAT OrderHistoryScreen'da bor edi - HomeDashboardScreen'ning
+  /// haydovchi uchun ko'rinadigan buyurtmalar filtri to'lov holatini
+  /// UMUMAN hisobga olmasdi (tugagan buyurtmalar bosh sahifada qolib
+  /// ketardi). Shuni markazlashtirish payti "oxirgi statusga yetgan"
+  /// shartini HAM (paymentStatus'dan mustaqil) qo'shib qo'yilgan edi -
+  /// bu esa YANGI, JIDDIYROQ xatoga olib keldi: sex xodimi "Tayyor"
+  /// bosgach buyurtma oxirgi statusga (haydovchiga topshirish signali)
+  /// o'tadi, lekin to'lov hali PENDING - shu payt "atLast" true bo'lgani
+  /// uchun buyurtma DARHOL "tugagan" hisoblanib, haydovchi ekranidan HAM,
+  /// sex ekranidan HAM yashirilib, hech kimga ko'rinmay "osilib" qolardi
+  /// (haydovchiga hech qachon o'tmasdi). "Oxirgi statusga yetish" shunchaki
+  /// ZONA/BOSQICH signali (kim ko'rishi kerakligini bildiradi), HAQIQIY
+  /// tugash esa faqat to'lov qabul qilinganda. Endi FAQAT shu ishlatiladi -
+  /// Tarix, Bosh sahifa va Buyurtmalar (haydovchi/sex) ekranlarining
+  /// barchasi shundan foydalanadi.
+  bool isCompleted(Order order) =>
+      order.paymentStatus.isNotEmpty && order.paymentStatus != 'PENDING';
 
   /// Sex zonasiga tegishli statuslar (sortOrder bo'yicha tartiblangan).
   /// Kompaniya nechta oraliq status sozlaganiga qarab 1 ta yoki undan ko'p

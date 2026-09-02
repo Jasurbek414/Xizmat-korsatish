@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { api } from '../services/api';
+import { confirmDialog } from '../services/confirmDialog';
+import { showToast } from '../services/toast';
 import PhoneDialer from './telephony/PhoneDialer';
 import SipSettings from './telephony/SipSettings';
 import CallHistory from './telephony/CallHistory';
@@ -144,12 +146,12 @@ const Telephony = ({ auth }) => {
       toneRef.current.stop();
       if (isMediaCause(cause)) {
         toneRef.current.error();
-        alert('Mikrofon xatoligi:\nBrauzer mikrofondan foydalana olmadi. Iltimos, tekshiring:\n'
+        showToast('Mikrofon xatoligi:\nBrauzer mikrofondan foydalana olmadi. Iltimos, tekshiring:\n'
           + '1. Kompyuterga mikrofonli garnitura (naushnik) ulanganligini;\n'
           + '2. Brauzerda manzil satridagi qulf belgisi orqali mikrofonga ruxsat berilganligini (Allow).');
       } else {
         toneRef.current.busy();
-        alert(`Qo'ng'iroq amalga oshmadi. Sabab: ${cause || "Noma'lum xatolik"}`);
+        showToast(`Qo'ng'iroq amalga oshmadi. Sabab: ${cause || "Noma'lum xatolik"}`);
       }
       setTimeout(() => toneRef.current.stop(), 3000);
       resetCallUi();
@@ -183,7 +185,7 @@ const Telephony = ({ auth }) => {
       toneRef.current.stop();
       toneRef.current.error();
       setTimeout(() => toneRef.current.stop(), 2500);
-      alert("Qo'ng'iroq amalga oshmadi: " + message);
+      showToast("Qo'ng'iroq amalga oshmadi: " + message);
       resetCallUi();
     },
     onTrunkStatus: (status) => setTrunkStatus(status),
@@ -251,7 +253,7 @@ const Telephony = ({ auth }) => {
       // Control kanali uzilgan - buyruq backendga yetmadi. Qayta ulaymiz.
       toneRef.current.stop();
       sip.clearOutboundDial();
-      alert("Aloqa kanali uzilgan edi. Qayta ulanmoqda - iltimos, 3-5 soniyadan keyin qaytadan \"Qo'ng'iroq\" tugmasini bosing.");
+      showToast("Aloqa kanali uzilgan edi. Qayta ulanmoqda - iltimos, 3-5 soniyadan keyin qaytadan \"Qo'ng'iroq\" tugmasini bosing.");
       dialingNumberRef.current = '';
       setCallStatus('DISCONNECTED');
       control.reconnect();
@@ -266,7 +268,7 @@ const Telephony = ({ auth }) => {
     if (!cleaned) return;
 
     if (!sipSettings.id || !myExtension) {
-      alert('SIP sozlamalari hali yuklanmagan. Bir necha soniyadan keyin urinib ko\'ring.');
+      showToast('SIP sozlamalari hali yuklanmagan. Bir necha soniyadan keyin urinib ko\'ring.', 'info');
       return;
     }
 
@@ -287,7 +289,7 @@ const Telephony = ({ auth }) => {
         doDialNow(cleaned);
       } else {
         toneRef.current.stop();
-        alert('SIP tarmoqqa ulanib bo\'lmadi. Internet aloqasini tekshiring va qaytadan urinib ko\'ring.');
+        showToast('SIP tarmoqqa ulanib bo\'lmadi. Internet aloqasini tekshiring va qaytadan urinib ko\'ring.');
         setCallStatus('DISCONNECTED');
       }
     });
@@ -346,22 +348,22 @@ const Telephony = ({ auth }) => {
         setSipSettings((prev) => ({ ...prev, id: created.id }));
       }
       localStorage.setItem('sip_settings', JSON.stringify(sipSettings));
-      alert('Sip sozlamalari saqlandi!');
+      showToast('Sip sozlamalari saqlandi!', 'success');
     } catch (err) {
-      alert('Sozlamalarni saqlashda xatolik: ' + err.message);
+      showToast('Sozlamalarni saqlashda xatolik: ' + err.message);
     }
   };
 
   const handleDeleteSettings = async () => {
     if (!sipSettings.id) return;
-    if (!window.confirm("SIP trunk (UzTelecom) hisobini o'chirishni tasdiqlaysizmi? Chiquvchi qo'ng'iroqlar to'xtaydi.")) return;
+    if (!(await confirmDialog("SIP trunk (UzTelecom) hisobini o'chirishni tasdiqlaysizmi? Chiquvchi qo'ng'iroqlar to'xtaydi."))) return;
     try {
       await api.deleteSipAccount(sipSettings.id);
       setSipSettings((prev) => ({ ...prev, id: null }));
       localStorage.removeItem('sip_settings');
-      alert("SIP trunk o'chirildi.");
+      showToast("SIP trunk o'chirildi.", 'success');
     } catch (err) {
-      alert("Trunk'ni o'chirishda xatolik: " + err.message);
+      showToast("Trunk'ni o'chirishda xatolik: " + err.message);
     }
   };
 

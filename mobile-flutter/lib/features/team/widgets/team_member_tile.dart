@@ -14,7 +14,7 @@ class TeamMemberTile extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: AppTheme.cardColor.withOpacity(0.5),
+        color: AppTheme.cardColorOf(context).withOpacity(0.5),
         borderRadius: BorderRadius.circular(16),
       ),
       child: Row(
@@ -34,15 +34,15 @@ class TeamMemberTile extends StatelessWidget {
               children: [
                 Text(
                   member.fullName,
-                  style: const TextStyle(
-                    color: AppTheme.textPrimary,
+                  style: TextStyle(
+                    color: AppTheme.textPrimaryOf(context),
                     fontWeight: FontWeight.w600,
                     fontSize: 13,
                   ),
                 ),
                 Text(
                   member.role,
-                  style: const TextStyle(color: AppTheme.textSecondary, fontSize: 11),
+                  style: TextStyle(color: AppTheme.textSecondaryOf(context), fontSize: 11),
                 ),
               ],
             ),
@@ -53,13 +53,13 @@ class TeamMemberTile extends StatelessWidget {
               Icon(
                 isActive ? LucideIcons.checkCircle : LucideIcons.xCircle,
                 size: 14,
-                color: isActive ? AppTheme.successColor : AppTheme.textSecondary,
+                color: isActive ? AppTheme.successColor : AppTheme.textSecondaryOf(context),
               ),
               const SizedBox(width: 4),
               Text(
                 isActive ? 'Faol' : 'Bloklangan',
                 style: TextStyle(
-                  color: isActive ? AppTheme.successColor : AppTheme.textSecondary,
+                  color: isActive ? AppTheme.successColor : AppTheme.textSecondaryOf(context),
                   fontSize: 11,
                 ),
               ),

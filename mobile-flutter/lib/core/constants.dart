@@ -1,10 +1,10 @@
 class AppConstants {
   /// Backend hostini muhitga (emulator/real qurilma/production) qarab
   /// `--dart-define=API_HOST=...` orqali build vaqtida almashtirish mumkin.
-  /// PRODUCTION: namifor-api.ecos.uz
+  /// PRODUCTION: servicecore-api.ecos.uz
   static const String _apiHost = String.fromEnvironment(
     'API_HOST',
-    defaultValue: 'namifor-api.ecos.uz',
+    defaultValue: 'servicecore-api.ecos.uz',
   );
   static const bool _useHttps = bool.fromEnvironment(
     'API_HTTPS',
@@ -29,6 +29,9 @@ class AppConstants {
   static const String keyToken = 'jwt_token';
   static const String keyUser = 'logged_user';
   static const String keyPermissions = 'permissions';
+  // Refresh token va qurilma identifikatori (2026-08-05, sessiya xavfsizligi).
+  static const String keyRefreshToken = 'refresh_token';
+  static const String keyDeviceId = 'device_id';
   static const String keyTheme = 'theme_preference';
   static const String keyShiftStatus = 'shift_status'; // ONLINE / OFFLINE
 

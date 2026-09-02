@@ -36,6 +36,15 @@ public class RoleController {
         return ResponseEntity.ok(PermissionKeys.ALL);
     }
 
+    // MUHIM: bu endpoint ATAYLAB istalgan autentifikatsiyalangan tenant a'zosiga ochiq —
+    // mobil ilova login paytida HAR BIR foydalanuvchi (haydovchi ham) shu ro'yxatdan o'z
+    // rolini (key bo'yicha) qidirib, huquqlarini bootstrapping qiladi
+    // (mobile-flutter/lib/features/auth/repository/auth_repository.dart:110). Bu yerga
+    // hasAnyRole('SUPERADMIN','ADMIN') qo'yilsa, oddiy xodimlar mobil ilovaga UMUMAN
+    // kira olmay qoladi (bir marta sinab ko'rilgan va qaytarilgan). Yozish (POST/PUT/DELETE)
+    // shunday ham to'g'ri cheklangan. Boshqa rollarning to'liq huquqlar xaritasini har bir
+    // xodim ko'ra olishi (kichik ma'lumot oshkorligi) alohida, kattaroq API-kontrakt
+    // o'zgarishi (masalan "/roles/mine") bilan hal qilinishi kerak — bu yerda emas.
     @GetMapping
     public ResponseEntity<?> getRoles() {
         String tenantId = TenantContext.getCurrentTenant();

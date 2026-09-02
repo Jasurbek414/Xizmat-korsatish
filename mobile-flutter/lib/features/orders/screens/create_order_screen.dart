@@ -207,7 +207,7 @@ class _CreateOrderScreenState extends State<CreateOrderScreen> {
                   ? AppTheme.primary
                   : isDark
                       ? AppTheme.darkTextMutedColor
-                      : AppTheme.textMuted;
+                      : AppTheme.textMutedOf(context);
 
           return Expanded(
             child: Row(
@@ -326,7 +326,7 @@ class _CreateOrderScreenState extends State<CreateOrderScreen> {
                     fontSize: 13,
                     color: isDark
                         ? AppTheme.darkTextPrimaryColor
-                        : AppTheme.textPrimary),
+                        : AppTheme.textPrimaryOf(context)),
                 onChanged: (_) => setState(() {}),
                 decoration: const InputDecoration(
                   labelText: "Mijoz ismi (F.I.O)",
@@ -342,7 +342,7 @@ class _CreateOrderScreenState extends State<CreateOrderScreen> {
                     fontSize: 13,
                     color: isDark
                         ? AppTheme.darkTextPrimaryColor
-                        : AppTheme.textPrimary),
+                        : AppTheme.textPrimaryOf(context)),
                 onChanged: (_) => setState(() {}),
                 decoration: const InputDecoration(
                   labelText: "Telefon raqami (+998)",
@@ -352,42 +352,114 @@ class _CreateOrderScreenState extends State<CreateOrderScreen> {
               ),
             ] else ...[
               const SizedBox(height: 12),
-              DropdownButtonFormField<ClientInfo>(
-                value: _selectedClient,
-                dropdownColor: isDark
-                    ? AppTheme.darkSurfaceColor
-                    : AppTheme.surface,
-                style: TextStyle(
-                    fontSize: 13,
-                    color: isDark
-                        ? AppTheme.darkTextPrimaryColor
-                        : AppTheme.textPrimary),
-                decoration: const InputDecoration(
-                  labelText: "Mavjud mijozlardan tanlang",
-                  prefixIcon:
-                      Icon(LucideIcons.userCircle, size: 18),
-                ),
-                items: _clients.map((c) {
-                  return DropdownMenuItem<ClientInfo>(
-                    value: c,
-                    child: Text("${c.fullName} (${c.phone})",
-                        overflow: TextOverflow.ellipsis),
-                  );
-                }).toList(),
-                onChanged: (val) {
-                  setState(() {
-                    _selectedClient = val;
-                    if (val != null &&
-                        _addressController.text.isEmpty) {
-                      _addressController.text = val.address;
-                    }
-                  });
-                },
-              ),
+              _clientSearchField(isDark),
+              if (_selectedClient != null) ...[
+                const SizedBox(height: 8),
+                _selectedClientChip(isDark),
+              ],
             ],
           ],
         ),
       ],
+    );
+  }
+
+  /// Mavjud mijozlardan qidirib tanlash - avval bu oddiy `DropdownButtonFormField`
+  /// edi va KO'P mijozli kompaniyada butun ro'yxatni pastga aylantirish
+  /// kerak edi. Endi telefon raqamining istalgan qismini (3-4 raqam) YOKI
+  /// ismning bir qismini yozish orqali filtrlanadi.
+  Widget _clientSearchField(bool isDark) {
+    return Autocomplete<ClientInfo>(
+      displayStringForOption: (c) => "${c.fullName} (${c.phone})",
+      optionsBuilder: (value) {
+        final query = value.text.trim();
+        if (query.isEmpty) return const Iterable<ClientInfo>.empty();
+        final digits = query.replaceAll(RegExp(r'[^0-9]'), '');
+        final lowerQuery = query.toLowerCase();
+        return _clients.where((c) {
+          final nameMatch = c.fullName.toLowerCase().contains(lowerQuery);
+          final phoneDigits = c.phone.replaceAll(RegExp(r'[^0-9]'), '');
+          final phoneMatch = digits.isNotEmpty && phoneDigits.contains(digits);
+          return nameMatch || phoneMatch;
+        });
+      },
+      onSelected: (c) {
+        setState(() {
+          _selectedClient = c;
+          if (_addressController.text.isEmpty) {
+            _addressController.text = c.address;
+          }
+        });
+      },
+      fieldViewBuilder: (context, controller, focusNode, onFieldSubmitted) {
+        return TextFormField(
+          controller: controller,
+          focusNode: focusNode,
+          style: TextStyle(
+              fontSize: 13,
+              color: isDark
+                  ? AppTheme.darkTextPrimaryColor
+                  : AppTheme.textPrimaryOf(context)),
+          decoration: const InputDecoration(
+            labelText: "Ism yoki telefon raqami bo'yicha qidirish",
+            prefixIcon: Icon(LucideIcons.userCircle, size: 18),
+          ),
+          // MUHIM: mijoz ro'yxatdan TANLAB tasdiqlanmaguncha (onSelected)
+          // _selectedClient eski qiymatida qolib ketmasligi kerak - aks
+          // holda matnni o'chirib boshqa nom yozib, tanlamasdan qoldirsa,
+          // eski (boshqa mijoz) tanlangan holicha saqlanib qolardi.
+          onChanged: (_) => setState(() => _selectedClient = null),
+        );
+      },
+      optionsViewBuilder: (context, onSelected, options) {
+        return Align(
+          alignment: Alignment.topLeft,
+          child: Material(
+            elevation: 4,
+            borderRadius: BorderRadius.circular(12),
+            color: isDark ? AppTheme.darkSurfaceColor : AppTheme.surfaceOf(context),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxHeight: 240),
+              child: ListView.builder(
+                padding: EdgeInsets.zero,
+                shrinkWrap: true,
+                itemCount: options.length,
+                itemBuilder: (context, i) {
+                  final c = options.elementAt(i);
+                  return ListTile(
+                    dense: true,
+                    leading: const Icon(LucideIcons.user, size: 16),
+                    title: Text(c.fullName, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                    subtitle: Text(c.phone, style: const TextStyle(fontSize: 12)),
+                    onTap: () => onSelected(c),
+                  );
+                },
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _selectedClientChip(bool isDark) {
+    final c = _selectedClient!;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: AppTheme.primary.withOpacity(0.08),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: AppTheme.primary.withOpacity(0.25)),
+      ),
+      child: Row(children: [
+        const Icon(LucideIcons.checkCircle2, size: 16, color: AppTheme.primary),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text("${c.fullName} (${c.phone})",
+              style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: AppTheme.primary),
+              overflow: TextOverflow.ellipsis),
+        ),
+      ]),
     );
   }
 
@@ -403,12 +475,12 @@ class _CreateOrderScreenState extends State<CreateOrderScreen> {
             DropdownButtonFormField<ServiceInfo>(
               value: _selectedService,
               dropdownColor:
-                  isDark ? AppTheme.darkSurfaceColor : AppTheme.surface,
+                  isDark ? AppTheme.darkSurfaceColor : AppTheme.surfaceOf(context),
               style: TextStyle(
                   fontSize: 13,
                   color: isDark
                       ? AppTheme.darkTextPrimaryColor
-                      : AppTheme.textPrimary),
+                      : AppTheme.textPrimaryOf(context)),
               decoration: const InputDecoration(
                 labelText: "Xizmat turi",
                 prefixIcon: Icon(LucideIcons.package, size: 18),
@@ -439,7 +511,7 @@ class _CreateOrderScreenState extends State<CreateOrderScreen> {
                   fontSize: 13,
                   color: isDark
                       ? AppTheme.darkTextPrimaryColor
-                      : AppTheme.textPrimary),
+                      : AppTheme.textPrimaryOf(context)),
               onChanged: (_) => setState(() {}),
               decoration: const InputDecoration(
                 labelText: "Umumiy narx (so'm)",
@@ -455,7 +527,7 @@ class _CreateOrderScreenState extends State<CreateOrderScreen> {
                   fontSize: 13,
                   color: isDark
                       ? AppTheme.darkTextPrimaryColor
-                      : AppTheme.textPrimary),
+                      : AppTheme.textPrimaryOf(context)),
               decoration: const InputDecoration(
                 labelText: "Izoh (ixtiyoriy)",
                 prefixIcon:
@@ -485,7 +557,7 @@ class _CreateOrderScreenState extends State<CreateOrderScreen> {
                   fontSize: 13,
                   color: isDark
                       ? AppTheme.darkTextPrimaryColor
-                      : AppTheme.textPrimary),
+                      : AppTheme.textPrimaryOf(context)),
               onChanged: (_) => setState(() {}),
               decoration: const InputDecoration(
                 labelText: "To'liq manzil",
@@ -561,14 +633,14 @@ class _CreateOrderScreenState extends State<CreateOrderScreen> {
                 Text(label,
                     style: TextStyle(
                         fontSize: 11,
-                        color: isDark ? AppTheme.darkTextMutedColor : AppTheme.textMuted,
+                        color: isDark ? AppTheme.darkTextMutedColor : AppTheme.textMutedOf(context),
                         fontWeight: FontWeight.w600)),
                 const SizedBox(height: 2),
                 Text(value,
                     style: TextStyle(
                         fontSize: 13,
                         fontWeight: FontWeight.w600,
-                        color: isDark ? AppTheme.darkTextPrimaryColor : AppTheme.textPrimary)),
+                        color: isDark ? AppTheme.darkTextPrimaryColor : AppTheme.textPrimaryOf(context))),
               ],
             ),
           ),
@@ -589,7 +661,7 @@ class _CreateOrderScreenState extends State<CreateOrderScreen> {
             style: AppTheme.text(12,
                 color: Theme.of(context).brightness == Brightness.dark
                     ? AppTheme.darkTextSecondaryColor
-                    : AppTheme.textSecondary)),
+                    : AppTheme.textSecondaryOf(context))),
       ],
     );
   }
@@ -598,10 +670,10 @@ class _CreateOrderScreenState extends State<CreateOrderScreen> {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: isDark ? AppTheme.darkSurfaceColor : AppTheme.surface,
+        color: isDark ? AppTheme.darkSurfaceColor : AppTheme.surfaceOf(context),
         borderRadius: BorderRadius.circular(18),
         border: Border.all(
-          color: isDark ? AppTheme.darkBorderColor : AppTheme.borderColor,
+          color: isDark ? AppTheme.darkBorderColor : AppTheme.borderOf(context),
         ),
       ),
       child: Column(
@@ -612,12 +684,13 @@ class _CreateOrderScreenState extends State<CreateOrderScreen> {
 
   Widget _buildBottomNav(bool isDark) {
     return Container(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+      padding: EdgeInsets.fromLTRB(
+          16, 8, 16, 24 + MediaQuery.of(context).padding.bottom),
       decoration: BoxDecoration(
-        color: isDark ? AppTheme.darkSurfaceColor : AppTheme.surface,
+        color: isDark ? AppTheme.darkSurfaceColor : AppTheme.surfaceOf(context),
         border: Border(
           top: BorderSide(
-            color: isDark ? AppTheme.darkBorderColor : AppTheme.borderColor,
+            color: isDark ? AppTheme.darkBorderColor : AppTheme.borderOf(context),
           ),
         ),
       ),
@@ -630,11 +703,11 @@ class _CreateOrderScreenState extends State<CreateOrderScreen> {
                     _loading ? null : () => setState(() => _currentStep--),
                 style: OutlinedButton.styleFrom(
                   side: BorderSide(
-                    color: isDark ? AppTheme.darkBorderColor : AppTheme.borderColor,
+                    color: isDark ? AppTheme.darkBorderColor : AppTheme.borderOf(context),
                   ),
                   foregroundColor: isDark
                       ? AppTheme.darkTextPrimaryColor
-                      : AppTheme.textPrimary,
+                      : AppTheme.textPrimaryOf(context),
                   padding: const EdgeInsets.symmetric(vertical: 14),
                   shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(14)),

@@ -15,11 +15,11 @@ class EmptyState extends StatelessWidget {
             Container(
               width: 68,
               height: 68,
-              decoration: const BoxDecoration(color: AppTheme.surfaceAlt, shape: BoxShape.circle),
-              child: Icon(icon, size: 30, color: AppTheme.textMuted),
+              decoration: BoxDecoration(color: AppTheme.surfaceAltOf(context), shape: BoxShape.circle),
+              child: Icon(icon, size: 30, color: AppTheme.textMutedOf(context)),
             ),
             const SizedBox(height: 14),
-            Text(message, textAlign: TextAlign.center, style: AppTheme.text(13.5, weight: FontWeight.w500, color: AppTheme.textSecondary)),
+            Text(message, textAlign: TextAlign.center, style: AppTheme.text(13.5, weight: FontWeight.w500, color: AppTheme.textSecondaryOf(context))),
           ]),
         ),
       );
@@ -33,8 +33,8 @@ class OrderListSkeleton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Shimmer.fromColors(
-      baseColor: AppTheme.surfaceAlt,
-      highlightColor: AppTheme.surface,
+      baseColor: AppTheme.surfaceAltOf(context),
+      highlightColor: AppTheme.surfaceOf(context),
       period: const Duration(milliseconds: 1300),
       child: ListView.builder(
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
@@ -42,7 +42,7 @@ class OrderListSkeleton extends StatelessWidget {
         itemBuilder: (_, __) => Container(
           height: 116,
           margin: const EdgeInsets.only(bottom: 12),
-          decoration: BoxDecoration(color: AppTheme.surface, borderRadius: BorderRadius.circular(AppTheme.rLg)),
+          decoration: BoxDecoration(color: AppTheme.surfaceOf(context), borderRadius: BorderRadius.circular(AppTheme.rLg)),
         ),
       ),
     );

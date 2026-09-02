@@ -10,6 +10,7 @@ import com.service.core.tenant.TenantContext;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
 import java.math.BigDecimal;
@@ -96,6 +97,7 @@ public class DebtController {
      * emas - Finance.jsx qolgan tranzaksiyalar bilan bir xil oqimdan o'qiydi).
      */
     @PutMapping("/{id}/pay")
+    @Transactional
     public ResponseEntity<?> payDebt(@PathVariable UUID id) {
         String tenantId = TenantContext.getCurrentTenant();
         if (tenantId == null) {

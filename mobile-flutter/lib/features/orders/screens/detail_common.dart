@@ -15,9 +15,9 @@ class DetailPanel extends StatelessWidget {
       width: double.infinity,
       padding: padding,
       decoration: BoxDecoration(
-        color: AppTheme.surface,
+        color: AppTheme.surfaceOf(context),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppTheme.borderColor),
+        border: Border.all(color: AppTheme.borderOf(context)),
       ),
       child: child,
     );
@@ -61,20 +61,20 @@ class ClientCard extends StatelessWidget {
         children: [
           Container(
             width: 44, height: 44,
-            decoration: BoxDecoration(color: AppTheme.bg, borderRadius: BorderRadius.circular(12)),
-            child: const Icon(LucideIcons.user, size: 22, color: AppTheme.textMuted),
+            decoration: BoxDecoration(color: AppTheme.bgOf(context), borderRadius: BorderRadius.circular(12)),
+            child: Icon(LucideIcons.user, size: 22, color: AppTheme.textMutedOf(context)),
           ),
           const SizedBox(width: 12),
           Expanded(
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(name, style: const TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.w700, fontSize: 15, color: AppTheme.textPrimary)),
+              Text(name, style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.w700, fontSize: 15, color: AppTheme.textPrimaryOf(context))),
               if (phone.isNotEmpty) ...[
                 const SizedBox(height: 2),
-                Text(phone, style: const TextStyle(color: AppTheme.textSecondary, fontSize: 13, fontWeight: FontWeight.w600)),
+                Text(phone, style: TextStyle(color: AppTheme.textSecondaryOf(context), fontSize: 13, fontWeight: FontWeight.w600)),
               ],
               if (address.isNotEmpty) ...[
                 const SizedBox(height: 2),
-                Text(address, style: const TextStyle(color: AppTheme.textSecondary, fontSize: 12)),
+                Text(address, style: TextStyle(color: AppTheme.textSecondaryOf(context), fontSize: 12)),
               ],
             ]),
           ),
@@ -116,12 +116,12 @@ class CarpetList extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(children: [
-            const Text('Gilamlar', style: TextStyle(color: AppTheme.textPrimary, fontWeight: FontWeight.w700, fontSize: 14)),
+            Text('Gilamlar', style: TextStyle(color: AppTheme.textPrimaryOf(context), fontWeight: FontWeight.w700, fontSize: 14)),
             const Spacer(),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
-              decoration: BoxDecoration(color: AppTheme.bg, borderRadius: BorderRadius.circular(20)),
-              child: Text('${items.length} ta', style: const TextStyle(color: AppTheme.textSecondary, fontSize: 11, fontWeight: FontWeight.w700)),
+              decoration: BoxDecoration(color: AppTheme.bgOf(context), borderRadius: BorderRadius.circular(20)),
+              child: Text('${items.length} ta', style: TextStyle(color: AppTheme.textSecondaryOf(context), fontSize: 11, fontWeight: FontWeight.w700)),
             ),
           ]),
           const SizedBox(height: 8),
@@ -130,15 +130,15 @@ class CarpetList extends StatelessWidget {
                 child: Row(children: [
                   Container(
                     width: 40, height: 40,
-                    decoration: BoxDecoration(color: AppTheme.bg, borderRadius: BorderRadius.circular(9)),
-                    child: const Icon(LucideIcons.layers, size: 18, color: AppTheme.textMuted),
+                    decoration: BoxDecoration(color: AppTheme.bgOf(context), borderRadius: BorderRadius.circular(9)),
+                    child: Icon(LucideIcons.layers, size: 18, color: AppTheme.textMutedOf(context)),
                   ),
                   const SizedBox(width: 10),
                   Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Text(r.title, style: const TextStyle(color: AppTheme.textPrimary, fontWeight: FontWeight.w700, fontSize: 13)),
-                    Text(r.subtitle, style: const TextStyle(color: AppTheme.textSecondary, fontSize: 11)),
+                    Text(r.title, style: TextStyle(color: AppTheme.textPrimaryOf(context), fontWeight: FontWeight.w700, fontSize: 13)),
+                    Text(r.subtitle, style: TextStyle(color: AppTheme.textSecondaryOf(context), fontSize: 11)),
                   ])),
-                  const Icon(LucideIcons.chevronRight, size: 16, color: AppTheme.textMuted),
+                  Icon(LucideIcons.chevronRight, size: 16, color: AppTheme.textMutedOf(context)),
                 ]),
               )),
         ],

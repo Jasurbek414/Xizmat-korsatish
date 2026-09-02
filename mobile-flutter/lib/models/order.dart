@@ -33,11 +33,19 @@ class OrderClientInfo {
   final String fullName;
   final String phone;
   final String address;
+  /// Mijozning saqlangan GPS lokatsiyasi (avvalgi buyurtmada haydovchi
+  /// "Joylashuvni belgilash"ni bosgan bo'lsa) - buyurtmaning O'ZIDA hali
+  /// koordinata yo'q bo'lsa (masalan bu funksiya qo'shilishidan OLDIN
+  /// yaratilgan eski buyurtma) navigatsiya uchun zaxira sifatida ishlatiladi.
+  final double? latitude;
+  final double? longitude;
 
   OrderClientInfo({
     required this.fullName,
     required this.phone,
     required this.address,
+    this.latitude,
+    this.longitude,
   });
 
   factory OrderClientInfo.fromJson(Map<String, dynamic>? json) {
@@ -48,6 +56,8 @@ class OrderClientInfo {
       fullName: json['fullName'] ?? "Noma'lum",
       phone: json['phone'] ?? '',
       address: json['address'] ?? '',
+      latitude: (json['latitude'] as num?)?.toDouble(),
+      longitude: (json['longitude'] as num?)?.toDouble(),
     );
   }
 }
@@ -59,6 +69,9 @@ class OrderItemInfo {
   final double width;
   final int quantity;
   final String status; // ACCEPTED, WASHED, DRIED, READY
+  // Shu gilamga sex xodimi tomonidan ALOHIDA belgilangan narx (bo'lmasa null -
+  // buyurtma narxini hisoblashda xizmat narxi x o'lchov bo'yicha avtomatik olinadi).
+  final double? price;
 
   OrderItemInfo({
     required this.id,
@@ -67,6 +80,7 @@ class OrderItemInfo {
     required this.width,
     required this.quantity,
     required this.status,
+    this.price,
   });
 
   factory OrderItemInfo.fromJson(Map<String, dynamic> json) {
@@ -77,6 +91,7 @@ class OrderItemInfo {
       width: (json['width'] as num?)?.toDouble() ?? 0.0,
       quantity: (json['quantity'] as num?)?.toInt() ?? 1,
       status: json['status'] ?? 'ACCEPTED',
+      price: (json['price'] as num?)?.toDouble(),
     );
   }
 }
@@ -93,9 +108,22 @@ class Order {
   final OrderStatusInfo? status;
   final String? workerId;
   final String? workerName;
+  // MUHIM (jonli xato: "mas'ul hodim noto'g'ri ko'rsatilyapti"): eski
+  // `workerName` ham haydovchini, ham sex hodimini bir xil joyga yozardi -
+  // shu sabab sex ekranida "Haydovchi" deb doim shu ism ko'rsatilardi,
+  // garchi u aslida sex hodimining o'zi bo'lsa ham. Backend endi ikkalasini
+  // alohida (`driver`/`sexWorker`) qaytaradi - shu ikkisi ishlatilishi kerak.
+  final String? driverId;
+  final String? driverName;
+  final String? sexWorkerName;
   final String createdAt;
   final double collectedPrice;
   final String paymentStatus;
+  // To'lov qanday olinganini bildiradi (CASH/CARD/MIXED) - to'lov hali
+  // qabul qilinmagan bo'lsa null.
+  final String? paymentMethod;
+  final double cashAmount;
+  final double cardAmount;
   final List<OrderItemInfo> items;
   final String measurementUnit;
   final double servicePrice;
@@ -117,9 +145,15 @@ class Order {
     required this.status,
     required this.workerId,
     required this.workerName,
+    this.driverId,
+    this.driverName,
+    this.sexWorkerName,
     required this.createdAt,
     required this.collectedPrice,
     required this.paymentStatus,
+    this.paymentMethod,
+    this.cashAmount = 0.0,
+    this.cardAmount = 0.0,
     required this.items,
     required this.measurementUnit,
     required this.servicePrice,
@@ -129,6 +163,8 @@ class Order {
   factory Order.fromJson(Map<String, dynamic> json) {
     final service = json['service'] as Map<String, dynamic>?;
     final worker = json['worker'] as Map<String, dynamic>?;
+    final driver = json['driver'] as Map<String, dynamic>?;
+    final sexWorker = json['sexWorker'] as Map<String, dynamic>?;
     final statusJson = json['status'] as Map<String, dynamic>?;
 
     return Order(
@@ -143,9 +179,15 @@ class Order {
       status: statusJson != null ? OrderStatusInfo.fromJson(statusJson) : null,
       workerId: worker?['id'],
       workerName: worker?['fullName'],
+      driverId: driver?['id'],
+      driverName: driver?['fullName'],
+      sexWorkerName: sexWorker?['fullName'],
       createdAt: json['createdAt'] ?? '',
       collectedPrice: (json['collectedPrice'] as num?)?.toDouble() ?? 0.0,
       paymentStatus: json['paymentStatus'] ?? 'PENDING',
+      paymentMethod: json['paymentMethod'] as String?,
+      cashAmount: (json['cashAmount'] as num?)?.toDouble() ?? 0.0,
+      cardAmount: (json['cardAmount'] as num?)?.toDouble() ?? 0.0,
       items: (json['items'] as List?)
               ?.map((i) => OrderItemInfo.fromJson(i as Map<String, dynamic>))
               .toList() ??

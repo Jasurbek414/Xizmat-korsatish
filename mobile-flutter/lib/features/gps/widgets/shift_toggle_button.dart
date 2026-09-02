@@ -125,7 +125,7 @@ class _ShiftToggleButtonState extends State<ShiftToggleButton> {
     return ValueListenableBuilder<bool>(
       valueListenable: BackgroundGpsService.isOnline,
       builder: (context, isOnline, _) {
-        final color = isOnline ? AppTheme.successColor : AppTheme.textSecondary;
+        final color = isOnline ? AppTheme.successColor : AppTheme.textSecondaryOf(context);
         return Padding(
           padding: const EdgeInsets.symmetric(horizontal: 12),
           child: GestureDetector(

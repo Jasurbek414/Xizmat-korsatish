@@ -31,7 +31,13 @@ class OrderCard extends StatelessWidget {
     this.index = 0,
   });
 
-  bool get _isMine => currentUserId.isNotEmpty && order.workerId == currentUserId;
+  // MUHIM (jonli xato: "haydovchida 'Bajarmoqda: Xodim' bo'lib chiqib
+  // qolgan"): avval umumiy `workerId` tekshirilardi - sex hodimi band
+  // qilgan (haydovchisiz) buyurtmalarda ham TRUE bo'lib qolar, haydovchi
+  // uni HECH QACHON o'ziniki deb bilolmasdi. Bu getter faqat haydovchi
+  // kartasida (_driverCard) ishlatiladi - shu sabab FAQAT `driverId`
+  // tekshiriladi.
+  bool get _isMine => currentUserId.isNotEmpty && order.driverId == currentUserId;
   Color get _statusColor => AppTheme.hex(order.status?.colorCode ?? '#2563EB');
 
   bool _isFactory(BuildContext context) {
@@ -78,8 +84,12 @@ class OrderCard extends StatelessWidget {
 
   Future<void> _openMap() async {
     final Uri uri;
-    if (order.latitude != null && order.longitude != null) {
-      uri = Uri.parse('https://www.google.com/maps/search/?api=1&query=${order.latitude},${order.longitude}');
+    // Buyurtmaning o'zida koordinata bo'lmasa, mijozning saqlangan
+    // lokatsiyasi (avvalgi buyurtmada belgilangan) zaxira sifatida ishlatiladi.
+    final lat = order.latitude ?? order.client.latitude;
+    final lng = order.longitude ?? order.client.longitude;
+    if (lat != null && lng != null) {
+      uri = Uri.parse('https://www.google.com/maps/search/?api=1&query=$lat,$lng');
     } else if (order.address.trim().isNotEmpty) {
       uri = Uri.parse('https://www.google.com/maps/search/?api=1&query=${Uri.encodeComponent(order.address)}');
     } else {
@@ -139,19 +149,19 @@ class OrderCard extends StatelessWidget {
             ]),
             const SizedBox(height: 10),
             Row(children: [
-              const Icon(LucideIcons.clock, size: 13, color: AppTheme.textMuted),
+              Icon(LucideIcons.clock, size: 13, color: AppTheme.textMutedOf(context)),
               const SizedBox(width: 5),
-              Text(time, style: AppTheme.text(12, weight: FontWeight.w600, color: AppTheme.textSecondary)),
+              Text(time, style: AppTheme.text(12, weight: FontWeight.w600, color: AppTheme.textSecondaryOf(context))),
               const Spacer(),
               Text('${formatter.format(order.price)} so\'m', style: AppTheme.display(13, weight: FontWeight.w800, spacing: 0, color: AppTheme.primary)),
             ]),
             if (p.sorted.length > 1 && p.index >= 0) ...[
               const SizedBox(height: 10),
-              _stepBar(p.sorted, p.index),
+              _stepBar(context, p.sorted, p.index),
             ],
-            if (!_isMine && order.workerId != null) ...[
+            if (!_isMine && order.driverId != null) ...[
               const SizedBox(height: 8),
-              MetaLine(LucideIcons.userCheck, 'Haydovchi: ${order.workerName ?? "-"}'),
+              MetaLine(LucideIcons.userCheck, 'Haydovchi: ${order.driverName ?? "-"}'),
             ],
             const SizedBox(height: 12),
             Row(children: [
@@ -178,23 +188,23 @@ class OrderCard extends StatelessWidget {
       // beradigan tugma edi. Endi biriktirilgan buyurtmada tugma o'rniga
       // kim bajarayotgani ko'rsatiladi; qayta biriktirishni faqat dispetcher
       // veb-panel orqali qila oladi.
-      if (order.workerId != null) {
+      if (order.driverId != null) {
         return Container(
           height: 40,
           alignment: Alignment.center,
           decoration: BoxDecoration(
-            color: AppTheme.borderColor.withOpacity(0.35),
+            color: AppTheme.borderOf(context).withOpacity(0.35),
             borderRadius: BorderRadius.circular(AppTheme.rMd),
           ),
           child: Row(mainAxisSize: MainAxisSize.min, children: [
-            const Icon(LucideIcons.userCheck, size: 14, color: AppTheme.textSecondary),
+            Icon(LucideIcons.userCheck, size: 14, color: AppTheme.textSecondaryOf(context)),
             const SizedBox(width: 5),
             Flexible(
               child: Text(
-                order.workerName ?? 'Biriktirilgan',
+                order.driverName ?? 'Biriktirilgan',
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: AppTheme.text(12, weight: FontWeight.w700, color: AppTheme.textSecondary),
+                style: AppTheme.text(12, weight: FontWeight.w700, color: AppTheme.textSecondaryOf(context)),
               ),
             ),
           ]),
@@ -258,74 +268,174 @@ class OrderCard extends StatelessWidget {
   }
 
   // ---------------- SEX HODIMI ----------------
+
+  /// Buyurtmaning sexdagi bosqich rangi - FactoryOrdersScreen._stageOf bilan
+  /// BIR XIL qoida (gilamlar bo'lmasa "Keldi", hammasi tayyor bo'lsa
+  /// "Tugatilmoqda", aks holda "Bajarilmoqda"). Karta chap railiga va
+  /// progress halqasiga rang beradi - xodim ro'yxatni pastga aylantirmasdan
+  /// ham qaysi bosqichdaligini ranglar orqali darhol ilg'aydi.
+  Color get _stageColor {
+    if (order.items.isEmpty) return AppTheme.amber;
+    if (order.items.every((i) => i.status == 'READY')) return AppTheme.teal;
+    final anyStarted = order.items.any((i) => i.status != 'ACCEPTED');
+    return anyStarted ? AppTheme.blue : AppTheme.amber;
+  }
+
+  /// Buyurtma sexga kirganidan beri o'tgan vaqt - navbatda "qotib qolgan"
+  /// buyurtmalarni darhol ko'zga tashlash uchun (30+ daq: sariq ogohlantirish,
+  /// 90+ daq: qizil - shoshilinch e'tibor talab qiladi).
+  String _formatElapsed(Duration d) {
+    if (d.isNegative) return '0 daq';
+    if (d.inHours > 0) return '${d.inHours}s ${d.inMinutes % 60}daq';
+    return '${d.inMinutes} daq';
+  }
+
+  // MUHIM (jonli so'rov: "sex hodimida buyurtma aniq qachon kelgani
+  // ko'rsatilmayapti"): avval faqat NISBIY vaqt ("42 daq oldin") ko'rinardi
+  // - bu shoshilinchlikni bildiradi, lekin aniq soatni bilish uchun (masalan
+  // smena almashinuvida "qachon kelgan edi" deb) mos emas edi. Bugungi kun
+  // bo'lsa faqat soat:daqiqa, boshqa kun bo'lsa sana ham qo'shiladi.
+  String _formatArrivalClock(DateTime dt) {
+    final now = DateTime.now();
+    final isToday = dt.year == now.year && dt.month == now.month && dt.day == now.day;
+    return isToday ? DateFormat('HH:mm').format(dt) : DateFormat('dd.MM HH:mm').format(dt);
+  }
+
+  Widget _statChip(IconData icon, String label, Color color) {
+    return Row(mainAxisSize: MainAxisSize.min, children: [
+      Icon(icon, size: 12, color: color),
+      const SizedBox(width: 4),
+      Text(label, style: AppTheme.text(11, weight: FontWeight.w600, color: color)),
+    ]);
+  }
+
   Widget _factoryCard(BuildContext context) {
+    final formatter = NumberFormat.decimalPattern('uz');
     final shortId = order.id.length > 4 ? order.id.substring(0, 4) : order.id;
-    final time = _formatTime(order.createdAt).split(', ').last;
+    final totalCount = order.items.length;
+    final readyCount = order.items.where((i) => i.status == 'READY').length;
+    final hasItems = totalCount > 0;
+    final progress = hasItems ? readyCount / totalCount : 0.0;
+    final stageColor = _stageColor;
+
+    final elapsed = DateTime.now().difference(order.workshopArrivalTime);
+    final elapsedLabel = _formatElapsed(elapsed);
+    final isOverdue = elapsed.inMinutes >= 90;
+    final isWarning = !isOverdue && elapsed.inMinutes >= 30;
+    final elapsedColor = isOverdue
+        ? AppTheme.dangerColor
+        : (isWarning ? AppTheme.amber : AppTheme.textSecondaryOf(context));
+
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: AppCard(
-        padding: const EdgeInsets.all(11),
+        railColor: stageColor,
+        padding: const EdgeInsets.all(12),
         highlight: isNew,
         onTap: () => _openDetail(context),
-        child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Stack(clipBehavior: Clip.none, children: [
-            CarpetThumb(size: 72, id: '#$shortId', variant: index),
-            // MUHIM (audit: "tartib raqami yo'q" muammosi) - sex navbatidagi
-            // FIFO tartib raqami (butun navbat bo'yicha, faqat shu bo'lim
-            // ichida emas) - xodim qaysi gilamni birinchi ishlashi kerakligini
-            // aniq ko'radi.
-            Positioned(
-              top: -6,
-              left: -6,
-              child: Container(
-                width: 22,
-                height: 22,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  color: AppTheme.primary,
-                  shape: BoxShape.circle,
-                  border: Border.all(color: Theme.of(context).cardColor, width: 2),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Stack(clipBehavior: Clip.none, alignment: Alignment.center, children: [
+                if (hasItems)
+                  SizedBox(
+                    width: 72,
+                    height: 72,
+                    child: CircularProgressIndicator(
+                      value: progress,
+                      strokeWidth: 3,
+                      backgroundColor: AppTheme.borderOf(context),
+                      valueColor: AlwaysStoppedAnimation(stageColor),
+                    ),
+                  ),
+                CarpetThumb(size: hasItems ? 63 : 72, id: '#$shortId', variant: index),
+                // MUHIM (audit: "tartib raqami yo'q" muammosi) - sex navbatidagi
+                // FIFO tartib raqami (butun navbat bo'yicha, faqat shu bo'lim
+                // ichida emas) - xodim qaysi gilamni birinchi ishlashi kerakligini
+                // aniq ko'radi.
+                Positioned(
+                  top: -6,
+                  left: -6,
+                  child: Container(
+                    width: 22,
+                    height: 22,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: AppTheme.primary,
+                      shape: BoxShape.circle,
+                      border: Border.all(color: Theme.of(context).cardColor, width: 2),
+                    ),
+                    child: Text(
+                      '${index + 1}',
+                      style: AppTheme.text(11, weight: FontWeight.w800, color: Colors.white),
+                    ),
+                  ),
                 ),
-                child: Text(
-                  '${index + 1}',
-                  style: AppTheme.text(11, weight: FontWeight.w800, color: Colors.white),
+              ]),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text(order.client.fullName, style: AppTheme.display(15, weight: FontWeight.w700, spacing: -0.2)),
+                  const SizedBox(height: 3),
+                  MetaLine(LucideIcons.mapPin, order.address.isEmpty ? order.client.address : order.address),
+                  const SizedBox(height: 2),
+                  MetaLine(LucideIcons.phone, order.client.phone),
+                  if (order.driverName != null && order.driverName!.isNotEmpty) ...[
+                    const SizedBox(height: 2),
+                    MetaLine(LucideIcons.user, 'Haydovchi: ${order.driverName}'),
+                  ],
+                  const SizedBox(height: 2),
+                  MetaLine(LucideIcons.clock, 'Keldi: ${_formatArrivalClock(order.workshopArrivalTime)}'),
+                ]),
+              ),
+              const SizedBox(width: 8),
+              Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+                Row(mainAxisSize: MainAxisSize.min, children: [
+                  Icon(isOverdue ? LucideIcons.alertTriangle : LucideIcons.timer, size: 12, color: elapsedColor),
+                  const SizedBox(width: 3),
+                  Text(elapsedLabel, style: AppTheme.text(11.5, weight: FontWeight.w800, color: elapsedColor)),
+                ]),
+                const SizedBox(height: 6),
+                StatusPill(order.status?.nameUz ?? '-', _statusColor),
+              ]),
+            ]),
+            const SizedBox(height: 12),
+            Container(height: 1, color: AppTheme.borderOf(context)),
+            const SizedBox(height: 10),
+            Row(children: [
+              _statChip(LucideIcons.layers, '$totalCount ta gilam', AppTheme.textSecondaryOf(context)),
+              if (hasItems) ...[
+                const SizedBox(width: 14),
+                _statChip(LucideIcons.checkCircle2, '$readyCount/$totalCount tayyor',
+                    readyCount == totalCount ? AppTheme.teal : AppTheme.textSecondaryOf(context)),
+              ],
+              const Spacer(),
+              Text('${formatter.format(order.price)} so\'m',
+                  style: AppTheme.display(13, weight: FontWeight.w800, spacing: 0, color: AppTheme.primary)),
+              const SizedBox(width: 4),
+              Icon(LucideIcons.chevronRight, size: 16, color: AppTheme.textMutedOf(context)),
+            ]),
+            if (hasItems) ...[
+              const SizedBox(height: 8),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(99),
+                child: LinearProgressIndicator(
+                  value: progress,
+                  minHeight: 5,
+                  backgroundColor: AppTheme.borderOf(context),
+                  valueColor: AlwaysStoppedAnimation(stageColor),
                 ),
               ),
-            ),
-          ]),
-          const SizedBox(width: 11),
-          Expanded(
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(order.client.fullName, style: AppTheme.display(15, weight: FontWeight.w700, spacing: -0.2)),
-              const SizedBox(height: 3),
-              MetaLine(LucideIcons.mapPin, order.address.isEmpty ? order.client.address : order.address),
-              const SizedBox(height: 2),
-              MetaLine(LucideIcons.phone, order.client.phone),
-              if (order.workerName != null && order.workerName!.isNotEmpty) ...[
-                const SizedBox(height: 2),
-                MetaLine(LucideIcons.user, 'Haydovchi: ${order.workerName}'),
-              ],
-            ]),
-          ),
-          const SizedBox(width: 8),
-          Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-            Text(time, style: AppTheme.display(13, weight: FontWeight.w800, spacing: 0, color: AppTheme.primary)),
-            const SizedBox(height: 4),
-            Text('${order.items.length} ta gilam', style: AppTheme.text(11, weight: FontWeight.w600, color: AppTheme.textSecondary)),
-            const SizedBox(height: 6),
-            StatusPill(order.status?.nameUz ?? '-', _statusColor),
-          ]),
-          const Padding(
-            padding: EdgeInsets.only(left: 4, top: 22),
-            child: Icon(LucideIcons.chevronRight, size: 18, color: AppTheme.textMuted),
-          ),
-        ]),
+            ],
+          ],
+        ),
       ),
     );
   }
 
   // ---------------- umumiy ----------------
-  Widget _stepBar(List<OrderStatusInfo> sorted, int current) {
+  Widget _stepBar(BuildContext context, List<OrderStatusInfo> sorted, int current) {
     return Row(
       children: List.generate(sorted.length, (i) {
         final done = i <= current;
@@ -334,7 +444,7 @@ class OrderCard extends StatelessWidget {
             height: 4,
             margin: EdgeInsets.only(right: i == sorted.length - 1 ? 0 : 4),
             decoration: BoxDecoration(
-              color: done ? AppTheme.hex(sorted[i].colorCode) : AppTheme.borderColor,
+              color: done ? AppTheme.hex(sorted[i].colorCode) : AppTheme.borderOf(context),
               borderRadius: BorderRadius.circular(4),
             ),
           ),
@@ -349,8 +459,9 @@ class OrderCard extends StatelessWidget {
   }
 
   Future<void> _confirmAccept(BuildContext context) async {
-    final msg = (order.workerName != null && order.workerName!.isNotEmpty)
-        ? 'Bu buyurtma "${order.workerName}"ga biriktirilgan. O\'zingizga olasizmi?'
+    final assignedTo = order.driverName ?? order.workerName;
+    final msg = (assignedTo != null && assignedTo.isNotEmpty)
+        ? 'Bu buyurtma "$assignedTo"ga biriktirilgan. O\'zingizga olasizmi?'
         : 'Bu buyurtmani o\'zingizga qabul qilasizmi?';
     final ok = await _confirm(context, 'Qabul qilish', msg, AppTheme.primary, 'Qabul qilish');
     if (ok && context.mounted) context.read<OrdersCubit>().acceptOrder(order);
@@ -360,12 +471,12 @@ class OrderCard extends StatelessWidget {
     final ok = await showDialog<bool>(
       context: context,
       builder: (dctx) => AlertDialog(
-        backgroundColor: AppTheme.surface,
+        backgroundColor: AppTheme.surfaceOf(context),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppTheme.rLg)),
         title: Text(title, style: AppTheme.display(16, weight: FontWeight.w700)),
-        content: Text(body, style: AppTheme.text(13, color: AppTheme.textSecondary)),
+        content: Text(body, style: AppTheme.text(13, color: AppTheme.textSecondaryOf(context))),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(dctx, false), child: const Text('Bekor', style: TextStyle(color: AppTheme.textSecondary))),
+          TextButton(onPressed: () => Navigator.pop(dctx, false), child: Text('Bekor', style: TextStyle(color: AppTheme.textSecondaryOf(context)))),
           FilledButton(style: FilledButton.styleFrom(backgroundColor: color), onPressed: () => Navigator.pop(dctx, true), child: Text(action)),
         ],
       ),

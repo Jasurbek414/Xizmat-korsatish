@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { api } from '../../services/api';
+import { confirmDialog } from '../../services/confirmDialog';
+import { showToast } from '../../services/toast';
 import { Plus, Trash2, Edit3, Search, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
@@ -112,13 +114,13 @@ const ServicesCatalog = () => {
   };
 
   const handleDelete = async (id) => {
-    if (!window.confirm("Haqiqatan ham ushbu xizmatni o'chirib yubormoqchimisiz?")) return;
+    if (!(await confirmDialog("Haqiqatan ham ushbu xizmatni o'chirib yubormoqchimisiz?"))) return;
     try {
       await api.deleteService(id);
       setServices(prev => prev.filter(s => s.id !== id));
     } catch (err) {
       console.error("Failed to delete service:", err);
-      alert(err.message || "Xizmatni o'chirishda xatolik yuz berdi.");
+      showToast(err.message || "Xizmatni o'chirishda xatolik yuz berdi.");
     }
   };
 

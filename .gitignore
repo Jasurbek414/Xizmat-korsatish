@@ -28,6 +28,12 @@
 backend-java/firebase-service-account.json
 mobile-flutter/android/app/google-services.json
 
+# APK imzolash kaliti - sizib chiqsa, boshqa odam ilova nomidan (bir xil
+# applicationId bilan) soxta yangilanish tarqatishi mumkin bo'lardi.
+mobile-flutter/android/key.properties
+mobile-flutter/android/app/release-key.jks
+mobile-flutter/android/app/*.jks
+
 # Misc
 .DS_Store
 *.pem

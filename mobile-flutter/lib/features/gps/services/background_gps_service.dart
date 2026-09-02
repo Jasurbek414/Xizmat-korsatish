@@ -1,15 +1,46 @@
 import 'dart:async';
+import 'dart:math';
 import 'dart:ui';
 
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_background_service/flutter_background_service.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 
 import '../../../core/constants.dart';
 import '../../../core/storage/secure_storage_service.dart';
 import 'gps_offline_queue.dart';
+
+/// MUHIM (real qurilmada topilgan, JIDDIY xato): Android 8+ da har bir
+/// foreground-xizmat bildirishnomasi OLDINDAN yaratilgan kanalga tegishli
+/// bo'lishi SHART - `AndroidConfiguration.notificationChannelId` shunchaki
+/// ID satrini beradi, lekin `isForegroundMode: false` bilan sozlanganda
+/// `flutter_background_service` plagini kanalni O'ZI YARATMAYDI. Natijada
+/// ONLINE bosilib xizmat `setAsForegroundService()`ga o'tganda, Android
+/// "invalid channel" deb hisoblab `startForeground()`ni rad etadi va bu
+/// SERVISNI EMAS, BUTUN ILOVANI (native darajada, RemoteServiceException:
+/// "Bad notification for startForeground") yiqitardi - GPS shu sabab
+/// birorta ham marta ishlamagan edi. Shu sabab kanalni bu yerda ANIQ,
+/// qo'lda (flutter_local_notifications orqali - u allaqachon shu ishni
+/// push bildirishnomalar uchun qiladi) yaratamiz.
+const _gpsChannel = AndroidNotificationChannel(
+  'gps_tracking_channel',
+  'GPS kuzatuv',
+  description: 'Ish smenasida joylashuvni kuzatish uchun doimiy bildirishnoma',
+  importance: Importance.low,
+  playSound: false,
+);
+
+Future<void> _ensureGpsNotificationChannel() async {
+  final plugin = FlutterLocalNotificationsPlugin();
+  const androidInit = AndroidInitializationSettings('@drawable/ic_stat_notify');
+  await plugin.initialize(const InitializationSettings(android: androidInit));
+  await plugin
+      .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
+      ?.createNotificationChannel(_gpsChannel);
+}
 
 /// Haydovchi/ishchi ilovani yopib qo'ysa ham GPS koordinatalarini har 15
 /// soniyada backend'ga yuboradigan fon xizmati (Android foreground service).
@@ -25,6 +56,10 @@ class BackgroundGpsService {
   static final ValueNotifier<bool> isOnline = ValueNotifier<bool>(false);
 
   static Future<void> initialize() async {
+    // Xizmat konfiguratsiyasidan OLDIN - kanal mavjud bo'lmasa, keyinroq
+    // ONLINE bosilganda startForeground() butun ilovani yiqitadi.
+    await _ensureGpsNotificationChannel();
+
     final service = FlutterBackgroundService();
     await service.configure(
       androidConfiguration: AndroidConfiguration(
@@ -117,6 +152,14 @@ bool _onIosBackground(ServiceInstance service) {
 void _onStart(ServiceInstance service) async {
   DartPluginRegistrant.ensureInitialized();
 
+  // Zaxira (ikkilamchi): asosiy isolate'da initialize() orqali allaqachon
+  // yaratilgan bo'lishi kerak, lekin bu ALOHIDA isolate - kanal OS darajasida
+  // saqlansa ham, xavfsizlik uchun shu yerda ham (arzon, idempotent) qayta
+  // ta'minlaymiz.
+  try {
+    await _ensureGpsNotificationChannel();
+  } catch (_) {}
+
   // Hive allaqachon main() da ishga tushirilgan - init xatolik bersa ham davom etamiz
   try {
     await Hive.initFlutter();
@@ -157,69 +200,116 @@ void _onStart(ServiceInstance service) async {
   final storage = SecureStorageService();
   final queue = GpsOfflineQueue();
 
+  // MUHIM (audit'da topilgan, jiddiy xato): avval bu yerda qayta kirishdan
+  // himoya YO'Q edi. Agar bitta tsikl (GPS o'qish + tarmoq so'rovi) 15
+  // soniyalik intervaldan uzoqroq davom etsa (yomon signal, sekin
+  // internet), Timer.periodic keyingi tsiklni PARALLEL ishga tushiradi.
+  // Ikkalasi ham 401 olsa, ikkalasi ham BIR XIL saqlangan refresh-tokenni
+  // ishlatib /auth/refresh'ga murojaat qilishi mumkin edi - refresh token
+  // BIR MARTA ishlatilgani uchun (rotatsiya) server buni o'g'irlik alomati
+  // deb qabul qilib, BUTUN sessiya oilasini (`revokeFamily`) bekor qilardi
+  // - haydovchi smena o'rtasida kutilmaganda chiqarib yuborilardi. ApiClient
+  // xuddi shu muammoni `_refreshFuture` bilan hal qiladi, lekin bu fon
+  // xizmati ALOHIDA isolate'da ishlaydi va o'sha himoyaga ega emas edi.
+  var tickInFlight = false;
+
   Timer.periodic(BackgroundGpsService.interval, (timer) async {
-    if (isPaused) return;
-
-    final token = await storage.readToken();
-    if (token == null) {
-      // Sessiya tugagan (logout) - kuzatuvni pauza qilamiz (servisni
-      // to'xtatmaymiz, keyingi login+ONLINE'da xavfsiz davom etadi).
-      isPaused = true;
-      if (service is AndroidServiceInstance) {
-        await service.setAsBackgroundService();
-      }
-      return;
-    }
-
+    if (isPaused || tickInFlight) return;
+    tickInFlight = true;
     try {
-      final position = await Geolocator.getCurrentPosition(
-        locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
-      );
-
-      // Avval navbatda qolgan eski nuqtalarni yuborishga urinib ko'ramiz.
-      // MUHIM: har bir nuqtaning O'ZI yozilgan payt (timestamp) ham yuboriladi -
-      // aks holda backend soatlab oldin yig'ilib qolgan nuqtalarni "hozirgi
-      // joylashuv" deb noto'g'ri qabul qilib olardi.
-      final pending = await queue.readAll();
-      for (final entry in pending) {
-        final recordedAt = DateTime.tryParse(entry.value['timestamp'] as String? ?? '') ??
-            DateTime.now();
-        final sent = await _sendPosition(
-          token,
-          entry.value['latitude'] as double,
-          entry.value['longitude'] as double,
-          recordedAt,
-        );
-        if (sent) {
-          await queue.remove(entry.key);
-        } else {
-          break; // Hali ham oflayn - qolganlarini keyingi tsiklga qoldiramiz.
+      final sessionGone = await _tick(storage, queue);
+      if (sessionGone) {
+        // Sessiya tugagan (logout) - kuzatuvni pauza qilamiz (servisni
+        // to'xtatmaymiz, keyingi login+ONLINE'da xavfsiz davom etadi).
+        isPaused = true;
+        if (service is AndroidServiceInstance) {
+          await service.setAsBackgroundService();
         }
       }
-
-      final sent = await _sendPosition(
-        token,
-        position.latitude,
-        position.longitude,
-        position.timestamp,
-      );
-      if (!sent) {
-        await queue.enqueue(position.latitude, position.longitude);
-      }
-    } catch (_) {
-      // Joylashuvni olishning imkoni bo'lmadi - keyingi tsiklda qayta urinamiz.
+    } finally {
+      tickInFlight = false;
     }
   });
 }
 
+/// Bitta GPS tsikli: joriy joylashuvni o'qiydi, navbatdagi eski nuqtalarni
+/// va yangisini yuboradi. `true` qaytarsa - sessiya tugagan, chaqiruvchi
+/// kuzatuvni pauza qilishi kerak.
+Future<bool> _tick(SecureStorageService storage, GpsOfflineQueue queue) async {
+  final token = await storage.readToken();
+  if (token == null) return true;
+
+  try {
+    final position = await Geolocator.getCurrentPosition(
+      locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
+    );
+
+    // Avval navbatda qolgan eski nuqtalarni yuborishga urinib ko'ramiz.
+    // MUHIM: har bir nuqtaning O'ZI yozilgan payt (timestamp) ham yuboriladi -
+    // aks holda backend soatlab oldin yig'ilib qolgan nuqtalarni "hozirgi
+    // joylashuv" deb noto'g'ri qabul qilib olardi.
+    final pending = await queue.readAll();
+    for (final entry in pending) {
+      final recordedAt = DateTime.tryParse(entry.value['timestamp'] as String? ?? '') ??
+          DateTime.now();
+      final sent = await _sendPosition(
+        storage,
+        entry.value['latitude'] as double,
+        entry.value['longitude'] as double,
+        recordedAt,
+      );
+      if (sent) {
+        await queue.remove(entry.key);
+      } else {
+        break; // Hali ham oflayn - qolganlarini keyingi tsiklga qoldiramiz.
+      }
+    }
+
+    final sent = await _sendPosition(
+      storage,
+      position.latitude,
+      position.longitude,
+      position.timestamp,
+    );
+    if (!sent) {
+      await queue.enqueue(position.latitude, position.longitude);
+    }
+  } catch (_) {
+    // Joylashuvni olishning imkoni bo'lmadi - keyingi tsiklda qayta urinamiz.
+  }
+  return false;
+}
+
+/// MUHIM (audit'da topilgan xato, tuzatildi): bu funksiya avval `token`ni
+/// TO'G'RIDAN-TO'G'RI parametr sifatida olar va 401 kelsa shunchaki
+/// muvaffaqiyatsiz deb hisoblab, nuqtani navbatga qo'yardi - `ApiClient`dagi
+/// kabi avtomatik token-yangilash logikasi bu yerda YO'Q edi. Natijada
+/// sessiya (masalan admin tomonidan majburiy chiqarilish yoki refresh-token
+/// aylanishi tufayli) ilova FONDA ishlab turganda bekor qilinsa, GPS
+/// jo'natish butunlay va JIMGINA to'xtar edi - haydovchi xaritada
+/// "aloqasiz" ko'rinardi, lekin buni hech kim bilmasdi. Endi 401 kelsa
+/// saqlangan refresh-token bilan bir marta yangilashga urinadi va shu bilan
+/// qayta yuboradi - xuddi ApiClient qiladigan ishning bir xili, faqat bu
+/// yerda ALOHIDA (interceptor'siz) chaqirilgani uchun qo'lda takrorlangan.
 Future<bool> _sendPosition(
-  String token,
+  SecureStorageService storage,
   double latitude,
   double longitude,
   DateTime recordedAt,
 ) async {
-  try {
-    final dio = Dio(BaseOptions(baseUrl: AppConstants.baseApiUrl));
+  final token = await storage.readToken();
+  if (token == null) return false;
+
+  Future<bool> attempt(String withToken) async {
+    // MUHIM (audit'da topilgan): avval bu Dio'da timeout YO'Q edi - GPS
+    // fon tsikli har 15 soniyada ishga tushadi, tarmoq osilib qolsa
+    // so'rov cheksiz kutishi mumkin edi (yuqoridagi tickInFlight himoyasi
+    // ham shu holatda navbatdagi tsiklni cheksiz bloklardi).
+    final dio = Dio(BaseOptions(
+      baseUrl: AppConstants.baseApiUrl,
+      connectTimeout: const Duration(seconds: 10),
+      receiveTimeout: const Duration(seconds: 10),
+    ));
     await dio.post(
       '/gps/log',
       data: {
@@ -227,10 +317,75 @@ Future<bool> _sendPosition(
         'longitude': longitude,
         'timestamp': recordedAt.toIso8601String(),
       },
-      options: Options(headers: {'Authorization': 'Bearer $token'}),
+      options: Options(headers: {'Authorization': 'Bearer $withToken'}),
     );
     return true;
+  }
+
+  try {
+    return await attempt(token);
+  } on DioException catch (e) {
+    if (e.response?.statusCode != 401) return false;
+    final refreshed = await _refreshToken(storage, token);
+    if (refreshed == null) return false;
+    try {
+      return await attempt(refreshed);
+    } catch (_) {
+      return false;
+    }
   } catch (_) {
     return false;
+  }
+}
+
+/// `failedToken` - 401 qaytargan eski token. Refresh so'rovini yuborishdan
+/// oldin kichik tasodifiy pauza berib qayta tekshiramiz: agar shu oraliqda
+/// asosiy ilova (`ApiClient`, boshqa isolate'da) ALLAQACHON yangilagan
+/// bo'lsa, saqlangan token allaqachon o'zgargan bo'ladi - shu holda O'ZIMIZ
+/// /auth/refresh'ga murojaat qilmasdan, xuddi shu YANGI tokenni ishlatamiz.
+/// SABABI: refresh-token BIR MARTA ishlatiladi (rotatsiya) - agar ikkala
+/// isolate deyarli bir vaqtda o'zining nusxasini yuborsa, ikkinchisi
+/// "qayta ishlatilgan token" (o'g'irlik alomati) deb qabul qilinib, BUTUN
+/// sessiya oilasi bekor qilinishi mumkin edi (qarang: RefreshTokenService.
+/// rotate). Bu to'liq kafolat emas (haqiqiy tor oyna hali qoladi), lekin
+/// eng ehtimoliy to'qnashuv holatini kamaytiradi.
+Future<String?> _refreshToken(SecureStorageService storage, String failedToken) async {
+  await Future.delayed(Duration(milliseconds: 150 + Random.secure().nextInt(350)));
+  final maybeAlreadyRefreshed = await storage.readToken();
+  if (maybeAlreadyRefreshed != null && maybeAlreadyRefreshed != failedToken) {
+    return maybeAlreadyRefreshed;
+  }
+
+  final refreshToken = await storage.readRefreshToken();
+  if (refreshToken == null || refreshToken.isEmpty) return null;
+  try {
+    // MUHIM (audit'da topilgan): avval bu Dio'da timeout YO'Q edi - GPS
+    // fon tsikli har 15 soniyada ishga tushadi, tarmoq osilib qolsa
+    // so'rov cheksiz kutishi mumkin edi (yuqoridagi tickInFlight himoyasi
+    // ham shu holatda navbatdagi tsiklni cheksiz bloklardi).
+    final dio = Dio(BaseOptions(
+      baseUrl: AppConstants.baseApiUrl,
+      connectTimeout: const Duration(seconds: 10),
+      receiveTimeout: const Duration(seconds: 10),
+    ));
+    final res = await dio.post(
+      '/auth/refresh',
+      data: {
+        'refresh_token': refreshToken,
+        'device_id': await storage.deviceId(),
+      },
+    );
+    final data = res.data;
+    if (data is Map && data['token'] is String) {
+      final newToken = data['token'] as String;
+      await storage.saveTokens(
+        token: newToken,
+        refreshToken: data['refreshToken'] as String?,
+      );
+      return newToken;
+    }
+    return null;
+  } catch (_) {
+    return null;
   }
 }

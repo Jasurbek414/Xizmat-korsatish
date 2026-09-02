@@ -6,6 +6,7 @@ import '../../../models/order.dart';
 import '../../../ui/app_ui.dart';
 import '../../auth/bloc/auth_bloc.dart';
 import '../bloc/orders_cubit.dart';
+import '../order_zone.dart';
 import '../widgets/order_card.dart';
 
 /// Tarix - yakunlangan buyurtmalar (oxirgi bosqichga yetgan yoki to'langan).
@@ -26,12 +27,11 @@ class _OrderHistoryScreenState extends State<OrderHistoryScreen> {
     super.dispose();
   }
 
-  bool _isDone(Order o, List<OrderStatusInfo> sorted) {
-    final lastId = sorted.isNotEmpty ? sorted.last.id : null;
-    final atLast = lastId != null && o.status?.id == lastId;
-    final paid = o.paymentStatus.isNotEmpty && o.paymentStatus != 'PENDING';
-    return atLast || paid;
-  }
+  // MUHIM: "tugagan" tushunchasi endi OrderZoneBoundary.isCompleted() - BIR
+  // XIL qoida Bosh sahifa va Buyurtmalar (haydovchi) ekranlarida ham
+  // ishlatiladi, kelajakda mos kelmaslik xavfisiz.
+  bool _isDone(Order o, List<OrderStatusInfo> sorted) =>
+      OrderZoneBoundary.fromStatuses(sorted).isCompleted(o);
 
   @override
   Widget build(BuildContext context) {

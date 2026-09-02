@@ -42,15 +42,15 @@ class _AdaptiveDashboardShellState extends State<AdaptiveDashboardShell> {
     final visibleModules = widget.modules.where((m) => m.isVisibleFor(widget.permissions)).toList();
 
     if (visibleModules.isEmpty) {
-      return const Scaffold(
+      return Scaffold(
         body: Center(
           child: Padding(
-            padding: EdgeInsets.all(24),
+            padding: const EdgeInsets.all(24),
             child: Text(
               "Sizning rolingiz uchun hech qanday mobil funksiya yoqilmagan.\n"
               "Administratordan ruxsatlarni sozlashini so'rang.",
               textAlign: TextAlign.center,
-              style: TextStyle(color: AppTheme.textSecondary),
+              style: TextStyle(color: AppTheme.textSecondaryOf(context)),
             ),
           ),
         ),

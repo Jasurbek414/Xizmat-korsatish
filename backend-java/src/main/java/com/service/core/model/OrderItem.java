@@ -41,6 +41,13 @@ public class OrderItem {
     @Builder.Default
     private Integer quantity = 1;
 
+    // Har bir gilam sex xodimi tomonidan ALOHIDA narxlanishi mumkin (masalan
+    // yuvish/tozalash murakkabligiga qarab). Bo'sh/0 bo'lsa, buyurtma narxini
+    // hisoblashda shu gilam uchun xizmat narxi x o'lchov (eni*bo'yi*soni yoki
+    // soni) bo'yicha avtomatik hisoblanadi - OrderItemController.recalculatePrice'ga q.
+    @Column(precision = 12, scale = 2)
+    private BigDecimal price;
+
     @Column(nullable = false, length = 50)
     @Builder.Default
     private String status = "ACCEPTED"; // ACCEPTED, WASHED, DRIED, READY

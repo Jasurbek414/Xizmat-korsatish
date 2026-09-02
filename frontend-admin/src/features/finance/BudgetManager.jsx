@@ -8,9 +8,16 @@ const BudgetManager = ({ budgets, transactions, onUpdateBudget }) => {
   const [editingCategory, setEditingCategory] = useState(null);
   const [editLimit, setEditLimit] = useState('');
 
-  // Calculate current expenses per category
-  const expenseTransactions = transactions.filter(t => t.type === 'EXPENSE');
-  
+  // MUHIM (tuzatildi): avval "joriy oyda sarflangan" deb yozib, aslida BUTUN
+  // TARIX bo'yicha yig'indini hisoblardi - shu sabab bir necha oydan keyin
+  // har bir kategoriya "doim limitdan oshgan" bo'lib ko'rinardi. Endi faqat
+  // joriy taqvim oyidagi tranzaksiyalar hisoblanadi, ko'rsatkich yorlig'iga
+  // ("Joriy oyda sarflangan mablag'") mos keladi.
+  const currentMonthKey = new Date().toISOString().slice(0, 7); // "YYYY-MM"
+  const expenseTransactions = transactions.filter(t =>
+    t.type === 'EXPENSE' && t.created_at && t.created_at.slice(0, 7) === currentMonthKey
+  );
+
   const getSpentAmount = (category) => {
     return expenseTransactions
       .filter(tx => tx.category === category)

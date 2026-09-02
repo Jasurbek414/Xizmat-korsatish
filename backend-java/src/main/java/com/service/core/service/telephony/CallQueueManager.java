@@ -42,11 +42,23 @@ public class CallQueueManager {
     /** Eng eski (birinchi kelgan) navbatdagi qo'ng'iroqni navbatdan chiqarib qaytaradi - topilmasa null. */
     public QueuedCall dequeueOldest(UUID companyId) {
         List<QueuedCall> list = queuesByCompany.get(companyId);
-        if (list == null || list.isEmpty()) {
+        if (list == null) {
             return null;
         }
-        QueuedCall oldest = list.remove(0);
-        return oldest;
+        // MUHIM (audit'da topilgan race condition): oldin isEmpty() tekshiruvi
+        // va remove(0) alohida amallar edi - ikkita thread (masalan bitta
+        // kompaniyaga ikki operator deyarli bir vaqtda qayta ulanganda,
+        // TelephonyWebSocketHandler har biri uchun tryServeQueuedCalls chaqiradi)
+        // bitta elementli navbatni ikkalasi ham "bo'sh emas" deb ko'rishi va
+        // ikkalasi ham remove(0) chaqirishi mumkin edi - ikkinchisi
+        // IndexOutOfBoundsException tashlar edi. synchronized blok bu ikki
+        // amalni atomik qiladi.
+        synchronized (list) {
+            if (list.isEmpty()) {
+                return null;
+            }
+            return list.remove(0);
+        }
     }
 
     public void remove(UUID companyId, String channelUuid) {

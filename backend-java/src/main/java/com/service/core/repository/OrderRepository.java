@@ -11,6 +11,16 @@ import java.util.UUID;
 @Repository
 public interface OrderRepository extends JpaRepository<Order, UUID> {
     List<Order> findByCompanyId(UUID companyId);
+    /**
+     * MUHIM (jonli holatda topilgan xato, tuzatildi - Clients.jsx'dagi bilan
+     * bir xil sinf): findByCompanyId hech qanday tartibga rioya qilmaydi.
+     * Veb-admin panelining "Buyurtmalar" ro'yxati (OrderController.getOrders,
+     * FAQAT shu bitta o'rinda ishlatiladi) shu sabab yangi yaratilgan
+     * buyurtmani ro'yxat o'rtasida "yo'qotib qo'yardi". Mobil ilovaning
+     * o'z (dispatch pool/tarix) endpointlariga TEGILMAYDI - ular allaqachon
+     * zona/holat asosida o'z mantig'iga ega.
+     */
+    List<Order> findByCompanyIdOrderByCreatedAtDesc(UUID companyId);
     List<Order> findByCompanyIdAndWorkerId(UUID companyId, UUID workerId);
     List<Order> findByStatusId(UUID statusId);
     List<Order> findByCompanyIdAndPaymentStatus(UUID companyId, String paymentStatus);
