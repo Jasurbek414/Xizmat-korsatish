@@ -33,6 +33,26 @@ const _gpsChannel = AndroidNotificationChannel(
   playSound: false,
 );
 
+/// MUHIM (audit'da topilgan, jiddiy tarmoq sekinligi sababi): avval
+/// `_sendPosition`/`_refreshToken` har chaqirilganda (ya'ni har 15 soniyada,
+/// butun smena davomida) YANGI `Dio()` nusxasini yaratardi - bu har safar
+/// TCP+TLS ulanishini noldan ochishga majburlardi (ulanish qayta
+/// ISHLATILMASdi). Server bilan tarmoq kechikishi (RTT) yuqori bo'lganda
+/// (masalan Cloudflare Tunnel orqali xorijiy marshrut) bitta oddiy so'rov
+/// shu sabab 500-700ms cho'zilib ketishi mumkin edi - haydovchining butun
+/// smenasi davomida har 15 soniyada takrorlanib, "ma'lumot sekin/qiyin
+/// kelayapti" degan shikoyatga olib kelgan edi. Endi BITTA Dio nusxasi
+/// (shu izolyatsiyaning umri davomida) qayta ishlatiladi - Dio standart
+/// HttpClient keep-alive orqali ulanishni ochiq saqlaydi.
+Dio? _gpsDio;
+Dio get _sharedGpsDio => _gpsDio ??= Dio(
+  BaseOptions(
+    baseUrl: AppConstants.baseApiUrl,
+    connectTimeout: const Duration(seconds: 10),
+    receiveTimeout: const Duration(seconds: 10),
+  ),
+);
+
 Future<void> _ensureGpsNotificationChannel() async {
   final plugin = FlutterLocalNotificationsPlugin();
   const androidInit = AndroidInitializationSettings('@drawable/ic_stat_notify');
@@ -301,15 +321,7 @@ Future<bool> _sendPosition(
   if (token == null) return false;
 
   Future<bool> attempt(String withToken) async {
-    // MUHIM (audit'da topilgan): avval bu Dio'da timeout YO'Q edi - GPS
-    // fon tsikli har 15 soniyada ishga tushadi, tarmoq osilib qolsa
-    // so'rov cheksiz kutishi mumkin edi (yuqoridagi tickInFlight himoyasi
-    // ham shu holatda navbatdagi tsiklni cheksiz bloklardi).
-    final dio = Dio(BaseOptions(
-      baseUrl: AppConstants.baseApiUrl,
-      connectTimeout: const Duration(seconds: 10),
-      receiveTimeout: const Duration(seconds: 10),
-    ));
+    final dio = _sharedGpsDio;
     await dio.post(
       '/gps/log',
       data: {
@@ -359,15 +371,7 @@ Future<String?> _refreshToken(SecureStorageService storage, String failedToken) 
   final refreshToken = await storage.readRefreshToken();
   if (refreshToken == null || refreshToken.isEmpty) return null;
   try {
-    // MUHIM (audit'da topilgan): avval bu Dio'da timeout YO'Q edi - GPS
-    // fon tsikli har 15 soniyada ishga tushadi, tarmoq osilib qolsa
-    // so'rov cheksiz kutishi mumkin edi (yuqoridagi tickInFlight himoyasi
-    // ham shu holatda navbatdagi tsiklni cheksiz bloklardi).
-    final dio = Dio(BaseOptions(
-      baseUrl: AppConstants.baseApiUrl,
-      connectTimeout: const Duration(seconds: 10),
-      receiveTimeout: const Duration(seconds: 10),
-    ));
+    final dio = _sharedGpsDio;
     final res = await dio.post(
       '/auth/refresh',
       data: {

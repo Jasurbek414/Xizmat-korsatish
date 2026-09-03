@@ -1,7 +1,7 @@
 {
-  "version": "2.9.21",
-  "versionCode": 51,
+  "version": "2.10.5",
+  "versionCode": 58,
   "forceUpdate": false,
-  "message": "Yangi funksiya: to'lovni qabul qilishda endi Naqd, Karta yoki Aralash (naqd+karta) usulini tanlash mumkin.",
+  "message": "Tezlik tuzatildi: GPS joylashuvni yuborish endi har safar yangi ulanish ochish o'rniga mavjud ulanishdan foydalanadi - ma'lumot almashinuvi sezilarli tezlashadi.",
   "url": "https://servicecore.ecos.uz/downloads/xizmat-korsatish-mobile.apk"
 }
