@@ -23,4 +23,6 @@ public interface GpsLogRepository extends JpaRepository<GpsLog, UUID> {
     // Safarning to'liq yo'l chizig'i (xaritada ko'rsatish uchun) - ketma-ket
     // yozilgan tartibda.
     List<GpsLog> findByTripIdOrderByCreatedAtAsc(UUID tripId);
+
+    void deleteByUserId(UUID userId);
 }

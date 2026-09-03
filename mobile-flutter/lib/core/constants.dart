@@ -37,4 +37,10 @@ class AppConstants {
 
   /// Dark mode (true) yoki light mode (false)
   static const String keyDarkMode = 'dark_mode';
+
+  // Chek chiqarish uchun tanlangan Bluetooth termal printer (MAC manzili
+  // va nomi) - bir marta ulanadi, keyingi safar avtomatik shu qurilmaga
+  // yoziladi (har safar qayta "skanerlash" shart emas).
+  static const String keyPrinterMac = 'receipt_printer_mac';
+  static const String keyPrinterName = 'receipt_printer_name';
 }

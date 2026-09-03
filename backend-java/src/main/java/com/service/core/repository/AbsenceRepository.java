@@ -14,4 +14,5 @@ public interface AbsenceRepository extends JpaRepository<Absence, UUID> {
     List<Absence> findByCompanyIdAndUserId(UUID companyId, UUID userId);
     List<Absence> findByUserIdAndDateBetween(UUID userId, LocalDate start, LocalDate end);
     Optional<Absence> findByUserIdAndDate(UUID userId, LocalDate date);
+    void deleteByUserId(UUID userId);
 }

@@ -164,6 +164,21 @@ const Salaries = ({ tab }) => {
     }
   };
 
+  // Xato bilan "To'landi" deb belgilangan hisobni bekor qilish - status
+  // UNPAID'ga qaytadi va tegishli xarajat tranzaksiyasi Moliyadan o'chiriladi
+  // (summa balansga qaytadi). loadData() bilan qayta yuklanadi - shu bilan
+  // Moliya sahifasidagi hisobotlar ham darhol to'g'ri holatga keladi.
+  const handleUnpaySalary = async (id) => {
+    if (!(await confirmDialog("Ushbu \"to'landi\" belgisini bekor qilib, maoshni qaytadan to'lanmagan holatga o'tkazasizmi? Tegishli xarajat yozuvi Moliyadan o'chiriladi.", { danger: true }))) return;
+    try {
+      await api.unpaySalary(id);
+      showToast("To'lov bekor qilindi, summa balansga qaytarildi", 'success');
+      await loadData();
+    } catch (err) {
+      showToast(err.message || "To'lovni bekor qilishda xatolik yuz berdi");
+    }
+  };
+
   // Pay all pending salaries in batch - backend allaqachon har bir to'lov uchun
   // xarajat tranzaksiyasini avtomatik yaratadi (SalaryController.paySalary), shu
   // sabab bu yerda alohida "kassa"/tranzaksiya simulyatsiyasi kerak emas.
@@ -216,6 +231,8 @@ const Salaries = ({ tab }) => {
         await api.addSalaryBonus(salaryId, amt);
       } else if (type === 'BONUS_REMOVE') {
         await api.removeSalaryBonus(salaryId, amt);
+      } else if (type === 'DEDUCTION_REMOVE') {
+        await api.removeSalaryDeduction(salaryId, amt);
       } else {
         await api.addSalaryDeduction(salaryId, amt);
       }
@@ -224,6 +241,7 @@ const Salaries = ({ tab }) => {
         if (s.id !== salaryId) return s;
         if (type === 'BONUS_ADD') return { ...s, bonus: s.bonus + amt };
         if (type === 'BONUS_REMOVE') return { ...s, bonus: s.bonus - amt };
+        if (type === 'DEDUCTION_REMOVE') return { ...s, deductions: s.deductions - amt };
         return { ...s, deductions: s.deductions + amt };
       });
 
@@ -269,9 +287,10 @@ const Salaries = ({ tab }) => {
       />
 
       {/* Salaries Grid Table */}
-      <SalariesTable 
-        salaries={filteredSalaries} 
+      <SalariesTable
+        salaries={filteredSalaries}
         onPaySalary={handlePaySalary}
+        onUnpaySalary={handleUnpaySalary}
         onOpenAdvance={setSelectedAdvance}
         onOpenPayslip={setSelectedPayslip}
       />

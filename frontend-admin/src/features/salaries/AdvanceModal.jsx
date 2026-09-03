@@ -52,6 +52,11 @@ const AdvanceModal = ({ isOpen, onClose, salary, wallets, onSubmit }) => {
       return;
     }
 
+    if (type === 'DEDUCTION_REMOVE' && amt > salary.deductions) {
+      setError("Qaytariladigan summa joriy chegirmadan (" + salary.deductions.toLocaleString() + " UZS) katta bo'lishi mumkin emas");
+      return;
+    }
+
     onSubmit(salary.id, type, amt, description, walletId);
     setAmount('');
     setDescription('');
@@ -113,11 +118,11 @@ const AdvanceModal = ({ isOpen, onClose, salary, wallets, onSubmit }) => {
           {category === 'DEDUCTION' ? (
             <div>
               <label className="block text-slate-500 dark:text-gray-400 mb-1">Amal turi</label>
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-3 gap-2">
                 <button
                   type="button"
                   onClick={() => setType('ADVANCE')}
-                  className={`py-2 rounded-xl font-bold transition cursor-pointer ${
+                  className={`py-2 rounded-xl font-bold transition cursor-pointer text-[10px] ${
                     type === 'ADVANCE' ? 'bg-indigo-600 text-white shadow-sm' : 'bg-slate-100 dark:bg-white/5 text-slate-500 dark:text-gray-400 hover:bg-slate-200 dark:hover:bg-white/10'
                   }`}
                 >
@@ -126,13 +131,25 @@ const AdvanceModal = ({ isOpen, onClose, salary, wallets, onSubmit }) => {
                 <button
                   type="button"
                   onClick={() => setType('FINE')}
-                  className={`py-2 rounded-xl font-bold transition cursor-pointer ${
+                  className={`py-2 rounded-xl font-bold transition cursor-pointer text-[10px] ${
                     type === 'FINE' ? 'bg-rose-600 text-white shadow-sm' : 'bg-slate-100 dark:bg-white/5 text-slate-500 dark:text-gray-400 hover:bg-slate-200 dark:hover:bg-white/10'
                   }`}
                 >
                   {t('salaries_page.fine')}
                 </button>
+                <button
+                  type="button"
+                  onClick={() => setType('DEDUCTION_REMOVE')}
+                  className={`py-2 rounded-xl font-bold transition cursor-pointer text-[10px] ${
+                    type === 'DEDUCTION_REMOVE' ? 'bg-emerald-600 text-white shadow-sm' : 'bg-slate-100 dark:bg-white/5 text-slate-500 dark:text-gray-400 hover:bg-slate-200 dark:hover:bg-white/10'
+                  }`}
+                >
+                  Xato - qaytarish
+                </button>
               </div>
+              {type === 'DEDUCTION_REMOVE' && (
+                <p className="text-[9px] text-slate-400 mt-1 font-normal">Joriy chegirma: {(salary.deductions || 0).toLocaleString()} UZS</p>
+              )}
             </div>
           ) : (
             <div>
@@ -210,7 +227,9 @@ const AdvanceModal = ({ isOpen, onClose, salary, wallets, onSubmit }) => {
             <AlertTriangle className="w-3.5 h-3.5" />
             <span>
               {category === 'DEDUCTION'
-                ? `Ushbu summa ${salary.full_name}ning joriy oydagi maoshidan chegiriladi.`
+                ? (type === 'DEDUCTION_REMOVE'
+                    ? `Xato bilan berilgan avans/jarima ${salary.full_name}ning chegirmasidan olib tashlanadi va summa balansga qaytariladi.`
+                    : `Ushbu summa ${salary.full_name}ning joriy oydagi maoshidan chegiriladi.`)
                 : `Ushbu summa ${salary.full_name}ning joriy oydagi maoshiga ${type === 'BONUS_ADD' ? "qo'shiladi" : "bonusidan olib tashlanadi"}.`}
             </span>
           </div>

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../core/theme.dart';
+import '../../../core/utils/quantity_format.dart';
 import '../../../models/order.dart';
 import '../bloc/orders_cubit.dart';
 
@@ -61,7 +62,7 @@ class DetailCarpetItemWidget extends StatelessWidget {
     final unit = order.measurementUnit.toLowerCase().replaceAll('.', '');
     final isAreaBased = unit == 'm²' || unit.contains('kv');
     final area = item.length * item.width;
-    final totalQty = isAreaBased ? (area * item.quantity) : item.quantity.toDouble();
+    final totalQty = isAreaBased ? (area * item.quantity) : item.quantity;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
@@ -83,8 +84,8 @@ class DetailCarpetItemWidget extends StatelessWidget {
               ),
               Text(
                 isAreaBased
-                    ? "${item.quantity} dona (${item.length.toStringAsFixed(1)}x${item.width.toStringAsFixed(1)} m) = ${totalQty.toStringAsFixed(1)} ${order.measurementUnit}"
-                    : "${item.quantity} ${order.measurementUnit}",
+                    ? "${formatQty(item.quantity)} dona (${item.length.toStringAsFixed(1)}x${item.width.toStringAsFixed(1)} m) = ${totalQty.toStringAsFixed(1)} ${order.measurementUnit}"
+                    : "${formatQty(item.quantity)} ${order.measurementUnit}",
                 style: TextStyle(color: AppTheme.textSecondaryOf(context), fontSize: 10),
               ),
             ],

@@ -41,7 +41,9 @@ class OrdersRepository {
   }
 
   /// Gilam yozuvini yangilash - nom, o'lcham, soni va/yoki ALOHIDA narxi.
-  Future<void> updateOrderItem(String orderId, String itemId, {String? name, double? length, double? width, int? quantity, double? price}) {
+  /// quantity endi `double` - "kg"/"litr"/"metr" kabi uzluksiz birliklarda
+  /// kasr miqdor (masalan 2.5) kiritish uchun (backend BigDecimal qabul qiladi).
+  Future<void> updateOrderItem(String orderId, String itemId, {String? name, double? length, double? width, double? quantity, double? price}) {
     final data = <String, dynamic>{};
     if (name != null) data['name'] = name;
     if (length != null) data['length'] = length;
@@ -94,7 +96,7 @@ class OrdersRepository {
     return _api.put('/orders/$orderId/items/$itemId', data: {'status': status});
   }
 
-  Future<void> addOrderItem(String orderId, String name, double length, double width, int quantity) {
+  Future<void> addOrderItem(String orderId, String name, double length, double width, double quantity) {
     return _api.post('/orders/$orderId/items', data: {
       'name': name,
       'length': length,

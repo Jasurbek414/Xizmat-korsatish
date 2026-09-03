@@ -120,7 +120,13 @@ public class EmployeeController {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of("message", "Tenant ID is missing"));
         }
 
-        List<User> employees = userRepository.findByCompanyId(UUID.fromString(tenantId));
+        // "O'chirilgan" (DELETED) xodimlar ro'yxatda ko'rinmaydi - lekin
+        // haqiqatan bazadan o'chirilmaydi (deleteEmployee'ga qarang), shu
+        // sabab ularning ismi eski buyurtma/oylik/tranzaksiyalarda hamon
+        // to'g'ri ko'rinib turadi.
+        List<User> employees = userRepository.findByCompanyId(UUID.fromString(tenantId)).stream()
+                .filter(u -> !"DELETED".equalsIgnoreCase(u.getStatus()))
+                .toList();
         return ResponseEntity.ok(employees);
     }
 
@@ -132,7 +138,9 @@ public class EmployeeController {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of("message", "Tenant ID is missing"));
         }
 
-        List<User> drivers = userRepository.findByCompanyIdAndRole(UUID.fromString(tenantId), "WORKER_DRIVER");
+        List<User> drivers = userRepository.findByCompanyIdAndRole(UUID.fromString(tenantId), "WORKER_DRIVER").stream()
+                .filter(u -> !"DELETED".equalsIgnoreCase(u.getStatus()))
+                .toList();
         return ResponseEntity.ok(drivers);
     }
 
@@ -256,13 +264,26 @@ public class EmployeeController {
         return ResponseEntity.ok(saved);
     }
 
-    // MUHIM (audit'da topilgan): auth_sessions va app_notifications
-    // jadvallari user_id'ga NOT NULL FK bilan bog'langan, cascade'siz. Login
-    // qilgan (auth_sessions yozuvi bor) YOKI kamida bitta bildirishnoma
-    // olgan HAR bir xodimni o'chirishga urinish avval DataIntegrityViolationException
-    // bilan barbod bo'lardi - bu deyarli HAR bir xodim, chunki bildirishnoma
-    // yozuvi buyurtma biriktirilganda ham yaratiladi. @Transactional - uch
-    // o'chirish amali BIR yaxlit tranzaksiyada bo'lishi kerak.
+    // MUHIM (audit'da topilgan, YECHIM QAYTA KO'RIB CHIQILDI): users
+    // jadvaliga 13 ta jadval FK bilan bog'langan (orders, salaries,
+    // transactions va h.k.) - HAQIQIY (bazadan butunlay) o'chirish deyarli
+    // HAR BIR ishlagan xodim uchun DataIntegrityViolationException bilan
+    // barbod bo'lardi. Avval bu "bloklab, aniq sabab ko'rsatish" bilan hal
+    // qilingan edi, lekin foydalanuvchi buni istamadi: xodim RO'YXATDAN
+    // yo'qolishi (o'chirilgani ko'rinishi) kerak, LEKIN eski buyurtma/oylik/
+    // tranzaksiya yozuvlarida uning ISMI saqlanib qolishi kerak.
+    //
+    // Yechim - "soft delete": User qatori bazada QOLADI (shu sabab hech
+    // qanday FK buzilmaydi, worker.fullName/user.fullName kabi eski
+    // yozuvlardagi barcha havolalar ishlashda davom etadi), lekin:
+    //   - status = "DELETED" (User.isEnabled() faqat "ACTIVE"da true
+    //     qaytaradi - shu bilan login avtomatik butunlay yopiladi)
+    //   - username'ga tasodifiy suffiks qo'shiladi (shu username'dan
+    //     kelajakda yangi xodim yaratishda foydalanish mumkin bo'lishi uchun -
+    //     "username allaqachon mavjud" tekshiruvi endi to'sqinlik qilmaydi)
+    //   - getEmployees()/getDrivers() DELETED'ni ro'yxatdan chiqarib
+    //     tashlaydi - xodim "o'chirilgandek" ko'rinadi
+    //   - joriy sessiya/refresh token darhol bekor qilinadi (xavfsizlik)
     @DeleteMapping("/{id}")
     @PreAuthorize("@perm.has('employees')")
     @Transactional
@@ -281,9 +302,14 @@ public class EmployeeController {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of("message", "Faqat administrator boshqa administratorni o'chira oladi"));
         }
 
+        employee.setStatus("DELETED");
+        employee.setUsername(employee.getUsername() + "_deleted_" + UUID.randomUUID().toString().substring(0, 8));
+        userRepository.save(employee);
+
         authSessionRepository.deleteByUserId(id);
         appNotificationRepository.deleteByUserId(id);
-        userRepository.delete(employee);
+        refreshTokenService.revokeAllForUser(id);
+
         return ResponseEntity.ok(Map.of("message", "Xodim muvaffaqiyatli o'chirildi"));
     }
 

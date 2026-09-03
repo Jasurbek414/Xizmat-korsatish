@@ -37,9 +37,15 @@ public class OrderItem {
     @Builder.Default
     private BigDecimal width = BigDecimal.ZERO;
 
-    @Column(nullable = false)
+    // MUHIM: avval Integer edi - "kg", "litr", "metr" kabi uzluksiz
+    // o'lchov birliklarida kasr miqdor (masalan 2.5 kg) kiritish UMUMAN
+    // imkonsiz edi (butun songa yaxlitlanib/yo'qolib, narx noto'g'ri
+    // chiqardi). Endi BigDecimal - "dona"/maydon asosli (m², kv. metr)
+    // birliklarda hamon butun son sifatida ishlatiladi, lekin kg/litr/metr
+    // uchun aniq kasr qiymatga ruxsat beradi.
+    @Column(nullable = false, precision = 12, scale = 3)
     @Builder.Default
-    private Integer quantity = 1;
+    private BigDecimal quantity = BigDecimal.ONE;
 
     // Har bir gilam sex xodimi tomonidan ALOHIDA narxlanishi mumkin (masalan
     // yuvish/tozalash murakkabligiga qarab). Bo'sh/0 bo'lsa, buyurtma narxini

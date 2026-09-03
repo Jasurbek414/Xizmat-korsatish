@@ -122,8 +122,71 @@ public class CompanyController {
         if (request.containsKey("smsTemplateAssigned")) company.setSmsTemplateAssigned((String) request.get("smsTemplateAssigned"));
         if (request.containsKey("smsTemplateCompleted")) company.setSmsTemplateCompleted((String) request.get("smsTemplateCompleted"));
 
+        if (request.containsKey("receiptEnabled")) company.setReceiptEnabled((Boolean) request.get("receiptEnabled"));
+        if (request.containsKey("receiptPaperSize")) company.setReceiptPaperSize((String) request.get("receiptPaperSize"));
+        if (request.containsKey("receiptShowAddress")) company.setReceiptShowAddress((Boolean) request.get("receiptShowAddress"));
+        if (request.containsKey("receiptShowPhone")) company.setReceiptShowPhone((Boolean) request.get("receiptShowPhone"));
+        if (request.containsKey("receiptFooterText")) company.setReceiptFooterText((String) request.get("receiptFooterText"));
+        if (request.containsKey("receiptHeaderText")) company.setReceiptHeaderText((String) request.get("receiptHeaderText"));
+        if (request.containsKey("receiptShowItems")) company.setReceiptShowItems((Boolean) request.get("receiptShowItems"));
+        if (request.containsKey("receiptShowPaymentMethod")) company.setReceiptShowPaymentMethod((Boolean) request.get("receiptShowPaymentMethod"));
+        if (request.containsKey("receiptShowOrderNumber")) company.setReceiptShowOrderNumber((Boolean) request.get("receiptShowOrderNumber"));
+        if (request.containsKey("receiptShowEmployeeName")) company.setReceiptShowEmployeeName((Boolean) request.get("receiptShowEmployeeName"));
+        if (request.containsKey("receiptCopies")) company.setReceiptCopies(Integer.parseInt(request.get("receiptCopies").toString()));
+        if (request.containsKey("receiptFontSize")) company.setReceiptFontSize((String) request.get("receiptFontSize"));
+        if (request.containsKey("receiptLogoBase64")) company.setReceiptLogoBase64((String) request.get("receiptLogoBase64"));
+
         Company saved = companyRepository.save(company);
         return ResponseEntity.ok(saved);
+    }
+
+    /**
+     * Mobil ilova (haydovchi) uchun - to'lov qabul qilingach chek chiqarish
+     * kerakmi va uni qanday chop etish (o'lcham, qaysi maydonlar, pastki
+     * matn) kerakligini bildiradi. ATAYIN alohida, yengil endpoint - to'liq
+     * getCompanySettings() 'settings' huquqini talab qiladi va smsApiToken
+     * kabi sirlarni qaytaradi, lekin haydovchida hech qachon 'settings'
+     * huquqi bo'lmaydi (faqat 'mobile_orders').
+     */
+    public record ReceiptSettingsResponse(
+            boolean enabled, String paperSize, boolean showAddress, boolean showPhone,
+            boolean showItems, boolean showPaymentMethod,
+            boolean showOrderNumber, boolean showEmployeeName,
+            int copies, String fontSize, String logoBase64,
+            String headerText, String footerText,
+            String companyName, String companyAddress, String companyPhone) {
+    }
+
+    @GetMapping("/receipt-settings")
+    @PreAuthorize("@perm.has('mobile_orders','orders','settings')")
+    public ResponseEntity<?> getReceiptSettings() {
+        String tenantId = TenantContext.getCurrentTenant();
+        if (tenantId == null) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of("message", "Tenant ID is missing"));
+        }
+        Company company = companyRepository.findById(UUID.fromString(tenantId)).orElse(null);
+        if (company == null) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("message", "Kompaniya topilmadi"));
+        }
+        return ResponseEntity.ok(new ReceiptSettingsResponse(
+                Boolean.TRUE.equals(company.getReceiptEnabled()),
+                company.getReceiptPaperSize() != null ? company.getReceiptPaperSize() : "58",
+                Boolean.TRUE.equals(company.getReceiptShowAddress()),
+                Boolean.TRUE.equals(company.getReceiptShowPhone()),
+                Boolean.TRUE.equals(company.getReceiptShowItems()),
+                Boolean.TRUE.equals(company.getReceiptShowPaymentMethod()),
+                Boolean.TRUE.equals(company.getReceiptShowOrderNumber()),
+                Boolean.TRUE.equals(company.getReceiptShowEmployeeName()),
+                company.getReceiptCopies() != null ? company.getReceiptCopies() : 1,
+                company.getReceiptFontSize() != null ? company.getReceiptFontSize() : "normal",
+                company.getReceiptLogoBase64(),
+                company.getReceiptHeaderText() != null && !company.getReceiptHeaderText().isBlank()
+                        ? company.getReceiptHeaderText() : company.getName(),
+                company.getReceiptFooterText() != null ? company.getReceiptFooterText() : "",
+                company.getName(),
+                company.getAddress(),
+                company.getPhone()
+        ));
     }
 
     /**

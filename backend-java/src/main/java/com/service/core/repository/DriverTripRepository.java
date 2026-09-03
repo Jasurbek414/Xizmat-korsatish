@@ -16,4 +16,5 @@ public interface DriverTripRepository extends JpaRepository<DriverTrip, UUID> {
     List<DriverTrip> findByUserIdOrderByStartedAtDesc(UUID userId);
 
     Optional<DriverTrip> findByIdAndCompanyId(UUID id, UUID companyId);
+    void deleteByUserId(UUID userId);
 }

@@ -42,6 +42,19 @@ const ServicesCatalog = () => {
         const company = await api.getCompanySettings();
         if (company.measurementUnits && company.measurementUnits.length > 0) {
           setUnits(company.measurementUnits);
+          // MUHIM (jonli xato: "dona qabul qilmayapti"): boshlang'ich
+          // measurement_unit qiymati ('m²') ko'pincha kompaniyaning
+          // haqiqiy ro'yxatida umuman yo'q - natijada <select> vizual
+          // ravishda ro'yxatdagi BIRINCHI elementni (masalan "dona")
+          // ko'rsatadi, lekin React holati hali eski qiymatda qolib
+          // ketadi. Shu sabab ro'yxat birinchi elementiga (agar joriy
+          // qiymat unda bo'lmasa) darhol moslashtiramiz - "ko'rsatilgan"
+          // va "haqiqatda saqlanadigan" qiymat doim bir xil bo'lishi uchun.
+          setNewService(prev =>
+            company.measurementUnits.includes(prev.measurement_unit)
+              ? prev
+              : { ...prev, measurement_unit: company.measurementUnits[0] }
+          );
         }
       } catch (err) {
         console.error("Failed to load measurement units:", err);
@@ -334,8 +347,18 @@ const ServicesCatalog = () => {
                       {service.price.toLocaleString()} UZS
                     </td>
                     <td className="p-4 text-right flex items-center justify-end gap-1.5">
-                      <button 
-                        onClick={() => setEditingService(service)}
+                      <button
+                        onClick={() => setEditingService(
+                          // Xizmatning saqlangan o'lchov birligi joriy
+                          // ro'yxatda bo'lmasa (masalan eski/o'chirilgan
+                          // birlik), <select> yuqoridagi bilan bir xil
+                          // "ko'rinish/holat mos kelmasligi" xatosiga
+                          // tushmasligi uchun ro'yxatdagi birinchisiga
+                          // moslashtiramiz.
+                          units.includes(service.measurement_unit)
+                            ? service
+                            : { ...service, measurement_unit: units[0] || service.measurement_unit }
+                        )}
                         className="p-1.5 rounded-xl bg-indigo-500/10 border border-indigo-500/10 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-500/20 transition cursor-pointer"
                       >
                         <Edit3 className="w-3.5 h-3.5" />

@@ -22,6 +22,11 @@ public interface OrderRepository extends JpaRepository<Order, UUID> {
      */
     List<Order> findByCompanyIdOrderByCreatedAtDesc(UUID companyId);
     List<Order> findByCompanyIdAndWorkerId(UUID companyId, UUID workerId);
+
+    // Xodimni o'chirishdan oldin tekshirish uchun - haydovchi, kuryer yoki
+    // sex xodimi sifatida BIRON buyurtmaga bog'langan bo'lsa, uni butunlay
+    // o'chirib bo'lmaydi (EmployeeController.deleteEmployee).
+    boolean existsByWorkerIdOrDriverIdOrSexWorkerId(UUID workerId, UUID driverId, UUID sexWorkerId);
     List<Order> findByStatusId(UUID statusId);
     List<Order> findByCompanyIdAndPaymentStatus(UUID companyId, String paymentStatus);
 

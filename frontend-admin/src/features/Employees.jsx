@@ -16,7 +16,7 @@ import SendMessageModal from './employees/SendMessageModal';
 
 const Employees = ({ tab }) => {
   const { t } = useTranslation();
-  
+
   // DB States
   const [users, setUsers] = useState([]);
   const [pageLoading, setPageLoading] = useState(true);
@@ -187,11 +187,14 @@ const Employees = ({ tab }) => {
     }
   };
 
-  // Delete Employee
+  // Delete Employee - backend endi "soft delete" qiladi: xodim ro'yxatdan
+  // (bu ro'yxat va getEmployees()dan) yo'qoladi, lekin bazadagi yozuvi
+  // saqlanib qoladi - shu sabab eski buyurtma/oylik/tranzaksiyalarda uning
+  // ISMI hamon to'g'ri ko'rinadi ("worker.fullName" kabi havolalar buzilmaydi).
   const handleDeleteEmployee = async (userId) => {
     const targetUser = users.find(u => u.id === userId);
     if (!targetUser) return;
-    if (!(await confirmDialog("Haqiqatan ham ushbu xodimni o'chirib yubormoqchimisiz? Barcha ish haqi va maosh tarixi ham tozalanadi."))) return;
+    if (!(await confirmDialog("Haqiqatan ham ushbu xodimni o'chirib yubormoqchimisiz? U ro'yxatdan yo'qoladi, lekin eski buyurtma/oylik tarixida ismi saqlanib qoladi.", { danger: true }))) return;
 
     try {
       await api.deleteEmployee(userId);
@@ -202,12 +205,14 @@ const Employees = ({ tab }) => {
         `Xodim o'chirildi`,
         `Сотрудник удален`,
         `Employee deleted`,
-        `${targetUser.full_name} tizimdan butunlay o'chirib yuborildi.`,
-        `Сотрудник ${targetUser.full_name} был полностью удален из системы.`,
-        `Employee ${targetUser.full_name} was completely deleted from the system.`,
+        `${targetUser.full_name} xodimlar ro'yxatidan o'chirib yuborildi.`,
+        `Сотрудник ${targetUser.full_name} удален из списка сотрудников.`,
+        `Employee ${targetUser.full_name} was removed from the employee list.`,
         'ERROR'
       );
     } catch (err) {
+      // api.js'dagi handleResponse() xato xabarini avtomatik toast qilib
+      // ko'rsatadi - shu yerda faqat konsolga yozish yetarli.
       console.error("Failed to delete employee:", err);
     }
   };
@@ -287,7 +292,7 @@ const Employees = ({ tab }) => {
       />
 
       {/* Add / Edit Employee modal form */}
-      <CreateEmployeeModal 
+      <CreateEmployeeModal
         isOpen={showCreateModal || !!selectedUserForEdit}
         onClose={() => { setShowCreateModal(false); setSelectedUserForEdit(null); }}
         employee={selectedUserForEdit}

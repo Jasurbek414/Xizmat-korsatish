@@ -70,6 +70,12 @@ public class Salary {
     @Column(length = 50)
     private String status = "UNPAID"; // PAID, UNPAID
 
+    // "To'landi" bosilganda yaratilgan xarajat tranzaksiyasi ID'si - xato
+    // bilan to'langan deb belgilangan hisobni bekor qilishda (unpay) aynan
+    // shu tranzaksiyani topib o'chirish, balansni to'g'ri tiklash uchun.
+    @Column(name = "payment_transaction_id")
+    private UUID paymentTransactionId;
+
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
 

@@ -114,4 +114,27 @@ class SecureStorageService {
       value: isOnline ? 'ONLINE' : 'OFFLINE',
     );
   }
+
+  /// Chek chiqarish uchun tanlangan Bluetooth termal printerni saqlaydi -
+  /// keyingi safar haydovchi qayta "skanerlash"siz avtomatik shu printerga
+  /// ulanadi.
+  Future<void> savePrinter({required String mac, required String name}) async {
+    await Future.wait([
+      _storage.write(key: AppConstants.keyPrinterMac, value: mac),
+      _storage.write(key: AppConstants.keyPrinterName, value: name),
+    ]);
+  }
+
+  Future<String?> readPrinterMac() =>
+      _storage.read(key: AppConstants.keyPrinterMac);
+
+  Future<String?> readPrinterName() =>
+      _storage.read(key: AppConstants.keyPrinterName);
+
+  Future<void> clearPrinter() async {
+    await Future.wait([
+      _storage.delete(key: AppConstants.keyPrinterMac),
+      _storage.delete(key: AppConstants.keyPrinterName),
+    ]);
+  }
 }

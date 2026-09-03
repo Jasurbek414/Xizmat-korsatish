@@ -292,7 +292,7 @@ class OrdersCubit extends Cubit<OrdersState> {
     await _repository.updateStatus(order.id, target.id);
   }
 
-  Future<void> createOrderItem(Order order, String name, double length, double width, int quantity) async {
+  Future<void> createOrderItem(Order order, String name, double length, double width, double quantity) async {
     try {
       await _repository.addOrderItem(order.id, name, length, width, quantity);
       await refresh();
@@ -302,7 +302,7 @@ class OrdersCubit extends Cubit<OrdersState> {
   }
 
   /// Gilamni tahrirlash (nomi, eni, bo'yi, soni)
-  Future<void> updateOrderItem(Order order, OrderItemInfo item, {String? name, double? length, double? width, int? quantity}) async {
+  Future<void> updateOrderItem(Order order, OrderItemInfo item, {String? name, double? length, double? width, double? quantity}) async {
     try {
       await _repository.updateOrderItem(order.id, item.id, name: name, length: length, width: width, quantity: quantity);
       await refresh();

@@ -200,10 +200,6 @@ public class SalaryController {
             return ResponseEntity.badRequest().body(Map.of("message", "Ushbu maosh allaqachon to'langan"));
         }
 
-        // Mark PAID
-        salary.setStatus("PAID");
-        salaryRepository.save(salary);
-
         // Calculate net payout: base + bonus - deductions - attendanceDeduction
         BigDecimal netAmount = salary.getBaseSalary()
                 .add(salary.getBonus() != null ? salary.getBonus() : BigDecimal.ZERO)
@@ -220,7 +216,49 @@ public class SalaryController {
                         salary.getUser().getFullName(), salary.getPayPeriod().toString().substring(0, 7)))
                 .status("CONFIRMED")
                 .build();
-        transactionRepository.save(tx);
+        Transaction savedTx = transactionRepository.save(tx);
+
+        // Mark PAID - tranzaksiya ID'si saqlanadi, xato bilan bosilgan
+        // "To'lash"ni keyinchalik /unpay orqali aniq shu tranzaksiyani
+        // o'chirib, balansni to'g'ri tiklagan holda bekor qilish uchun.
+        salary.setStatus("PAID");
+        salary.setPaymentTransactionId(savedTx.getId());
+        salaryRepository.save(salary);
+
+        return ResponseEntity.ok(salary);
+    }
+
+    /**
+     * Xato bilan "To'landi" deb belgilangan maoshni bekor qiladi: statusni
+     * UNPAID'ga qaytaradi va {@link #paySalary} yaratgan xarajat
+     * tranzaksiyasini o'chiradi - shu bilan Moliya balansi/hisobotlari ham
+     * to'g'ri holatga qaytadi ("summa o'z o'rniga qaytadi").
+     */
+    @PutMapping("/{id}/unpay")
+    @PreAuthorize("@perm.has('salaries')")
+    @Transactional
+    public ResponseEntity<?> unpaySalary(@PathVariable UUID id) {
+        String tenantId = TenantContext.getCurrentTenant();
+        if (tenantId == null) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of("message", "Tenant ID is missing"));
+        }
+
+        Salary salary = salaryRepository.findById(id).orElse(null);
+        if (salary == null || !salary.getCompany().getId().equals(UUID.fromString(tenantId))) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("message", "Maosh hisobi topilmadi"));
+        }
+        if (!"PAID".equalsIgnoreCase(salary.getStatus())) {
+            return ResponseEntity.badRequest().body(Map.of("message", "Ushbu maosh hali to'lanmagan"));
+        }
+
+        UUID txId = salary.getPaymentTransactionId();
+        salary.setStatus("UNPAID");
+        salary.setPaymentTransactionId(null);
+        salaryRepository.save(salary);
+
+        if (txId != null) {
+            transactionRepository.findById(txId).ifPresent(transactionRepository::delete);
+        }
 
         return ResponseEntity.ok(salary);
     }
@@ -267,6 +305,58 @@ public class SalaryController {
                 .amount(amount)
                 .category("SALARY")
                 .description(String.format("%s uchun %s oyi uchun avans berildi",
+                        salary.getUser().getFullName(), salary.getPayPeriod().toString().substring(0, 7)))
+                .status("CONFIRMED")
+                .build();
+        transactionRepository.save(tx);
+
+        return ResponseEntity.ok(salary);
+    }
+
+    /**
+     * Xato bilan kiritilgan avans/jarimani (yoki uning bir qismini) bekor
+     * qiladi. Bitta oyga bir nechta avans qo'shilishi mumkinligi sababli
+     * ({@link #addDeduction} har safar YANGI tranzaksiya yaratadi) aynan
+     * qaysi tranzaksiyani o'chirish kerakligini ishonchli aniqlab bo'lmaydi -
+     * shu sabab eski tranzaksiyani o'chirish o'rniga, teskari YOZUV
+     * (qaytarilgan summa - INCOME) yaratiladi. Natijada balans/hisobotlarda
+     * summa to'g'ri "o'z o'rniga qaytadi", va tarixda ikkalasi ham
+     * (avans + tuzatish) ko'rinib turadi.
+     */
+    @PutMapping("/{id}/deduction/remove")
+    @PreAuthorize("@perm.has('salaries')")
+    public ResponseEntity<?> removeDeduction(@PathVariable UUID id, @RequestBody Map<String, Object> request) {
+        String tenantId = TenantContext.getCurrentTenant();
+        if (tenantId == null) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of("message", "Tenant ID is missing"));
+        }
+
+        Salary salary = salaryRepository.findById(id).orElse(null);
+        if (salary == null || !salary.getCompany().getId().equals(UUID.fromString(tenantId))) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("message", "Maosh hisobi topilmadi"));
+        }
+        if ("PAID".equalsIgnoreCase(salary.getStatus())) {
+            return ResponseEntity.badRequest().body(Map.of("message", "To'langan hisobdagi chegirmani o'zgartirib bo'lmaydi"));
+        }
+
+        BigDecimal amount = parsePositiveAmount(request.get("amount"));
+        if (amount == null) {
+            return ResponseEntity.badRequest().body(Map.of("message", "Summa musbat son bo'lishi shart"));
+        }
+
+        BigDecimal currentDeductions = salary.getDeductions() != null ? salary.getDeductions() : BigDecimal.ZERO;
+        if (amount.compareTo(currentDeductions) > 0) {
+            return ResponseEntity.badRequest().body(Map.of("message", "Qaytariladigan summa joriy chegirmadan katta bo'lishi mumkin emas"));
+        }
+        salary.setDeductions(currentDeductions.subtract(amount));
+        salaryRepository.save(salary);
+
+        Transaction tx = Transaction.builder()
+                .company(salary.getCompany())
+                .type("INCOME")
+                .amount(amount)
+                .category("SALARY")
+                .description(String.format("%s uchun %s oyi - xato bilan berilgan avans/jarima qaytarildi",
                         salary.getUser().getFullName(), salary.getPayPeriod().toString().substring(0, 7)))
                 .status("CONFIRMED")
                 .build();

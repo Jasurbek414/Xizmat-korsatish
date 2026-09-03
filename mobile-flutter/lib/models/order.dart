@@ -67,7 +67,9 @@ class OrderItemInfo {
   final String name;
   final double length;
   final double width;
-  final int quantity;
+  // MUHIM: avval `int` edi - "kg"/"litr"/"metr" kabi uzluksiz o'lchov
+  // birliklarida kasr miqdor (masalan 2.5 kg) butunlay ifodalab bo'lmasdi.
+  final double quantity;
   final String status; // ACCEPTED, WASHED, DRIED, READY
   // Shu gilamga sex xodimi tomonidan ALOHIDA belgilangan narx (bo'lmasa null -
   // buyurtma narxini hisoblashda xizmat narxi x o'lchov bo'yicha avtomatik olinadi).
@@ -89,7 +91,7 @@ class OrderItemInfo {
       name: json['name'] ?? 'Gilam',
       length: (json['length'] as num?)?.toDouble() ?? 0.0,
       width: (json['width'] as num?)?.toDouble() ?? 0.0,
-      quantity: (json['quantity'] as num?)?.toInt() ?? 1,
+      quantity: (json['quantity'] as num?)?.toDouble() ?? 1.0,
       status: json['status'] ?? 'ACCEPTED',
       price: (json['price'] as num?)?.toDouble(),
     );

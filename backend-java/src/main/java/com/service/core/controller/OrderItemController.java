@@ -119,13 +119,26 @@ public class OrderItemController {
                 continue;
             }
             BigDecimal basis = isAreaBased
-                    ? item.getLength().multiply(item.getWidth()).multiply(BigDecimal.valueOf(item.getQuantity()))
-                    : BigDecimal.valueOf(item.getQuantity());
+                    ? item.getLength().multiply(item.getWidth()).multiply(item.getQuantity())
+                    : item.getQuantity();
             total = total.add(basis.multiply(order.getService().getPrice()));
         }
 
         order.setPrice(total);
         orderRepository.save(order);
+    }
+
+    /**
+     * "dona" (yoki maydon asosli m²/kv. metr) - jismoniy ALOHIDA-ALOHIDA
+     * sanaladigan/kuzatiladigan birlik (har biri o'z holati - ACCEPTED/
+     * WASHED/... bilan). "kg", "litr", "metr" esa UZLUKSIZ o'lchov -
+     * "3.5 kg"ni "3 yoki 4 ta alohida bo'lak" deb ajratishning ma'nosi yo'q,
+     * shuning uchun bular BITTA yozuvda kasr miqdor sifatida saqlanadi.
+     */
+    private boolean isDiscreteUnit(String unit) {
+        if (unit == null) return true;
+        String normalized = unit.toLowerCase().replace(".", "").trim();
+        return normalized.contains("dona") || normalized.equals("m²") || normalized.contains("kv");
     }
 
     private boolean isOrderPastOrCompleted(Order order) {
@@ -180,28 +193,53 @@ public class OrderItemController {
         String name = request.getOrDefault("name", "Gilam").toString();
         BigDecimal length = request.containsKey("length") ? new BigDecimal(request.get("length").toString()) : BigDecimal.ZERO;
         BigDecimal width = request.containsKey("width") ? new BigDecimal(request.get("width").toString()) : BigDecimal.ZERO;
-        Integer quantity = request.containsKey("quantity") ? Integer.parseInt(request.get("quantity").toString()) : 1;
+        BigDecimal quantity;
+        try {
+            quantity = request.containsKey("quantity") ? new BigDecimal(request.get("quantity").toString()) : BigDecimal.ONE;
+        } catch (NumberFormatException e) {
+            return ResponseEntity.badRequest().body(Map.of("message", "Noto'g'ri miqdor formati"));
+        }
+        if (quantity.compareTo(BigDecimal.ZERO) <= 0) {
+            return ResponseEntity.badRequest().body(Map.of("message", "Miqdor musbat bo'lishi shart"));
+        }
         String status = request.getOrDefault("status", "ACCEPTED").toString();
 
-        // MUHIM (jonli so'rov bo'yicha qo'shildi): avval "soni=5" BITTA
-        // OrderItem yozuviga yozilardi - sex hodimi buni BITTA gilam
-        // sifatida ko'rar va o'lchov/narx faqat SHU BITTA yozuvga (demak
-        // barcha 5 tasiga BIR XIL o'lchamda) tegishli bo'lardi. Aslida har
-        // bir gilamning o'z eni/bo'yi/narxi bor. Shu sabab haydovchi
-        // "5 ta" deb kiritsa, sex uchun ALOHIDA-ALOHIDA 5 ta yozuv
-        // yaratiladi (har biri quantity=1) - har biri mustaqil o'lchanadi
-        // va narxlanadi. Bir nechta bo'lsa, chalkashmasligi uchun nomi
-        // "Gilam 1", "Gilam 2" ... tarzida raqamlanadi.
+        String unit = order.getService() != null ? order.getService().getMeasurementUnit() : null;
         List<OrderItem> createdItems = new java.util.ArrayList<>();
-        int rowCount = Math.max(1, quantity);
-        for (int i = 1; i <= rowCount; i++) {
-            String itemName = rowCount > 1 ? name + " " + i : name;
+        if (isDiscreteUnit(unit)) {
+            // MUHIM (jonli so'rov bo'yicha qo'shildi): avval "soni=5" BITTA
+            // OrderItem yozuviga yozilardi - sex hodimi buni BITTA gilam
+            // sifatida ko'rar va o'lchov/narx faqat SHU BITTA yozuvga (demak
+            // barcha 5 tasiga BIR XIL o'lchamda) tegishli bo'lardi. Aslida har
+            // bir gilamning o'z eni/bo'yi/narxi bor. Shu sabab "5 ta" deb
+            // kiritilsa, sex uchun ALOHIDA-ALOHIDA 5 ta yozuv yaratiladi (har
+            // biri quantity=1) - har biri mustaqil o'lchanadi va narxlanadi.
+            // Faqat "dona"/maydon asosli (m², kv. metr) birliklarda mantiqiy -
+            // bular jismoniy sanaladigan/alohida kuzatiladigan buyumlar.
+            int rowCount = Math.max(1, quantity.intValue());
+            for (int i = 1; i <= rowCount; i++) {
+                String itemName = rowCount > 1 ? name + " " + i : name;
+                OrderItem item = OrderItem.builder()
+                        .order(order)
+                        .name(itemName)
+                        .length(length)
+                        .width(width)
+                        .quantity(BigDecimal.ONE)
+                        .status(status)
+                        .build();
+                createdItems.add(orderItemRepository.save(item));
+            }
+        } else {
+            // "kg"/"litr"/"metr" kabi UZLUKSIZ birliklar - "3.5 kg"ni "3-4
+            // alohida bo'lak"ka ajratishning ma'nosi yo'q, shuning uchun
+            // BITTA yozuvda aniq kasr miqdor sifatida saqlanadi (eni/bo'yi
+            // bu birliklar uchun ahamiyatsiz - kiritilmagan bo'lsa 0 qoladi).
             OrderItem item = OrderItem.builder()
                     .order(order)
-                    .name(itemName)
+                    .name(name)
                     .length(length)
                     .width(width)
-                    .quantity(1)
+                    .quantity(quantity)
                     .status(status)
                     .build();
             createdItems.add(orderItemRepository.save(item));
@@ -244,7 +282,7 @@ public class OrderItemController {
             item.setWidth(new BigDecimal(request.get("width").toString()));
         }
         if (request.containsKey("quantity")) {
-            item.setQuantity(Integer.parseInt(request.get("quantity").toString()));
+            item.setQuantity(new BigDecimal(request.get("quantity").toString()));
         }
         if (request.containsKey("price")) {
             item.setPrice(new BigDecimal(request.get("price").toString()));

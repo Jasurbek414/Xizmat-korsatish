@@ -5,7 +5,9 @@ import 'package:lucide_icons/lucide_icons.dart';
 import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../../core/network/api_exception.dart';
+import '../../../core/services/receipt_service.dart';
 import '../../../core/theme.dart';
+import '../../../core/utils/quantity_format.dart';
 import '../../../models/order.dart';
 import '../../../ui/app_ui.dart';
 import '../bloc/orders_cubit.dart';
@@ -154,7 +156,7 @@ class _DriverOrderDetailScreenState extends State<DriverOrderDetailScreen> {
   /// Gilamni tahrirlash dialogi (faqat nom + soni)
   Future<void> _editItem(OrderItemInfo item) async {
     final nameCtrl = TextEditingController(text: item.name);
-    final quantityCtrl = TextEditingController(text: item.quantity.toString());
+    final quantityCtrl = TextEditingController(text: formatQty(item.quantity));
 
     final result = await showDialog<bool>(
       context: context,
@@ -170,8 +172,8 @@ class _DriverOrderDetailScreenState extends State<DriverOrderDetailScreen> {
           const SizedBox(height: 12),
           TextField(
             controller: quantityCtrl,
-            keyboardType: TextInputType.number,
-            decoration: const InputDecoration(labelText: 'Soni', prefixIcon: Icon(LucideIcons.hash, size: 18)),
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            decoration: const InputDecoration(labelText: 'Soni / Miqdor', prefixIcon: Icon(LucideIcons.hash, size: 18)),
           ),
         ]),
         actions: [
@@ -195,7 +197,7 @@ class _DriverOrderDetailScreenState extends State<DriverOrderDetailScreen> {
     }
 
     final name = nameCtrl.text.trim();
-    final quantity = int.tryParse(quantityCtrl.text) ?? 1;
+    final quantity = double.tryParse(quantityCtrl.text) ?? 1.0;
     nameCtrl.dispose();
     quantityCtrl.dispose();
 
@@ -335,9 +337,9 @@ class _DriverOrderDetailScreenState extends State<DriverOrderDetailScreen> {
               const SizedBox(height: 14),
               TextField(
                 controller: quantityCtrl,
-                keyboardType: TextInputType.number,
+                keyboardType: const TextInputType.numberWithOptions(decimal: true),
                 decoration: const InputDecoration(
-                  labelText: 'Nechta gilam?',
+                  labelText: 'Nechta / Qancha?',
                   hintText: '1',
                   prefixIcon: Icon(LucideIcons.hash, size: 18),
                 ),
@@ -371,7 +373,7 @@ class _DriverOrderDetailScreenState extends State<DriverOrderDetailScreen> {
     }
 
     final name = nameCtrl.text.trim();
-    final quantity = int.tryParse(quantityCtrl.text) ?? 1;
+    final quantity = double.tryParse(quantityCtrl.text) ?? 1;
     nameCtrl.dispose();
     quantityCtrl.dispose();
 
@@ -393,7 +395,7 @@ class _DriverOrderDetailScreenState extends State<DriverOrderDetailScreen> {
           .createOrderItem(order, name, 0, 0, quantity);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('"$name" x $quantity qo\'shildi'),
+          content: Text('"$name" x ${formatQty(quantity)} qo\'shildi'),
           backgroundColor: AppTheme.primary,
           behavior: SnackBarBehavior.floating,
         ));
@@ -518,8 +520,12 @@ class _DriverOrderDetailScreenState extends State<DriverOrderDetailScreen> {
     // narxga mos kelmay, noto'g'ri ko'rsatilib qolar edi.
     final unit = order.measurementUnit.toLowerCase().replaceAll('.', '');
     final isAreaBased = unit == 'm²' || unit.contains('kv');
+    // "dona" - jismoniy sanaladigan/alohida kuzatiladigan birlik (m² ham,
+    // chunki har bir gilam hamon alohida yozuv). "kg"/"litr"/"metr" esa
+    // uzluksiz - ularda "necha dona" tushunchasi yo'q, faqat umumiy miqdor bor.
+    final isDiscrete = isAreaBased || unit.contains('dona');
     double totalMeasure = 0;
-    int totalCount = 0;
+    double totalCount = 0;
     // Ba'zi gilamlarga sex xodimi tomonidan ALOHIDA narx qo'yilgan bo'lishi
     // mumkin (item.price) - shunday holatda "o'lcham × xizmat narxi" formulasi
     // haqiqiy summaga mos kelmaydi, shuning uchun pastda shu formula
@@ -527,7 +533,7 @@ class _DriverOrderDetailScreenState extends State<DriverOrderDetailScreen> {
     bool hasManualPriceItem = false;
     for (final item in order.items) {
       final area = item.length * item.width;
-      totalMeasure += isAreaBased ? (area * item.quantity) : item.quantity.toDouble();
+      totalMeasure += isAreaBased ? (area * item.quantity) : item.quantity;
       totalCount += item.quantity;
       if (item.price != null && item.price! > 0) {
         hasManualPriceItem = true;
@@ -564,13 +570,13 @@ class _DriverOrderDetailScreenState extends State<DriverOrderDetailScreen> {
                     final area = item.length * item.width;
                     final itemMeasure = isAreaBased
                         ? (area * item.quantity)
-                        : item.quantity.toDouble();
+                        : item.quantity;
                     return Padding(
                       padding: const EdgeInsets.only(bottom: 2),
                       child: Text(
                           isAreaBased
-                              ? '${item.name}: ${item.quantity} dona (${item.length.toStringAsFixed(1)}×${item.width.toStringAsFixed(1)} m) = ${itemMeasure.toStringAsFixed(1)} ${order.measurementUnit}'
-                              : '${item.name}: ${item.quantity} ${order.measurementUnit}',
+                              ? '${item.name}: ${formatQty(item.quantity)} dona (${item.length.toStringAsFixed(1)}×${item.width.toStringAsFixed(1)} m) = ${itemMeasure.toStringAsFixed(1)} ${order.measurementUnit}'
+                              : '${item.name}: ${formatQty(item.quantity)} ${order.measurementUnit}',
                           style: TextStyle(
                               color: AppTheme.textSecondaryOf(context), fontSize: 12)),
                     );
@@ -580,8 +586,9 @@ class _DriverOrderDetailScreenState extends State<DriverOrderDetailScreen> {
             ),
             const SizedBox(height: 4),
             Text(
-                'Jami: $totalCount dona gilam'
-                '${isAreaBased ? ' — ${totalMeasure.toStringAsFixed(1)} ${order.measurementUnit}' : ''}',
+                isDiscrete
+                    ? 'Jami: ${formatQty(totalCount)} dona gilam${isAreaBased ? ' — ${totalMeasure.toStringAsFixed(1)} ${order.measurementUnit}' : ''}'
+                    : 'Jami: ${formatQty(totalCount)} ${order.measurementUnit}',
                 style: TextStyle(
                     color: AppTheme.textPrimaryOf(context),
                     fontSize: 13,
@@ -759,7 +766,19 @@ class _DriverOrderDetailScreenState extends State<DriverOrderDetailScreen> {
           backgroundColor: AppTheme.green,
           behavior: SnackBarBehavior.floating,
         ));
-        Navigator.pop(context);
+        // Chek chiqarish - admin panelda funksiya yoqilgan va haydovchi
+        // printer sozlagan bo'lsagina urinadi. AWAIT qilinadi (ekranni
+        // yopishdan OLDIN) - shu bilan chop etish natijasi (muvaffaqiyat/xato)
+        // haqida hali shu ekranda turib xabar berish mumkin. Xato bo'lsa ham
+        // to'lovning o'zi ALLAQACHON qabul qilingan - shu sabab print xatosi
+        // ekranni yopishni TO'XTATMAYDI, faqat alohida ogohlantirish beradi.
+        await _tryPrintReceipt(
+          amount: amount,
+          paymentMethod: paymentMethod,
+          cashAmount: cashAmount,
+          cardAmount: cardAmount,
+        );
+        if (mounted) Navigator.pop(context);
       }
     } catch (e) {
       if (mounted) {
@@ -771,6 +790,47 @@ class _DriverOrderDetailScreenState extends State<DriverOrderDetailScreen> {
       }
     } finally {
       if (mounted) setState(() => _isProcessing = false);
+    }
+  }
+
+  /// To'lov qabul qilingandan keyin chek chiqarishga urinadi - admin panelda
+  /// funksiya o'chirilgan yoki haydovchi hali printer sozlamagan bo'lsa,
+  /// JIMGINA (hech qanday xabarsiz) o'tkazib yuboriladi - bu odatiy holat,
+  /// xato emas. Faqat funksiya YOQILGAN, printer HAM sozlangan, lekin chop
+  /// etish o'zi muvaffaqiyatsiz bo'lsa (masalan printer o'chirilgan/uzoqda)
+  /// ogohlantirish ko'rsatiladi.
+  Future<void> _tryPrintReceipt({
+    required double amount,
+    required String paymentMethod,
+    double? cashAmount,
+    double? cardAmount,
+  }) async {
+    final receiptService = ReceiptService();
+    try {
+      final settings = await receiptService.fetchSettings();
+      if (!settings.enabled) return;
+
+      final printerMac = await receiptService.savedPrinterMac();
+      if (printerMac == null) return;
+
+      final ok = await receiptService.printReceipt(
+        order: order,
+        settings: settings,
+        amount: amount,
+        paymentMethod: paymentMethod,
+        cashAmount: cashAmount,
+        cardAmount: cardAmount,
+      );
+      if (!ok && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text("Chek chop etilmadi - printerni tekshiring"),
+          backgroundColor: AppTheme.amber,
+          behavior: SnackBarBehavior.floating,
+        ));
+      }
+    } catch (_) {
+      // Tarmoq/printer xatosi to'lovni bekor qilmaydi - jimgina o'tkazib
+      // yuboriladi (to'lovning o'zi allaqachon muvaffaqiyatli qabul qilingan).
     }
   }
 
@@ -799,7 +859,7 @@ class _DriverOrderDetailScreenState extends State<DriverOrderDetailScreen> {
               Text(item.name.isEmpty ? 'Gilam' : item.name,
                   style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 17)),
               const SizedBox(height: 4),
-              Text('${item.quantity} ta - ${_sizeLabel(item)}',
+              Text('${formatQty(item.quantity)} ta - ${_sizeLabel(item)}',
                   style: TextStyle(color: AppTheme.textSecondaryOf(context), fontSize: 13)),
               const SizedBox(height: 20),
               // Tahrirlash
@@ -869,7 +929,7 @@ class _DriverOrderDetailScreenState extends State<DriverOrderDetailScreen> {
             Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text(item.name.isEmpty ? 'Gilam ${i + 1}' : item.name,
                   style: TextStyle(color: AppTheme.textPrimaryOf(context), fontWeight: FontWeight.w700, fontSize: 13)),
-              Text('${item.quantity} ta - ${_sizeLabel(item)}',
+              Text('${formatQty(item.quantity)} ta - ${_sizeLabel(item)}',
                   style: TextStyle(color: AppTheme.textSecondaryOf(context), fontSize: 11)),
             ])),
             if (!_isCompleted)

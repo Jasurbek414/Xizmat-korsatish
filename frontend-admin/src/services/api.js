@@ -152,7 +152,14 @@ const handleResponse = async (response, { silent403 = false } = {}) => {
       window.location.reload();
     }
 
-    throw new Error(errorData.message || `API Error: ${response.status}`);
+    // status/data ATAYLAB Error obyektiga qo'shiladi (JS Error'ga ixtiyoriy
+    // maydon qo'shish mumkin) - ba'zi chaqiruvchi joylar (masalan xodimni
+    // o'chirishda 409 kelsa) faqat matn emas, backend qaytargan struktura
+    // asosida (masalan qaysi bo'lim bog'liqligini) UI qaror qabul qilishi kerak.
+    const err = new Error(errorData.message || `API Error: ${response.status}`);
+    err.status = response.status;
+    err.data = errorData;
+    throw err;
   }
   if (response.status === 204) return null;
   return response.json();
@@ -618,8 +625,27 @@ export const api = {
     return handleResponse(res);
   },
 
+  /// Xato bilan "to'landi" deb belgilangan hisobni bekor qiladi - status
+  /// qaytadan UNPAID bo'ladi va tegishli xarajat tranzaksiyasi o'chiriladi.
+  async unpaySalary(id) {
+    const res = await authFetch(`${API_BASE_URL}/salaries/${id}/unpay`, {
+      method: 'PUT',
+      headers: getHeaders()
+    });
+    return handleResponse(res);
+  },
+
   async addSalaryDeduction(id, amount) {
     const res = await authFetch(`${API_BASE_URL}/salaries/${id}/deduction`, {
+      method: 'PUT',
+      headers: getHeaders(),
+      body: JSON.stringify({ amount })
+    });
+    return handleResponse(res);
+  },
+
+  async removeSalaryDeduction(id, amount) {
+    const res = await authFetch(`${API_BASE_URL}/salaries/${id}/deduction/remove`, {
       method: 'PUT',
       headers: getHeaders(),
       body: JSON.stringify({ amount })

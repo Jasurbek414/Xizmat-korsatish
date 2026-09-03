@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../../core/theme.dart';
+import '../../../core/utils/quantity_format.dart';
 import '../../../models/order.dart';
 import '../bloc/orders_cubit.dart';
 import '../order_zone.dart';
@@ -41,6 +42,11 @@ class _FactoryOrderDetailScreenState extends State<FactoryOrderDetailScreen> {
   // Har bir gilamning O'ZIGA XOS narxi (modalda kiritiladi) - order-level
   // _priceController bilan ARALASHTIRMASLIK kerak (u butun buyurtma narxi).
   final Map<String, TextEditingController> _priceCtrl = {};
+  // "kg"/"litr"/"metr" kabi uzluksiz birliklarda gilamning eni/bo'yi
+  // o'rniga TO'G'RIDAN-TO'G'RI miqdor tahrirlanadi (_showCarpetOptions'ga
+  // qarang) - xato kiritilgan kasr miqdorni o'chirib-qayta qo'shmasdan
+  // to'g'irlash imkoni bo'lishi uchun.
+  final Map<String, TextEditingController> _quantityCtrl = {};
   bool _saving = false;
   bool _addingItem = false;
 
@@ -80,10 +86,17 @@ class _FactoryOrderDetailScreenState extends State<FactoryOrderDetailScreen> {
   /// `widget.order.items` (ekran birinchi ochilgandagi qotib qolgan
   /// ro'yxat) EMAS, chunki shu ekranda gilam qo'shish/o'chirish davomida
   /// buyurtma narxi shu funksiya orqali qayta hisoblanishi kerak.
+  // Backend'dagi OrderItemController bilan BIR XIL qoida: "m²"/"kv. metr" -
+  // maydon bo'yicha; "dona" - soni bo'yicha, lekin ALOHIDA-ALOHIDA sanaladi;
+  // "kg"/"litr"/"metr" kabi qolganlari - uzluksiz, kasr miqdorga ruxsat beradi.
+  bool _isAreaBasedUnit(String rawUnit) {
+    final unit = rawUnit.toLowerCase().replaceAll('.', '');
+    return unit == 'm²' || unit.contains('kv');
+  }
+
   double _suggestedPrice(List<OrderItemInfo> items) {
     if (items.isEmpty) return 0;
-    final unit = widget.order.measurementUnit.toLowerCase().replaceAll('.', '');
-    final isAreaBased = unit == 'm²' || unit.contains('kv');
+    final isAreaBased = _isAreaBasedUnit(widget.order.measurementUnit);
     double total = 0;
     for (final item in items) {
       // Gilamga modalda ALOHIDA narx qo'yilgan bo'lsa - AYNAN o'sha
@@ -95,7 +108,7 @@ class _FactoryOrderDetailScreenState extends State<FactoryOrderDetailScreen> {
       }
       final eni = double.tryParse(_eniCtrl[item.id]?.text ?? '') ?? item.width;
       final boyi = double.tryParse(_boyiCtrl[item.id]?.text ?? '') ?? item.length;
-      final basis = isAreaBased ? (eni * boyi * item.quantity) : item.quantity.toDouble();
+      final basis = isAreaBased ? (eni * boyi * item.quantity) : item.quantity;
       total += basis * widget.order.servicePrice;
     }
     return total;
@@ -135,6 +148,7 @@ class _FactoryOrderDetailScreenState extends State<FactoryOrderDetailScreen> {
       _boyiCtrl[item.id] = TextEditingController(text: item.length > 0 ? item.length.toString() : '');
       _priceCtrl[item.id] = TextEditingController(
           text: item.price != null && item.price! > 0 ? item.price!.toStringAsFixed(0) : '');
+      _quantityCtrl[item.id] = TextEditingController(text: formatQty(item.quantity));
     }
     final suggested = _suggestedPrice(widget.order.items);
     if (suggested > 0) {
@@ -158,6 +172,9 @@ class _FactoryOrderDetailScreenState extends State<FactoryOrderDetailScreen> {
     for (final c in _priceCtrl.values) {
       c.dispose();
     }
+    for (final c in _quantityCtrl.values) {
+      c.dispose();
+    }
     super.dispose();
   }
 
@@ -174,8 +191,8 @@ class _FactoryOrderDetailScreenState extends State<FactoryOrderDetailScreen> {
     return items.fold(0.0, (s, i) => s + _itemArea(i));
   }
 
-  int _calcTotalQuantity(List<OrderItemInfo> items) =>
-      items.fold(0, (s, i) => s + i.quantity);
+  double _calcTotalQuantity(List<OrderItemInfo> items) =>
+      items.fold(0.0, (s, i) => s + i.quantity);
 
   /// Barcha gilamlar "Tayyor" bosqichiga yetganmi - shu bo'lmasa buyurtmani
   /// haydovchiga topshirish (keyingi bosqichga o'tkazish) taqiqlanadi.
@@ -220,14 +237,22 @@ class _FactoryOrderDetailScreenState extends State<FactoryOrderDetailScreen> {
         final eni = double.tryParse(_eniCtrl[item.id]?.text ?? '') ?? 0;
         final boyi = double.tryParse(_boyiCtrl[item.id]?.text ?? '') ?? 0;
         final itemPrice = double.tryParse(_priceCtrl[item.id]?.text ?? '');
+        final newQuantity = double.tryParse(_quantityCtrl[item.id]?.text ?? '');
         final hasMeasurement = eni > 0 || boyi > 0;
         final hasPrice = itemPrice != null && itemPrice > 0;
-        if (hasMeasurement || hasPrice) {
+        // "kg"/"litr"/"metr" kabi uzluksiz birliklarda miqdor _showCarpetOptions
+        // orqali to'g'ridan-to'g'ri tahrirlanadi - faqat HAQIQIY o'zgargan
+        // bo'lsa yuboriladi (ortiqcha so'rovlarning oldini olish uchun).
+        final hasQuantityChange = newQuantity != null &&
+            newQuantity > 0 &&
+            (newQuantity - item.quantity).abs() > 0.0001;
+        if (hasMeasurement || hasPrice || hasQuantityChange) {
           await _repo.updateOrderItem(
             widget.order.id, item.id,
             length: hasMeasurement ? boyi : null,
             width: hasMeasurement ? eni : null,
             price: hasPrice ? itemPrice : null,
+            quantity: hasQuantityChange ? newQuantity : null,
           );
         }
       }
@@ -290,6 +315,8 @@ class _FactoryOrderDetailScreenState extends State<FactoryOrderDetailScreen> {
     final eniCtrl = TextEditingController();
     final boyiCtrl = TextEditingController();
     final quantityCtrl = TextEditingController(text: '1');
+    final isAreaBased = _isAreaBasedUnit(widget.order.measurementUnit);
+    final unit = widget.order.measurementUnit;
 
     final result = await showDialog<bool>(
       context: context,
@@ -331,50 +358,57 @@ class _FactoryOrderDetailScreenState extends State<FactoryOrderDetailScreen> {
                   ),
                   style: const TextStyle(fontSize: 14),
                 ),
-                const SizedBox(height: 12),
-                Row(
-                  children: [
-                    Expanded(
-                      child: TextField(
-                        controller: eniCtrl,
-                        keyboardType:
-                            const TextInputType.numberWithOptions(
-                                decimal: true),
-                        decoration: const InputDecoration(
-                          labelText: 'Eni (m)',
-                          prefixIcon: Icon(
-                              LucideIcons.moveHorizontal,
-                              size: 18),
+                // Eni/Bo'yi FAQAT maydon asosli birliklarda (m², kv. metr)
+                // ma'noga ega - "kg"/"litr"/"metr" kabi uzluksiz birliklarda
+                // chalg'itmaslik uchun butunlay yashiriladi.
+                if (isAreaBased) ...[
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: eniCtrl,
+                          keyboardType:
+                              const TextInputType.numberWithOptions(
+                                  decimal: true),
+                          decoration: const InputDecoration(
+                            labelText: 'Eni (m)',
+                            prefixIcon: Icon(
+                                LucideIcons.moveHorizontal,
+                                size: 18),
+                          ),
+                          style: const TextStyle(fontSize: 14),
                         ),
-                        style: const TextStyle(fontSize: 14),
                       ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: TextField(
-                        controller: boyiCtrl,
-                        keyboardType:
-                            const TextInputType.numberWithOptions(
-                                decimal: true),
-                        decoration: const InputDecoration(
-                          labelText: "Bo'yi (m)",
-                          prefixIcon: Icon(
-                              LucideIcons.moveVertical,
-                              size: 18),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: TextField(
+                          controller: boyiCtrl,
+                          keyboardType:
+                              const TextInputType.numberWithOptions(
+                                  decimal: true),
+                          decoration: const InputDecoration(
+                            labelText: "Bo'yi (m)",
+                            prefixIcon: Icon(
+                                LucideIcons.moveVertical,
+                                size: 18),
+                          ),
+                          style: const TextStyle(fontSize: 14),
                         ),
-                        style: const TextStyle(fontSize: 14),
                       ),
-                    ),
-                  ],
-                ),
+                    ],
+                  ),
+                ],
                 const SizedBox(height: 12),
                 TextField(
                   controller: quantityCtrl,
-                  keyboardType: TextInputType.number,
-                  decoration: const InputDecoration(
-                    labelText: 'Soni',
+                  keyboardType: isAreaBased
+                      ? TextInputType.number
+                      : const TextInputType.numberWithOptions(decimal: true),
+                  decoration: InputDecoration(
+                    labelText: isAreaBased ? 'Nechta shu o\'lchamda' : 'Miqdor ($unit)',
                     prefixIcon:
-                        Icon(LucideIcons.hash, size: 18),
+                        const Icon(LucideIcons.hash, size: 18),
                   ),
                   style: const TextStyle(fontSize: 14),
                 ),
@@ -413,7 +447,7 @@ class _FactoryOrderDetailScreenState extends State<FactoryOrderDetailScreen> {
     final name = nameCtrl.text.trim();
     final eni = double.tryParse(eniCtrl.text) ?? 0;
     final boyi = double.tryParse(boyiCtrl.text) ?? 0;
-    final quantity = int.tryParse(quantityCtrl.text) ?? 1;
+    final quantity = double.tryParse(quantityCtrl.text) ?? 1;
 
     nameCtrl.dispose();
     eniCtrl.dispose();
@@ -616,11 +650,13 @@ class _FactoryOrderDetailScreenState extends State<FactoryOrderDetailScreen> {
         _boyiCtrl.putIfAbsent(item.id, () => TextEditingController(text: item.length > 0 ? item.length.toString() : ''));
         _priceCtrl.putIfAbsent(item.id, () => TextEditingController(
             text: item.price != null && item.price! > 0 ? item.price!.toStringAsFixed(0) : ''));
+        _quantityCtrl.putIfAbsent(item.id, () => TextEditingController(text: formatQty(item.quantity)));
       }
       // Remove controllers for deleted items
       _eniCtrl.removeWhere((k, _) => !liveOrder.items.any((i) => i.id == k));
       _boyiCtrl.removeWhere((k, _) => !liveOrder.items.any((i) => i.id == k));
       _priceCtrl.removeWhere((k, _) => !liveOrder.items.any((i) => i.id == k));
+      _quantityCtrl.removeWhere((k, _) => !liveOrder.items.any((i) => i.id == k));
       _selectedItemIds.removeWhere((id) => !liveOrder.items.any((i) => i.id == id));
     }
     final o = liveOrder;
@@ -891,7 +927,9 @@ class _FactoryOrderDetailScreenState extends State<FactoryOrderDetailScreen> {
                     borderRadius: BorderRadius.circular(20),
                   ),
                   child: Text(
-                      '${_calcTotalQuantity(o.items)} ta / ${_calcTotalArea(o.items).toStringAsFixed(2)} m²',
+                      _isAreaBasedUnit(o.measurementUnit)
+                          ? '${formatQty(_calcTotalQuantity(o.items))} ta / ${_calcTotalArea(o.items).toStringAsFixed(2)} m²'
+                          : '${formatQty(_calcTotalQuantity(o.items))} ${o.measurementUnit}',
                       style: const TextStyle(
                           color: AppTheme.primary,
                           fontWeight: FontWeight.w800,
@@ -1100,8 +1138,10 @@ class _FactoryOrderDetailScreenState extends State<FactoryOrderDetailScreen> {
 
   /// Gilam ustiga bosganda o'lcham va narx kiritish paneli
   void _showCarpetOptions(OrderItemInfo item, List<OrderItemInfo> items) {
+    final isAreaBased = _isAreaBasedUnit(widget.order.measurementUnit);
     final eniCtrl = TextEditingController(text: _eniCtrl[item.id]?.text ?? '');
     final boyiCtrl = TextEditingController(text: _boyiCtrl[item.id]?.text ?? '');
+    final quantityCtrl = TextEditingController(text: _quantityCtrl[item.id]?.text ?? formatQty(item.quantity));
     // MUHIM (jonli xato: har bir gilamga alohida narx berilganda butun
     // buyurtma narxining ustidan yozib yuborardi): bu maydon endi SHU
     // GILAMNING o'ziga xos narxi - widget.order.price (butun buyurtma
@@ -1156,58 +1196,59 @@ class _FactoryOrderDetailScreenState extends State<FactoryOrderDetailScreen> {
                     child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                       Text(item.name.isEmpty ? 'Gilam' : item.name,
                           style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 17)),
-                      Text('${item.quantity} ta',
+                      Text('${formatQty(item.quantity)}${isAreaBased ? ' ta' : ' ${widget.order.measurementUnit}'}',
                           style: TextStyle(color: AppTheme.textSecondaryOf(context), fontSize: 12)),
                     ]),
                   ),
                 ]),
                 const SizedBox(height: 20),
-                // O'lchamlar
-                Text("O'lchamlar",
-                    style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: AppTheme.textPrimaryOf(context))),
-                const SizedBox(height: 8),
-                Row(children: [
-                  Expanded(
-                    child: TextField(
-                      controller: eniCtrl,
-                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                      onChanged: (_) => recalcTotalFromUnitPrice(),
-                      decoration: const InputDecoration(
-                        labelText: 'Eni (m)',
-                        prefixIcon: Icon(LucideIcons.moveHorizontal, size: 18),
+                if (isAreaBased) ...[
+                  // O'lchamlar - faqat maydon asosli birliklarda (m², kv. metr)
+                  Text("O'lchamlar",
+                      style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: AppTheme.textPrimaryOf(context))),
+                  const SizedBox(height: 8),
+                  Row(children: [
+                    Expanded(
+                      child: TextField(
+                        controller: eniCtrl,
+                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                        onChanged: (_) => recalcTotalFromUnitPrice(),
+                        decoration: const InputDecoration(
+                          labelText: 'Eni (m)',
+                          prefixIcon: Icon(LucideIcons.moveHorizontal, size: 18),
+                        ),
+                        style: const TextStyle(fontSize: 14),
                       ),
-                      style: const TextStyle(fontSize: 14),
                     ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: TextField(
-                      controller: boyiCtrl,
-                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                      onChanged: (_) => recalcTotalFromUnitPrice(),
-                      decoration: const InputDecoration(
-                        labelText: "Bo'yi (m)",
-                        prefixIcon: Icon(LucideIcons.moveVertical, size: 18),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: TextField(
+                        controller: boyiCtrl,
+                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                        onChanged: (_) => recalcTotalFromUnitPrice(),
+                        decoration: const InputDecoration(
+                          labelText: "Bo'yi (m)",
+                          prefixIcon: Icon(LucideIcons.moveVertical, size: 18),
+                        ),
+                        style: const TextStyle(fontSize: 14),
                       ),
-                      style: const TextStyle(fontSize: 14),
                     ),
+                  ]),
+                  const SizedBox(height: 16),
+                  // 1 m² narxi - kiritilsa eni x bo'yi x shu narx = jami
+                  // narx avtomatik hisoblanib pastdagi "Narx" maydoniga yoziladi.
+                  Text("1 m² narxi (so'm)",
+                      style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: AppTheme.textPrimaryOf(context))),
+                  const SizedBox(height: 4),
+                  Text(
+                    "Kiritilsa: eni x bo'yi x shu narx = jami narx avtomatik hisoblanadi",
+                    style: TextStyle(color: AppTheme.textMutedOf(context), fontSize: 11),
                   ),
-                ]),
-                const SizedBox(height: 16),
-                // 1 m² narxi - kiritilsa eni x bo'yi x shu narx = jami
-                // narx avtomatik hisoblanib pastdagi "Narx" maydoniga yoziladi.
-                Text("1 m² narxi (so'm)",
-                    style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: AppTheme.textPrimaryOf(context))),
-                const SizedBox(height: 4),
-                Text(
-                  "Kiritilsa: eni x bo'yi x shu narx = jami narx avtomatik hisoblanadi",
-                  style: TextStyle(color: AppTheme.textMutedOf(context), fontSize: 11),
-                ),
-                const SizedBox(height: 8),
-                TextField(
-                  controller: perUnitPriceCtrl,
-                  keyboardType: TextInputType.number,
-                  onChanged: (_) => recalcTotalFromUnitPrice(),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: perUnitPriceCtrl,
+                    keyboardType: TextInputType.number,
+                    onChanged: (_) => recalcTotalFromUnitPrice(),
                   decoration: const InputDecoration(
                     hintText: 'Masalan: 12000',
                     prefixIcon: Icon(LucideIcons.ruler, size: 18),
@@ -1215,6 +1256,24 @@ class _FactoryOrderDetailScreenState extends State<FactoryOrderDetailScreen> {
                   ),
                   style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
                 ),
+                ] else ...[
+                  // "kg"/"litr"/"metr" kabi uzluksiz birliklarda eni/bo'yi
+                  // o'rniga TO'G'RIDAN-TO'G'RI miqdor tahrirlanadi (kasr
+                  // qiymatga ruxsat beriladi - masalan 2.5 kg).
+                  Text('Miqdor (${widget.order.measurementUnit})',
+                      style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: AppTheme.textPrimaryOf(context))),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: quantityCtrl,
+                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    decoration: InputDecoration(
+                      hintText: 'Masalan: 2.5',
+                      prefixIcon: const Icon(LucideIcons.hash, size: 18),
+                      suffixText: widget.order.measurementUnit,
+                    ),
+                    style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+                  ),
+                ],
                 const SizedBox(height: 16),
                 // Narx - shu GILAMNING o'ziga xos narxi
                 Text("Shu gilamning narxi (so'm)",
@@ -1321,6 +1380,7 @@ class _FactoryOrderDetailScreenState extends State<FactoryOrderDetailScreen> {
                         _eniCtrl[item.id]?.text = eniCtrl.text;
                         _boyiCtrl[item.id]?.text = boyiCtrl.text;
                         _priceCtrl[item.id]?.text = priceCtrl.text.trim();
+                        _quantityCtrl[item.id]?.text = quantityCtrl.text.trim();
                         // Buyurtmaning umumiy (order-level) narx maydonini
                         // shu gilamlarning yig'indisiga mos yangilaymiz -
                         // agar inson umumiy narxni ALOHIDA qo'lda
@@ -1357,6 +1417,7 @@ class _FactoryOrderDetailScreenState extends State<FactoryOrderDetailScreen> {
         boyiCtrl.dispose();
         priceCtrl.dispose();
         perUnitPriceCtrl.dispose();
+        quantityCtrl.dispose();
       } catch (_) {}
     });
   }
@@ -1517,7 +1578,10 @@ class _FactoryOrderDetailScreenState extends State<FactoryOrderDetailScreen> {
           Row(children: [
             Expanded(
                 flex: 3,
-                child: Text('${item.quantity} ta',
+                child: Text(
+                    _isAreaBasedUnit(widget.order.measurementUnit)
+                        ? '${formatQty(item.quantity)} ta'
+                        : '${formatQty(item.quantity)} ${widget.order.measurementUnit}',
                     style: TextStyle(color: AppTheme.textSecondaryOf(context), fontSize: 10))),
             Expanded(
                 flex: 2,

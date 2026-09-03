@@ -1,13 +1,14 @@
 import React from 'react';
-import { CheckCircle, AlertCircle, CreditCard, FileText, PlusCircle } from 'lucide-react';
+import { CheckCircle, AlertCircle, CreditCard, FileText, PlusCircle, RotateCcw } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { formatCurrency } from '../../utils/format';
 
-const SalariesTable = ({ 
-  salaries, 
-  onPaySalary, 
-  onOpenAdvance, 
-  onOpenPayslip 
+const SalariesTable = ({
+  salaries,
+  onPaySalary,
+  onUnpaySalary,
+  onOpenAdvance,
+  onOpenPayslip
 }) => {
   const { t, i18n } = useTranslation();
 
@@ -141,7 +142,13 @@ const SalariesTable = ({
                             <CreditCard className="w-3 h-3" /> {t('salaries_page.pay')}
                           </button>
                         ) : (
-                          <span className="text-[10px] text-slate-400 font-medium px-2">Kop hisoblandi</span>
+                          <button
+                            onClick={() => onUnpaySalary(s.id)}
+                            title="Xato bilan to'landi deb belgilangan bo'lsa, bekor qiling"
+                            className="flex items-center gap-1 bg-slate-100 hover:bg-rose-500/10 dark:bg-white/5 dark:hover:bg-rose-500/10 text-slate-500 hover:text-rose-600 dark:text-gray-400 dark:hover:text-rose-400 text-[10px] font-bold px-3 py-1.5 rounded-xl transition cursor-pointer"
+                          >
+                            <RotateCcw className="w-3 h-3" /> Bekor qilish
+                          </button>
                         )}
                       </div>
                     </td>

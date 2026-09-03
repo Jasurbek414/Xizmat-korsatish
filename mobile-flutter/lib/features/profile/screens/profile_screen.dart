@@ -4,6 +4,7 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import '../../../core/services/update_checker.dart';
 import '../../../core/services/update_dialog.dart';
+import 'printer_settings_screen.dart';
 import '../../../core/storage/secure_storage_service.dart';
 import '../../../core/theme.dart';
 import '../../../core/theme_notifier.dart';
@@ -95,6 +96,18 @@ class ProfileScreen extends StatelessWidget {
         const SizedBox(height: 12),
         _darkModeTile(context, isDark),
         const SizedBox(height: 10),
+        // Chek printeri - faqat to'lov qabul qiladigan haydovchiga kerak.
+        // MUHIM: aniq "== 'WORKER_DRIVER'" EMAS - butun ilova bo'ylab
+        // (home_dashboard_screen.dart, main_dashboard.dart) haydovchi roli
+        // ".contains('DRIVER')" bilan aniqlanadi, chunki rol nomi
+        // kompaniyadan kompaniyaga farq qilishi mumkin (RolesPermissions.jsx
+        // orqali moslashtiriladi). Aniq tenglik ishlatilsa, boshqacha rol
+        // nomi bilan ishlaydigan haydovchilarda bu tugma UMUMAN
+        // ko'rinmasdi - jonli aniqlangan xato shu edi.
+        if (user.role.contains('DRIVER')) ...[
+          _printerSettingsTile(context, isDark),
+          const SizedBox(height: 10),
+        ],
         _updateCheckTile(context, isDark),
         const SizedBox(height: 32),
 
@@ -200,6 +213,64 @@ class ProfileScreen extends StatelessWidget {
         },
       ),
     ).animate().fadeIn(delay: 200.ms).slideY(begin: 0.1);
+  }
+
+  /// Chek chiqarish uchun Bluetooth termal printerni tanlash/almashtirish
+  /// ekraniga o'tkazadi.
+  Widget _printerSettingsTile(BuildContext context, bool isDark) {
+    return Container(
+      decoration: BoxDecoration(
+        color: isDark ? AppTheme.darkSurfaceColor : AppTheme.surfaceOf(context),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+            color: isDark ? AppTheme.darkBorderColor : AppTheme.borderOf(context)),
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(16),
+          onTap: () => Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const PrinterSettingsScreen()),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            child: Row(
+              children: [
+                Container(
+                  width: 32,
+                  height: 32,
+                  decoration: BoxDecoration(
+                    color: isDark
+                        ? const Color(0xFF21262D)
+                        : AppTheme.primary.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Icon(
+                    LucideIcons.printer,
+                    size: 16,
+                    color: isDark ? AppTheme.darkTextPrimaryColor : AppTheme.primary,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    'Chek printeri',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w600,
+                      fontSize: 14,
+                      color: isDark ? AppTheme.darkTextPrimaryColor : AppTheme.textPrimaryOf(context),
+                    ),
+                  ),
+                ),
+                Icon(LucideIcons.chevronRight, size: 16,
+                    color: isDark ? AppTheme.darkTextSecondaryColor : AppTheme.textSecondaryOf(context)),
+              ],
+            ),
+          ),
+        ),
+      ),
+    ).animate().fadeIn(delay: 225.ms).slideY(begin: 0.1);
   }
 
   /// "Yangilanishni tekshirish" - `main.dart` ilova ochilganda avtomatik
