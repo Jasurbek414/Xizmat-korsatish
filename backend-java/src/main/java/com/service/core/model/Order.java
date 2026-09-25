@@ -1,5 +1,6 @@
 package com.service.core.model;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.*;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
@@ -34,6 +35,20 @@ public class Order {
     @Version
     private Long version;
 
+    // 2026-09-10 (jonli tizimda o'lchangan, ishlash tezligi): bu maydon JSON
+    // javobiga ham chiqardi. Har bir yozuv ichida BUTUN Company obyekti
+    // takrorlanardi - jumladan `receiptLogoBase64` (chek logotipi, base64,
+    // bir kompaniyada ~64 KB). Buyurtma ichida esa u BIR NECHA marta:
+    // order.company + client.company + worker.company + status.company +
+    // service.company. Natijada mobil ilovaning /orders/completed so'rovi
+    // o'rtacha 13 MB, /orders/available 9 MB bo'lib ketgan edi va ilova buni
+    // HAR 20 SONIYADA qayta yuklardi (nginx access.log dan o'lchandi).
+    // Sekin mobil internetda so'rov 12 soniyalik muddatga sig'may uzilardi -
+    // ro'yxat yangilanmay, allaqachon yakunlangan buyurtmalar ekranda
+    // qolib ketardi. Hech bir mijoz (veb panel ham, mobil ilova ham) bu
+    // maydonni o'qimaydi: superadmin ekranlari kompaniyani ALOHIDA
+    // ("company" kaliti bilan) oladi, tenant esa JWT ichidan aniqlanadi.
+    @JsonIgnore
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "company_id", nullable = false)
     private Company company;
@@ -101,6 +116,21 @@ public class Order {
     @Column(name = "payment_status", length = 50)
     @Builder.Default
     private String paymentStatus = "PENDING"; // PENDING, COLLECTED, HANDED_OVER
+
+    /**
+     * Xodim mijozdan naqd/karta pulni QACHON qabul qilgani (paymentStatus
+     * "COLLECTED"ga o'tgan payt) - buxgalteriya panelida "xodim qo'lida
+     * pul necha soatdan beri turibdi" (kechikish nazorati) shu maydondan
+     * hisoblanadi.
+     *
+     * MUHIM: bu maydon qo'shilishidan OLDIN buni umumiy `updatedAt` orqali
+     * taxminlash mumkin edi, lekin `updatedAt` buyurtma HAR safar
+     * saqlanganda (masalan admin izohni tahrirlasa) yangilanadi - bu bilan
+     * pul QANCHA vaqtdan beri xodim qo'lida ekani noto'g'ri (ko'proq yangi)
+     * ko'rsatilib, kechikkan holatlar yashirinib qolishi mumkin edi.
+     */
+    @Column(name = "payment_collected_at")
+    private LocalDateTime paymentCollectedAt;
 
     // To'lov usuli - haydovchi to'lovni qabul qilganda tanlaydi (naqd/karta/aralash).
     // Kassaga topshirish (confirm-handover) shu ma'lumotni o'zgartirmaydi -

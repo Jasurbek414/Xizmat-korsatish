@@ -160,11 +160,6 @@
   "settings_page": {
     "statuses_title": "Статусы Заказов",
     "statuses_desc": "Управление жизненным циклом заказов",
-    "item_stages_title": "Этапы ковра",
-    "item_stages_desc": "Управление этапами обработки каждого ковра в цехе",
-    "item_stages": "Этапы ковра",
-    "new_item_stage": "Новый этап",
-    "item_stage_sequence": "Последовательность этапов",
     "services_title": "Услуги Компании",
     "services_desc": "Каталог видов услуг и тарифных ставок",
     "new_status": "Новый Статус",

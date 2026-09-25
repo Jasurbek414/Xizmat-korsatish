@@ -2,6 +2,7 @@ import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { Landmark, TrendingUp, Percent, Scale } from 'lucide-react';
 import { formatCurrency } from '../../utils/format';
+import MonthlyTrendChart from './MonthlyTrendChart';
 
 const PLReport = ({ transactions }) => {
   const { t, i18n } = useTranslation();
@@ -40,6 +41,8 @@ const PLReport = ({ transactions }) => {
 
   return (
     <div className="space-y-6 animate-fade-in text-xs font-semibold">
+      <MonthlyTrendChart transactions={transactions} />
+
       {/* High-level P&L Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-5">
         

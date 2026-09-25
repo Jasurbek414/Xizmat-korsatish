@@ -49,6 +49,7 @@ const FinanceTable = ({ filteredTx, wallets, onDeleteTx }) => {
               <th className="p-4">Kategoriya</th>
               <th className="p-4">{t('finance_page.description')}</th>
               <th className="p-4">{t('finance_page.date')}</th>
+              <th className="p-4">Kiritgan</th>
               <th className="p-4 text-right">{t('finance_page.amount')}</th>
               <th className="p-4 w-10"></th>
             </tr>
@@ -56,7 +57,7 @@ const FinanceTable = ({ filteredTx, wallets, onDeleteTx }) => {
           <tbody className="divide-y divide-slate-100 dark:divide-white/5 text-slate-700 dark:text-gray-300">
             {filteredTx.length === 0 ? (
               <tr>
-                <td colSpan="6" className="p-8 text-center text-slate-400 dark:text-gray-500 font-semibold">
+                <td colSpan="7" className="p-8 text-center text-slate-400 dark:text-gray-500 font-semibold">
                   Tranzaksiyalar topilmadi
                 </td>
               </tr>
@@ -91,6 +92,11 @@ const FinanceTable = ({ filteredTx, wallets, onDeleteTx }) => {
                   {/* Date */}
                   <td className="p-4 text-slate-500 dark:text-gray-400 font-['Outfit']">
                     {formatDate(tx.created_at, i18n.language)}
+                  </td>
+
+                  {/* Kim kiritgani - moliyaviy audit uchun bir qarashda ko'rinishi kerak */}
+                  <td className="p-4 text-slate-500 dark:text-gray-400 max-w-[130px] truncate">
+                    {tx.created_by_name || <span className="text-slate-300 dark:text-gray-600">—</span>}
                   </td>
 
                   {/* Amount */}
@@ -208,6 +214,27 @@ const FinanceTable = ({ filteredTx, wallets, onDeleteTx }) => {
                 <p className="text-[9px] text-slate-400 font-bold uppercase">Kassa</p>
                 <p className="text-slate-700 dark:text-gray-300">{getWalletName(selectedTx.wallet_id)}</p>
               </div>
+
+              {/* Moliyaviy audit - bu yozuvni ANIQ kim kiritgani/tasdiqlagani.
+                  Kompaniya egasi uchun eng muhim ishonch belgisi: "kim
+                  qo'ygan bu yozuvni" degan savolga har doim javob bo'lishi
+                  kerak. */}
+              {(selectedTx.created_by_name || selectedTx.confirmed_by_name) && (
+                <div className="grid grid-cols-2 gap-2.5 bg-indigo-500/5 p-3 rounded-xl border border-indigo-500/10">
+                  <div>
+                    <p className="text-[9px] text-slate-400 font-bold uppercase">Kim kiritdi</p>
+                    <p className="text-slate-800 dark:text-white font-bold">{selectedTx.created_by_name || "Noma'lum"}</p>
+                  </div>
+                  <div>
+                    <p className="text-[9px] text-slate-400 font-bold uppercase">Kim tasdiqladi</p>
+                    <p className="text-slate-800 dark:text-white font-bold">
+                      {selectedTx.confirmed_by_name || (
+                        <span className="text-amber-600 dark:text-amber-400">Hali tasdiqlanmagan</span>
+                      )}
+                    </p>
+                  </div>
+                </div>
+              )}
 
               {selectedTx.payment_method && (
                 <div>

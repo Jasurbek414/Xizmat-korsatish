@@ -54,14 +54,9 @@ public class OrderItem {
     @Column(precision = 12, scale = 2)
     private BigDecimal price;
 
-    // ItemStage.stageKey'ga ishora qiladi (2026-09-12: gilam bosqichlarini
-    // to'liq sozlanadigan qilish - com.service.core.model.ItemStage). Qattiq
-    // kodlangan FK emas, String saqlanadi - standart bosqichlar
-    // (ACCEPTED/WASHED/DRIED/READY) uchun ItemStageSeedService AYNAN shu
-    // qiymatlar bilan seed qilingani sabab hech qanday migratsiya kerak emas.
     @Column(nullable = false, length = 50)
     @Builder.Default
-    private String status = "ACCEPTED";
+    private String status = "ACCEPTED"; // ACCEPTED, WASHED, DRIED, READY
 
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;

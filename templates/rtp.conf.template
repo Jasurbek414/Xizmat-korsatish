@@ -1,0 +1,11 @@
+[general]
+rtpstart=16384
+rtpend=16483
+
+stunaddr = stun.l.google.com:19302
+
+; ${CONTAINER_IP} = konteynerning HAQIQIY (ish vaqtida aniqlangan) IP
+; manzili, ${WEBRTC_LAN_IP} = brauzerlar LAN orqali yeta oladigan host
+; manzili.
+[ice_host_candidates]
+${CONTAINER_IP} => ${WEBRTC_LAN_IP}

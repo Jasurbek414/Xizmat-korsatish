@@ -1,0 +1,8 @@
+[general]
+enabled=yes
+pretty=yes
+
+[asterisk]
+type=user
+password=${ASTERISK_ARI_PASSWORD}
+read_only=no

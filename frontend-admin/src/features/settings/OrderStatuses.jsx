@@ -5,32 +5,58 @@ import { showToast } from '../../services/toast';
 import { Plus, Trash2, ArrowDown, ArrowUp, Edit3, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
+// Backenddan kelgan status yozuvini shu ekran ishlatadigan shaklga o'tkazadi.
+// Bitta joyda turishi kerak - avval bir xil xarita uchta joyda takrorlanardi
+// va yangi maydon qo'shilganda birortasi unutilib qolardi.
+const mapStatus = (s) => ({
+  id: s.id,
+  name_uz: s.nameUz,
+  name_ru: s.nameRu,
+  name_en: s.nameEn,
+  color_code: s.colorCode,
+  sort_order: s.sortOrder,
+  is_system: s.isSystem,
+  // Bosqichni bajaradigan rol kaliti. Bo'sh = biriktirilmagan, ya'ni ilova
+  // bu bosqich uchun eski tartib mantiqiga tayanadi.
+  owner_role_key: s.ownerRoleKey || '',
+  is_final: s.isFinal === true
+});
+
+const EMPTY_FORM = {
+  name_uz: '', name_ru: '', name_en: '', color_code: '#3b82f6',
+  owner_role_key: '', is_final: false
+};
+
 const OrderStatuses = () => {
   const { t } = useTranslation();
   const [statuses, setStatuses] = useState([]);
-  const [newStatus, setNewStatus] = useState({ name_uz: '', name_ru: '', name_en: '', color_code: '#3b82f6' });
+  const [roles, setRoles] = useState([]);
+  const [newStatus, setNewStatus] = useState(EMPTY_FORM);
   const [editingStatus, setEditingStatus] = useState(null);
 
   useEffect(() => {
-    const loadStatuses = async () => {
+    const load = async () => {
       try {
-        const data = await api.getOrderStatuses();
-        const mapped = data.map(s => ({
-          id: s.id,
-          name_uz: s.nameUz,
-          name_ru: s.nameRu,
-          name_en: s.nameEn,
-          color_code: s.colorCode,
-          sort_order: s.sortOrder,
-          is_system: s.isSystem
-        }));
-        setStatuses(mapped);
+        // Rollar ro'yxati bosqichga rol biriktirish uchun kerak - admin
+        // panelida yaratilgan maxsus rollar ham shu yerdan keladi.
+        const [statusData, roleData] = await Promise.all([
+          api.getOrderStatuses(),
+          api.getRoles().catch(() => [])
+        ]);
+        setStatuses((statusData || []).map(mapStatus));
+        setRoles(roleData || []);
       } catch (err) {
         console.error("Failed to load statuses:", err);
       }
     };
-    loadStatuses();
+    load();
   }, []);
+
+  const roleName = (key) => {
+    if (!key) return '';
+    const r = roles.find(x => x.key === key);
+    return r ? r.nameUz : key;
+  };
 
   const handleAddStatus = async (e) => {
     e.preventDefault();
@@ -41,23 +67,16 @@ const OrderStatuses = () => {
         name_uz: newStatus.name_uz,
         name_ru: newStatus.name_ru,
         name_en: newStatus.name_en,
-        color_code: newStatus.color_code
+        color_code: newStatus.color_code,
+        owner_role_key: newStatus.owner_role_key,
+        is_final: newStatus.is_final
       });
-      
-      const mapped = {
-        id: saved.id,
-        name_uz: saved.nameUz,
-        name_ru: saved.nameRu,
-        name_en: saved.nameEn,
-        color_code: saved.colorCode,
-        sort_order: saved.sortOrder,
-        is_system: saved.isSystem
-      };
 
-      setStatuses(prev => [...prev, mapped]);
-      setNewStatus({ name_uz: '', name_ru: '', name_en: '', color_code: '#3b82f6' });
+      setStatuses(prev => [...prev, mapStatus(saved)]);
+      setNewStatus(EMPTY_FORM);
     } catch (err) {
       console.error("Failed to create status:", err);
+      showToast(err.message || "Statusni qo'shishda xatolik yuz berdi.");
     }
   };
 
@@ -70,23 +89,17 @@ const OrderStatuses = () => {
         name_uz: editingStatus.name_uz,
         name_ru: editingStatus.name_ru,
         name_en: editingStatus.name_en,
-        color_code: editingStatus.color_code
+        color_code: editingStatus.color_code,
+        owner_role_key: editingStatus.owner_role_key,
+        is_final: editingStatus.is_final
       });
 
-      const mapped = {
-        id: saved.id,
-        name_uz: saved.nameUz,
-        name_ru: saved.nameRu,
-        name_en: saved.nameEn,
-        color_code: saved.colorCode,
-        sort_order: saved.sortOrder,
-        is_system: saved.isSystem
-      };
-
+      const mapped = mapStatus(saved);
       setStatuses(prev => prev.map(s => s.id === editingStatus.id ? mapped : s));
       setEditingStatus(null);
     } catch (err) {
       console.error("Failed to update status:", err);
+      showToast(err.message || "Statusni saqlashda xatolik yuz berdi.");
     }
   };
 
@@ -212,9 +225,54 @@ const OrderStatuses = () => {
                 </span>
               </div>
             </div>
+            {/* Bosqichni bajaradigan rol. Mobil ilova aynan shu maydonga
+                qarab buyurtmani kimga ko'rsatishini hal qiladi. */}
+            <div>
+              <label className="block text-slate-500 dark:text-gray-400 mb-1">
+                Bosqichni bajaradigan rol
+              </label>
+              <select
+                value={editingStatus ? editingStatus.owner_role_key : newStatus.owner_role_key}
+                onChange={(e) => editingStatus
+                  ? setEditingStatus({ ...editingStatus, owner_role_key: e.target.value })
+                  : setNewStatus({ ...newStatus, owner_role_key: e.target.value })
+                }
+                className="w-full glass-input rounded-xl px-3 py-2 text-slate-800 dark:text-white focus:outline-none"
+              >
+                <option value="">Biriktirilmagan (eski tartib bo'yicha)</option>
+                {roles.map(r => (
+                  <option key={r.id} value={r.key}>{r.nameUz}</option>
+                ))}
+              </select>
+              <p className="text-[10px] text-slate-400 dark:text-gray-500 mt-1 font-medium leading-snug">
+                Buyurtma shu bosqichda turganda uni faqat tanlangan rol ko'radi
+                va keyingi bosqichga o'tkaza oladi.
+              </p>
+            </div>
+
+            {/* Yakunlovchi bosqich - buyurtma bu yerga yetsa Tarixga o'tadi. */}
+            <label className="flex items-start gap-2.5 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={editingStatus ? editingStatus.is_final : newStatus.is_final}
+                onChange={(e) => editingStatus
+                  ? setEditingStatus({ ...editingStatus, is_final: e.target.checked })
+                  : setNewStatus({ ...newStatus, is_final: e.target.checked })
+                }
+                className="mt-0.5 w-4 h-4 accent-indigo-600 cursor-pointer"
+              />
+              <span>
+                <span className="block text-slate-700 dark:text-gray-200">Yakunlovchi bosqich</span>
+                <span className="block text-[10px] text-slate-400 dark:text-gray-500 font-medium leading-snug">
+                  Buyurtma shu bosqichga yetsa yakunlangan hisoblanadi va
+                  mobil ilovada "Buyurtmalar"dan chiqib "Tarix"ga o'tadi.
+                </span>
+              </span>
+            </label>
+
             <div className="flex gap-2">
-              <button 
-                type="submit" 
+              <button
+                type="submit"
                 className="flex-1 premium-btn text-white font-bold py-2.5 rounded-xl transition duration-300 cursor-pointer shadow-sm"
               >
                 {editingStatus ? t('common.save') : t('common.add')}
@@ -247,9 +305,27 @@ const OrderStatuses = () => {
                     className="w-3.5 h-3.5 rounded-full inline-block shadow-sm"
                   />
                   <div>
-                    <h4 className="font-bold text-slate-800 dark:text-white text-xs">{status.name_uz}</h4>
+                    <h4 className="font-bold text-slate-800 dark:text-white text-xs flex items-center gap-1.5 flex-wrap">
+                      {status.name_uz}
+                      {status.is_final && (
+                        <span className="px-1.5 py-0.5 rounded-md bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-[9px] font-bold">
+                          Yakunlovchi
+                        </span>
+                      )}
+                    </h4>
                     <span className="text-[9px] text-slate-400 dark:text-gray-500 uppercase tracking-wide">
                       {status.name_ru} / {status.name_en}
+                    </span>
+                    {/* Bosqich kimga tegishli ekani ro'yxatda ham ko'rinadi -
+                        aks holda buni bilish uchun har birini ochish kerak bo'lardi. */}
+                    <span className={`block text-[10px] font-semibold mt-0.5 ${
+                      status.owner_role_key
+                        ? 'text-indigo-600 dark:text-indigo-400'
+                        : 'text-amber-600 dark:text-amber-500'
+                    }`}>
+                      {status.owner_role_key
+                        ? roleName(status.owner_role_key)
+                        : 'Rol biriktirilmagan'}
                     </span>
                   </div>
                 </div>

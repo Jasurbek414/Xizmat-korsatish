@@ -6,6 +6,13 @@ import { formatCurrency } from '../../utils/format';
 const INCOME_CATEGORIES = ['ORDER_PAYMENT', 'DEBT_PAYMENT', 'TRANSFER'];
 const EXPENSE_CATEGORIES = ['SALARY', 'OFFICE_EXPENSE', 'TAX', 'DEBT_PAYMENT', 'TRANSFER'];
 
+// MUHIM (audit'da topilgan kamchilik): mobil ilovada xodimlar (haydovchi/
+// sex hodimi) o'zi kirim-chiqim kiritganda BUTUNLAY boshqa, bu yerda
+// aks etmagan kategoriya kodlaridan foydalanadi (FUEL, CAR_REPAIR, OTHER -
+// `finance_summary_screen.dart`). Avval bu kodlar admin panelida (jadval,
+// kategoriya tahlili) XOM holda ("FUEL", "CAR_REPAIR") ko'rsatilardi -
+// buxgalter/egasi uchun tushunarsiz, professional ko'rinishga to'g'ri
+// kelmaydigan holat edi.
 export const CATEGORY_LABELS = {
   ORDER_PAYMENT: "Buyurtma to'lovi",
   DEBT_PAYMENT: "Qarz to'lovi",
@@ -13,6 +20,9 @@ export const CATEGORY_LABELS = {
   SALARY: 'Ish haqi',
   OFFICE_EXPENSE: 'Ofis xarajati',
   TAX: 'Soliq',
+  FUEL: "Yoqilg'i",
+  CAR_REPAIR: "Avto ta'mirlash",
+  OTHER: 'Boshqa',
 };
 
 const CreateTxModal = ({ isOpen, onClose, newTx, setNewTx, onSubmit, wallets, customCategories = { expense: [], income: [] }, onAddCategory }) => {

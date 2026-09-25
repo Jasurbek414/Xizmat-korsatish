@@ -160,11 +160,6 @@
   "settings_page": {
     "statuses_title": "Order Statuses",
     "statuses_desc": "Manage order lifecycle",
-    "item_stages_title": "Carpet Item Stages",
-    "item_stages_desc": "Manage each carpet's processing stages inside the workshop",
-    "item_stages": "Carpet Item Stages",
-    "new_item_stage": "New stage",
-    "item_stage_sequence": "Configured Stage Sequence",
     "services_title": "Company Services",
     "services_desc": "Catalog of services and tariffs",
     "new_status": "New Status",

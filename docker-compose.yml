@@ -74,7 +74,7 @@ services:
       # ya'ni 0.0.0.0, butun LAN'ga ochiq. Tekshirildi: bu portni HECH KIM
       # ishlatmaydi - nginx backendga ICHKI docker tarmog'i orqali boradi
       # (proxy-nginx.conf: "set $upstream_backend backend:8080"), mobil ilova
-      # esa https://namifor-api.ecos.uz (Cloudflare tunnel) orqali
+      # esa https://servicecore-api.ecos.uz (Cloudflare tunnel) orqali
       # (mobile-flutter/lib/core/constants.dart). Endi faqat shu mashinadan -
       # lokal debug uchun ochiq qoladi, tashqaridan yopiq.
       # VAQTINCHALIK (2026-09-09, mahalliy telefon sinovi uchun): 0.0.0.0 -
@@ -343,7 +343,7 @@ services:
       - "--tls-listening-port=443"
       - "--cert=/certs/turn_cert.pem"
       - "--pkey=/certs/turn_pkey.pem"
-      - "--realm=namifor.ecos.uz"
+      - "--realm=servicecore.ecos.uz"
       - "--fingerprint"
       - "--lt-cred-mech"
       # MUHIM (xavfsizlik, 2026-07-31 auditda topilgan): TURN login/parol avval

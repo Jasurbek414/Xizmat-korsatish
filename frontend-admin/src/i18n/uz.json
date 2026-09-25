@@ -160,11 +160,6 @@
   "settings_page": {
     "statuses_title": "Buyurtma Statuslari",
     "statuses_desc": "Buyurtmalar hayotiy siklini boshqarish",
-    "item_stages_title": "Gilam bosqichlari",
-    "item_stages_desc": "Sex ichida har bir gilamning ishlov bosqichlarini boshqarish",
-    "item_stages": "Gilam bosqichlari",
-    "new_item_stage": "Yangi bosqich",
-    "item_stage_sequence": "Mavjud Bosqichlar Ketma-ketligi",
     "services_title": "Kompaniya Xizmatlari",
     "services_desc": "Xizmat turlari va tarif stavkalari katalogi",
     "new_status": "Yangi Status",

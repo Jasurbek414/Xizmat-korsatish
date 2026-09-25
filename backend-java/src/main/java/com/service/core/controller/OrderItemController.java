@@ -1,17 +1,13 @@
 package com.service.core.controller;
 
-import com.service.core.model.Company;
-import com.service.core.model.ItemStage;
 import com.service.core.model.Order;
 import com.service.core.model.OrderItem;
 import com.service.core.model.OrderStatus;
 import com.service.core.model.User;
 import com.service.core.repository.OrderRepository;
 import com.service.core.repository.OrderItemRepository;
-import com.service.core.repository.ItemStageRepository;
 import com.service.core.repository.OrderStatusRepository;
 import com.service.core.repository.UserRepository;
-import com.service.core.service.ItemStageSeedService;
 import com.service.core.tenant.TenantContext;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -37,32 +33,13 @@ public class OrderItemController {
     private final OrderItemRepository orderItemRepository;
     private final OrderStatusRepository orderStatusRepository;
     private final UserRepository userRepository;
-    private final ItemStageRepository itemStageRepository;
-    private final ItemStageSeedService itemStageSeedService;
 
     public OrderItemController(OrderRepository orderRepository, OrderItemRepository orderItemRepository,
-                                OrderStatusRepository orderStatusRepository, UserRepository userRepository,
-                                ItemStageRepository itemStageRepository, ItemStageSeedService itemStageSeedService) {
+                                OrderStatusRepository orderStatusRepository, UserRepository userRepository) {
         this.orderRepository = orderRepository;
         this.orderItemRepository = orderItemRepository;
         this.orderStatusRepository = orderStatusRepository;
         this.userRepository = userRepository;
-        this.itemStageRepository = itemStageRepository;
-        this.itemStageSeedService = itemStageSeedService;
-    }
-
-    /**
-     * Yangi gilam qo'shilganda, agar mijoz (mobil ilova) status kiritmagan
-     * bo'lsa - shu kompaniyaning ENG BIRINCHI (sort_order) gilam bosqichi
-     * ishlatiladi. Avval bu yerda qattiq kodlangan "ACCEPTED" edi - endi
-     * admin "Sozlamalar -> Gilam bosqichlari"da boshqa nom/tartib qo'ysa ham
-     * to'g'ri ishlaydi (ItemStageController.getStages() bilan bir xil naqsh).
-     */
-    private String firstStageKey(Order order) {
-        Company company = order.getCompany();
-        itemStageSeedService.seedDefaultStagesIfMissing(company);
-        List<ItemStage> stages = itemStageRepository.findByCompanyIdOrderBySortOrderAsc(company.getId());
-        return stages.isEmpty() ? "ACCEPTED" : stages.get(0).getStageKey();
     }
 
     private User getCurrentUser() {
@@ -225,7 +202,7 @@ public class OrderItemController {
         if (quantity.compareTo(BigDecimal.ZERO) <= 0) {
             return ResponseEntity.badRequest().body(Map.of("message", "Miqdor musbat bo'lishi shart"));
         }
-        String status = request.containsKey("status") ? request.get("status").toString() : firstStageKey(order);
+        String status = request.getOrDefault("status", "ACCEPTED").toString();
 
         String unit = order.getService() != null ? order.getService().getMeasurementUnit() : null;
         List<OrderItem> createdItems = new java.util.ArrayList<>();

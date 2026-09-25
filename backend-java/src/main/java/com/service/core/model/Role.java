@@ -1,5 +1,6 @@
 package com.service.core.model;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.*;
 import java.time.LocalDateTime;
@@ -26,6 +27,24 @@ public class Role {
     @GeneratedValue(strategy = GenerationType.AUTO)
     private UUID id;
 
+    /**
+     * MUHIM (2026-09-09 auditda topilgan, ishlash tezligi): bu maydon avval
+     * JSON javobiga ham chiqardi. `GET /api/v1/roles` 7 ta rol qaytaradi va
+     * HAR BIRIDA butun Company yozuvi takrorlanardi - jumladan
+     * {@code receiptLogoBase64} (chek logotipi, base64 PNG, jonli bazada bir
+     * kompaniyada ~64 KB). Ya'ni bitta so'rov ~450 KB bo'lib ketardi.
+     *
+     * Bu shunchaki sekinlik emas edi: mobil ilova ruxsatlarni AYNAN shu
+     * endpoint orqali oladi (login paytida va ilova har ochilganda), Dio
+     * receiveTimeout esa 12 soniya. Sekin mobil internetda so'rov muddati
+     * tugab, foydalanuvchi ruxsatsiz qolardi va menyu bo'limlari yo'qolib
+     * ko'rinardi.
+     *
+     * Hech bir mijoz (veb "Rollar va Huquqlar" sahifasi ham, mobil ilova ham)
+     * rolning company obyektini o'qimaydi - faqat id/key/nomlar/permissions
+     * ishlatiladi. Shuning uchun uni javobdan chiqarish xavfsiz.
+     */
+    @JsonIgnore
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "company_id", nullable = false)
     private Company company;

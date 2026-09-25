@@ -1,7 +1,7 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { LayoutDashboard, Building2, Send, Settings, LogOut } from 'lucide-react';
-import { MODULE_DEFS } from '../utils/modules';
+import { MODULE_DEFS, permKeyOf } from '../utils/modules';
 
 const Sidebar = ({ currentTab, setCurrentTab, role, roleLabel, perms = {}, handleLogout }) => {
   const { t } = useTranslation();
@@ -18,7 +18,7 @@ const Sidebar = ({ currentTab, setCurrentTab, role, roleLabel, perms = {}, handl
       ...MODULE_DEFS
         // permKey: ba'zi modullar (masalan Hisobotlar) mustaqil ruxsat
         // kalitiga ega emas, mavjud boshqa modulning ruxsatidan foydalanadi.
-        .filter(m => perms[m.permKey || m.id])
+        .filter(m => perms[permKeyOf(m.id)] === true)
         .map(m => ({ id: m.id, label: t(m.labelKey), icon: m.icon }))
     ];
 

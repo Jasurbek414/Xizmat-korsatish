@@ -11,10 +11,11 @@ import { formatDateTime } from '../utils/format';
 import FinanceStats from './finance/FinanceStats';
 import FinanceFilters from './finance/FinanceFilters';
 import FinanceTable from './finance/FinanceTable';
-import CreateTxModal from './finance/CreateTxModal';
+import CreateTxModal, { CATEGORY_LABELS } from './finance/CreateTxModal';
 import PLReport from './finance/PLReport';
 import DebtManager from './finance/DebtManager';
 import BudgetManager from './finance/BudgetManager';
+import EmployeeCashControl from './finance/EmployeeCashControl';
 
 const Finance = ({ tab }) => {
   const { t } = useTranslation();
@@ -152,7 +153,12 @@ const Finance = ({ tab }) => {
         // Faqat ORDER_PAYMENT tranzaksiyalarida to'ldirilgan (buyurtma
         // avtomatik yaratgan kirim) - qo'lda kiritilgan kirim/chiqimlarda null.
         // Tafsilot modalida buyurtma raqami/tarkibini ko'rsatish uchun kerak.
-        order: t.order || null
+        order: t.order || null,
+        // Moliyaviy audit: bu yozuvni KIM kiritgan va KIM tasdiqlagan -
+        // kompaniya egasi har bir tranzaksiya ortida turgan aniq xodimni
+        // ko'rishi kerak, "kimdir kiritgan" emas.
+        created_by_name: t.createdByName || null,
+        confirmed_by_name: t.confirmedByName || null
       }));
 
       setTransactions(mappedTxs);
@@ -480,14 +486,15 @@ const Finance = ({ tab }) => {
 
   // CSV Export for filtered transactions
   const exportToCSV = () => {
-    const headers = ['Tranzaksiya ID', 'Turi', 'Kategoriya', 'Hisob', 'Sana', 'Tavsif', 'Summa (UZS)'];
+    const headers = ['Tranzaksiya ID', 'Turi', 'Kategoriya', 'Hisob', 'Sana', 'Tavsif', 'Kiritgan', 'Summa (UZS)'];
     const rows = filteredTx.map(tx => [
       tx.id,
       tx.type === 'INCOME' ? 'Kirim' : 'Chiqim',
-      tx.category,
+      CATEGORY_LABELS[tx.category] || tx.category,
       tx.wallet_id || 'Kassa',
       tx.created_at.slice(0, 10),
       `"${tx.description.replace(/"/g, '""')}"`,
+      tx.created_by_name || '',
       tx.amount
     ]);
 
@@ -630,6 +637,10 @@ const Finance = ({ tab }) => {
             pendingPayroll={pendingPayroll}
             paymentBreakdown={paymentBreakdown}
           />
+
+          {/* Xodim kesimida jamlangan kassa nazorati - "kimning qo'lida qancha
+              pul bor" degan savolga bitta qarashda javob. */}
+          {pendingHandovers.length > 0 && <EmployeeCashControl pendingHandovers={pendingHandovers} />}
 
           {/* Kassaga topshirish kutilayotgan pullar (kuryerlar tomonidan olingan) -
               har bir TO'LOV (buyurtma) uchun alohida karta. Karta ustiga
@@ -784,7 +795,7 @@ const Finance = ({ tab }) => {
                     </div>
                     <div>
                       <p className="text-[9px] text-slate-400 font-bold uppercase">To'lov qabul qilingan</p>
-                      <p className="text-slate-700 dark:text-gray-300 font-mono">{formatDateTime(selectedHandover.updatedAt)}</p>
+                      <p className="text-slate-700 dark:text-gray-300 font-mono">{formatDateTime(selectedHandover.paymentCollectedAt || selectedHandover.updatedAt)}</p>
                     </div>
                   </div>
 
@@ -875,7 +886,7 @@ const Finance = ({ tab }) => {
                         </span>
                       </div>
                       <p className="text-slate-400 text-[8px] font-medium leading-none">
-                        Kategoriya: {tx.category === 'ORDER_PAYMENT' ? 'Buyurtma to\'lovi' : tx.category === 'FUEL' ? 'Yoqilg\'i' : tx.category === 'SALARY' ? 'Ish haqi' : tx.category === 'CAR_REPAIR' ? 'Avto ta\'mirlash' : tx.category}
+                        Kategoriya: {CATEGORY_LABELS[tx.category] || tx.category}
                       </p>
                       <p className="text-slate-400 text-[8px] font-medium leading-none">
                         Izoh: {tx.description || "Izoh yo'q"}

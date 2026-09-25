@@ -1,0 +1,88 @@
+# PRODUCTION - TO'LIQ BITTA konteyner (Postgres+Asterisk+coturn+backend+
+# frontend+nginx+cloudflared). 2026-09-09 cutover.
+#
+# postgres_data_core va asterisk_data_core - YANGI volume'lar (eski
+# "service-core_postgres_data"/"service-core_asterisk_data" EMAS) - eski
+# volume'lar ma'lumot yo'qolmasligi uchun TEGILMAY qoladi (rollback uchun
+# saqlanadi). Ma'lumotlar pg_dump/pg_restore (Postgres) va fayl nusxalash
+# (Asterisk) orqali bu yangi volume'larga alohida ko'chiriladi - xom volume
+# ulanishi EMAS (glibc/musl collation nomosligi xavfi bo'lgani uchun).
+services:
+  core:
+    build:
+      context: .
+      dockerfile: Dockerfile.core
+    image: service-core:core
+    container_name: service-core-core
+    environment:
+      - DB_HOST=127.0.0.1
+      - DB_PORT=5432
+      - DB_USER=${DB_USER:-postgres}
+      - DB_PASSWORD=${DB_PASSWORD:-postgres}
+      - JWT_SECRET=${JWT_SECRET}
+      - CORS_ALLOWED_ORIGINS=${CORS_ALLOWED_ORIGINS:-http://localhost:3005}
+      - FIREBASE_SERVICE_ACCOUNT_PATH=${FIREBASE_SERVICE_ACCOUNT_PATH:-}
+      - SERVER_PORT=8090
+      - ASTERISK_ARI_HOST=127.0.0.1
+      - ASTERISK_ARI_PORT=8088
+      - ASTERISK_ARI_USERNAME=asterisk
+      - ASTERISK_ARI_PASSWORD=${ASTERISK_ARI_PASSWORD:?.env faylida ASTERISK_ARI_PASSWORD belgilanishi shart}
+      - ASTERISK_PJSIP_CONFIG_DIR=/etc/asterisk/pjsip.d
+      - SIP_CREDENTIALS_KEY=${SIP_CREDENTIALS_KEY:-}
+      - TURN_USER=${TURN_USER:?.env faylida TURN_USER belgilanishi shart}
+      - TURN_PASSWORD=${TURN_PASSWORD:?.env faylida TURN_PASSWORD belgilanishi shart}
+      - CLOUDFLARE_TUNNEL_TOKEN=${CLOUDFLARE_TUNNEL_TOKEN}
+      - WEBRTC_LAN_IP=${WEBRTC_LAN_IP:-62.169.27.106}
+      - EXPECTED_CONTAINER_IP=172.22.0.10
+    volumes:
+      - ./backend-java/firebase-service-account.json:/app/firebase-service-account.json:ro
+      - ./asterisk-config/pjsip.conf:/etc/asterisk/pjsip.conf:ro
+      - ./asterisk-config/extensions.conf:/etc/asterisk/extensions.conf:ro
+      - ./asterisk-config/http.conf:/etc/asterisk/http.conf:ro
+      - ./asterisk-config/modules.conf:/etc/asterisk/modules.conf:ro
+      - ./asterisk-config/pjsip.d:/etc/asterisk/pjsip.d
+      - ./asterisk-config/moh:/var/lib/asterisk/moh
+      - ./coturn-certs:/certs:ro
+      - ./downloads:/usr/share/nginx/downloads:ro
+      - postgres_data_core:/var/lib/postgresql/data
+      - asterisk_data_core:/var/lib/asterisk
+    ports:
+      # MUHIM: 3005 va 8080 faqat 127.0.0.1'ga bind - Docker UFW bypass muammosi.
+      # Cloudflare Tunnel konteyner ichidan 127.0.0.1 orqali ishlaydi,
+      # shu sababli tashqi bind KERAKSIZ va XAVFLI.
+      - "127.0.0.1:3005:3005"
+      - "127.0.0.1:8080:8080"
+      - "5060:5060/udp"
+      - "5060:5060/tcp"
+      - "16384-16483:16384-16483/udp"
+      - "3478:3478/tcp"
+      - "3478:3478/udp"
+    # MUHIM (2026-09-22, VPS'ga ko'chirish): "443:443/tcp" (coturn TLS-TURN)
+    # ATAYLAB OLIB TASHLANDI - bu VPS'da host porti 443 allaqachon BOSHQA
+    # (bu loyihaga tegishli bo'lmagan) WireGuard konteyneriga band. Kodni
+    # tekshirish tasdiqladi: brauzer (useSipPhone.js) TURN uchun FAQAT
+    # oddiy "turn:...:3478?transport=tcp" ishlatadi, "turns:...:443"
+    # HECH QAYERDA ishlatilmaydi - shu sabab bu portni olib tashlash
+    # HECH QANDAY funksionallikka ta'sir qilmaydi. coturn konteyner ICHIDA
+    # hamon 443'da tinglashda davom etadi (supervisord.conf o'zgarmadi),
+    # faqat hostga chiqarilmaydi.
+    restart: always
+    networks:
+      default:
+        ipv4_address: 172.22.0.10
+
+volumes:
+  postgres_data_core:
+  asterisk_data_core:
+
+networks:
+  default:
+    # MUHIM (2026-09-22, VPS'ga ko'chirish): subnet 172.19.0.0/16'dan
+    # 172.22.0.0/16'ga o'zgartirildi - VPS'da 172.19.0.0/16 allaqachon
+    # BOSHQA (bu loyihaga tegishli bo'lmagan) "wireguard-server_default"
+    # tarmog'iga band edi (docker network inspect orqali tasdiqlangan;
+    # 172.17/18/19/20 hammasi band, 172.22 bo'sh).
+    ipam:
+      config:
+        - subnet: 172.22.0.0/16
+          gateway: 172.22.0.1

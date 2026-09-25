@@ -175,6 +175,13 @@ public class FinanceController {
                 // (2026-08-06). Berilmasa null qoladi va @PrePersist joriy
                 // vaqtni qo'yadi - Order.java'dagi bilan bir xil naqsh.
                 .createdAt(parseBackdate(request.get("created_at")))
+                .createdByName(currentUser.getFullName())
+                // CONFIRMED holatda to'g'ridan-to'g'ri yaratilgan yozuv -
+                // uni tasdiqlash uchun alohida qadam yo'q, demak yaratuvchi
+                // o'zi tasdiqlagan hisoblanadi. PENDING bo'lsa (ishchi
+                // kiritgan yoki admin "rejalashtirilgan" deb belgilagan) -
+                // bo'sh qoladi, keyin confirmTransaction() to'ldiradi.
+                .confirmedByName("CONFIRMED".equals(status) ? currentUser.getFullName() : null)
                 .build();
 
         Transaction saved = transactionRepository.save(tx);
@@ -248,7 +255,11 @@ public class FinanceController {
         if (tx == null || !tx.getCompany().getId().equals(UUID.fromString(tenantId))) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("message", "Tranzaksiya topilmadi"));
         }
+        User currentUser = getCurrentUser();
         tx.setStatus("CONFIRMED");
+        if (currentUser != null) {
+            tx.setConfirmedByName(currentUser.getFullName());
+        }
         Transaction saved = transactionRepository.save(tx);
         return ResponseEntity.ok(saved);
     }

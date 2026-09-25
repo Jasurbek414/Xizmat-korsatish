@@ -21,7 +21,7 @@ import Telephony from './features/Telephony';
 import { initMockDb, addNotification } from './store/mockDb';
 import NotificationCenter from './components/NotificationCenter';
 import { api } from './services/api';
-import { getPerms, getRoleLabel } from './utils/modules';
+import { getPerms, getRoleLabel, permKeyOf } from './utils/modules';
 
 const App = () => {
   const [auth, setAuth] = useState(null);
@@ -242,9 +242,16 @@ const AdminPortal = ({ auth, setAuth, theme, toggleTheme }) => {
   const perms = getPerms(roleObj);
   const roleLabel = getRoleLabel(roleObj, auth.role, i18n.language);
 
-  // Route / state guard to prevent unauthorized sub-tab access
+  // Route / state guard to prevent unauthorized sub-tab access.
+  //
+  // MUHIM (2026-09-09 auditda topilgan): avval bu yerda `perms[currentTab]`
+  // to'g'ridan-to'g'ri o'qilardi, lekin "Hisobotlar" tabining ruxsat kaliti
+  // `reports` emas, `finance` (MODULE_DEFS.permKey). Shu sabab `perms.reports`
+  // har doim `undefined` bo'lib, `=== false` sharti hech qachon bajarilmasdi -
+  // ya'ni moliya huquqisiz rol uchun bu qo'riqchi umuman ishlamasdi.
+  // Sidebar allaqachon permKey'ni hisobga olardi, endi ikkalasi bir xil.
   useEffect(() => {
-    if (currentTab !== 'dashboard' && perms[currentTab] === false) {
+    if (currentTab !== 'dashboard' && perms[permKeyOf(currentTab)] === false) {
       setCurrentTab('dashboard');
     }
   }, [currentTab, perms]);

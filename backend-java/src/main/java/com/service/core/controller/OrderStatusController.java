@@ -22,12 +22,15 @@ public class OrderStatusController {
     private final OrderStatusRepository orderStatusRepository;
     private final CompanyRepository companyRepository;
     private final OrderRepository orderRepository;
+    private final com.service.core.repository.RoleRepository roleRepository;
 
     public OrderStatusController(OrderStatusRepository orderStatusRepository, CompanyRepository companyRepository,
-                                  OrderRepository orderRepository) {
+                                  OrderRepository orderRepository,
+                                  com.service.core.repository.RoleRepository roleRepository) {
         this.orderStatusRepository = orderStatusRepository;
         this.companyRepository = companyRepository;
         this.orderRepository = orderRepository;
+        this.roleRepository = roleRepository;
     }
 
     // MUHIM: yozish (POST/PUT/DELETE) faqat 'orders'ga cheklangan, lekin O'QISH shart emas —
@@ -48,23 +51,29 @@ public class OrderStatusController {
 
     @PostMapping
     @PreAuthorize("@perm.has('orders')")
-    public ResponseEntity<?> createStatus(@RequestBody Map<String, String> request) {
+    public ResponseEntity<?> createStatus(@RequestBody Map<String, Object> request) {
         String tenantId = TenantContext.getCurrentTenant();
         if (tenantId == null) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of("message", "Tenant ID is missing"));
         }
 
-        String nameUz = request.get("name_uz");
-        String nameRu = request.get("name_ru");
-        String nameEn = request.get("name_en");
-        String colorCode = request.get("color_code");
+        String nameUz = str(request, "name_uz");
+        String nameRu = str(request, "name_ru");
+        String nameEn = str(request, "name_en");
+        String colorCode = str(request, "color_code");
 
         if (nameUz == null || nameRu == null || nameEn == null) {
             return ResponseEntity.badRequest().body(Map.of("message", "Status nomlari kiritilishi shart"));
         }
 
-        Company company = companyRepository.findById(UUID.fromString(tenantId))
+        UUID companyId = UUID.fromString(tenantId);
+        Company company = companyRepository.findById(companyId)
                 .orElseThrow(() -> new RuntimeException("Kompaniya topilmadi"));
+
+        String ownerRoleKey = str(request, "owner_role_key");
+        if (ownerRoleKey != null && !roleExists(companyId, ownerRoleKey)) {
+            return ResponseEntity.badRequest().body(Map.of("message", "Bunday rol topilmadi: " + ownerRoleKey));
+        }
 
         List<OrderStatus> current = orderStatusRepository.findByCompanyIdOrderBySortOrderAsc(company.getId());
         int nextOrder = current.size() + 1;
@@ -77,15 +86,39 @@ public class OrderStatusController {
                 .colorCode(colorCode != null ? colorCode : "#3b82f6")
                 .sortOrder(nextOrder)
                 .isSystem(false)
+                .ownerRoleKey(ownerRoleKey)
+                .isFinal(bool(request, "is_final"))
                 .build();
 
         OrderStatus saved = orderStatusRepository.save(status);
         return ResponseEntity.status(HttpStatus.CREATED).body(saved);
     }
 
+    /** So'rov tanasidan matn qiymat - bo'sh qator NULL deb qabul qilinadi. */
+    private String str(Map<String, Object> request, String key) {
+        Object v = request.get(key);
+        if (v == null) return null;
+        String s = v.toString().trim();
+        return s.isEmpty() ? null : s;
+    }
+
+    private boolean bool(Map<String, Object> request, String key) {
+        Object v = request.get(key);
+        if (v instanceof Boolean b) return b;
+        return v != null && "true".equalsIgnoreCase(v.toString().trim());
+    }
+
+    /**
+     * Rol kaliti shu kompaniyada HAQIQATAN mavjudmi. Tekshiruvsiz admin
+     * xato yozgan kalit jimgina saqlanib, o'sha bosqich hech kimga
+     * ko'rinmay qolardi - buni ekranda tushunish deyarli imkonsiz.
+     */
+    private boolean roleExists(UUID companyId, String roleKey) {
+        return roleRepository.findByCompanyIdAndKey(companyId, roleKey).isPresent();
+    }
+
     @PutMapping("/reorder")
     @PreAuthorize("@perm.has('orders')")
-    @org.springframework.transaction.annotation.Transactional
     public ResponseEntity<?> reorderStatuses(@RequestBody List<String> orderedIds) {
         String tenantId = TenantContext.getCurrentTenant();
         if (tenantId == null) {
@@ -93,59 +126,50 @@ public class OrderStatusController {
         }
 
         UUID companyId = UUID.fromString(tenantId);
-        List<OrderStatus> statuses = new java.util.ArrayList<>();
-        for (String rawId : orderedIds) {
-            OrderStatus status = orderStatusRepository.findById(UUID.fromString(rawId)).orElse(null);
+        for (int i = 0; i < orderedIds.size(); i++) {
+            UUID statusId = UUID.fromString(orderedIds.get(i));
+            OrderStatus status = orderStatusRepository.findById(statusId).orElse(null);
             if (status != null && status.getCompany().getId().equals(companyId)) {
-                statuses.add(status);
+                status.setSortOrder(i + 1);
+                orderStatusRepository.save(status);
             }
         }
-
-        // MUHIM (2026-09-12 topilgan jonli xato): (company_id, sort_order) UNIQUE
-        // cheklovi bor. Har bir yozuvni birma-bir TO'G'RIDAN-TO'G'RI yangi (final)
-        // qiymatga o'zgartirish - masalan ikkinchi statusni birinchi o'ringa
-        // ko'chirish - u hali eskisini ushlab turgan boshqa yozuv bilan bir xil
-        // sort_order'ga ega bo'lib qolib, DARHOL constraint xatosiga uchraydi.
-        // Istalgan qo'shni almashtirish (admin panelidagi "yuqoriga/pastga"
-        // tugmalari - OrderStatuses.jsx moveStatus()) HAR DOIM shu xatoni berardi -
-        // ya'ni bu funksiya ishlab chiqarishda hech qachon to'g'ri ishlamagan.
-        // Yechim: avval hammasini VAQTINCHA hech kim bilan to'qnashmaydigan
-        // MANFIY qiymatlarga, so'ng haqiqiy (1..N) qiymatlarga o'tkazish.
-        for (int i = 0; i < statuses.size(); i++) {
-            statuses.get(i).setSortOrder(-(i + 1));
-        }
-        // MUHIM: flush() SHART - aks holda Hibernate ikkala save() ni bitta
-        // tranzaksiya ichida "dirty checking" orqali birlashtirib, faqat OXIRGI
-        // (musbat) qiymat bilan bitta SQL yuboradi va manfiy oraliq bosqich
-        // hech qachon bazaga yozilmaydi - bu holda constraint xatosi USHBU
-        // tuzatishdan KEYIN ham davom etaverardi.
-        orderStatusRepository.saveAll(statuses);
-        orderStatusRepository.flush();
-        for (int i = 0; i < statuses.size(); i++) {
-            statuses.get(i).setSortOrder(i + 1);
-        }
-        orderStatusRepository.saveAll(statuses);
 
         return ResponseEntity.ok(Map.of("message", "Statuslar ketma-ketligi muvaffaqiyatli saqlandi"));
     }
 
     @PutMapping("/{id}")
     @PreAuthorize("@perm.has('orders')")
-    public ResponseEntity<?> updateStatus(@PathVariable UUID id, @RequestBody Map<String, String> request) {
+    public ResponseEntity<?> updateStatus(@PathVariable UUID id, @RequestBody Map<String, Object> request) {
         String tenantId = TenantContext.getCurrentTenant();
         if (tenantId == null) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of("message", "Tenant ID is missing"));
         }
 
+        UUID companyId = UUID.fromString(tenantId);
         OrderStatus status = orderStatusRepository.findById(id).orElse(null);
-        if (status == null || !status.getCompany().getId().equals(UUID.fromString(tenantId))) {
+        if (status == null || !status.getCompany().getId().equals(companyId)) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("message", "Status topilmadi"));
         }
 
-        if (request.containsKey("name_uz")) status.setNameUz(request.get("name_uz").trim());
-        if (request.containsKey("name_ru")) status.setNameRu(request.get("name_ru").trim());
-        if (request.containsKey("name_en")) status.setNameEn(request.get("name_en").trim());
-        if (request.containsKey("color_code")) status.setColorCode(request.get("color_code").trim());
+        if (request.containsKey("name_uz")) status.setNameUz(str(request, "name_uz"));
+        if (request.containsKey("name_ru")) status.setNameRu(str(request, "name_ru"));
+        if (request.containsKey("name_en")) status.setNameEn(str(request, "name_en"));
+        if (request.containsKey("color_code")) status.setColorCode(str(request, "color_code"));
+
+        // Rol biriktirish. Bo'sh qator yuborilsa biriktirish OLIB TASHLANADI
+        // va bosqich yana tartib raqami mantiqiga qaytadi.
+        if (request.containsKey("owner_role_key")) {
+            String roleKey = str(request, "owner_role_key");
+            if (roleKey != null && !roleExists(companyId, roleKey)) {
+                return ResponseEntity.badRequest().body(Map.of("message", "Bunday rol topilmadi: " + roleKey));
+            }
+            status.setOwnerRoleKey(roleKey);
+        }
+
+        if (request.containsKey("is_final")) {
+            status.setIsFinal(bool(request, "is_final"));
+        }
 
         OrderStatus saved = orderStatusRepository.save(status);
         return ResponseEntity.ok(saved);

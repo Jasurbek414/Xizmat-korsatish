@@ -1,12 +1,12 @@
 import React, { useState, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Sliders, Briefcase, CheckCircle, Layers, MessageSquare, Shield, Database, Fingerprint, Printer } from 'lucide-react';
+import { Sliders, Briefcase, CheckCircle, MessageSquare, Shield, Database, Fingerprint, Printer } from 'lucide-react';
 
 // Import subcomponents
 import GeneralSettings from './settings/GeneralSettings';
 import ServicesCatalog from './settings/ServicesCatalog';
 import OrderStatuses from './settings/OrderStatuses';
-import ItemStages from './settings/ItemStages';
+import ItemStatusLabels from './settings/ItemStatusLabels';
 import NotificationSettings from './settings/NotificationSettings';
 import AdminUsers from './settings/AdminUsers';
 import SystemBackup from './settings/SystemBackup';
@@ -31,7 +31,6 @@ const Settings = ({ auth }) => {
     { id: 'general', label: t('settings_page.general'), icon: Sliders },
     { id: 'services', label: t('settings_page.services'), icon: Briefcase },
     { id: 'statuses', label: t('settings_page.statuses'), icon: CheckCircle },
-    { id: 'item_stages', label: t('settings_page.item_stages'), icon: Layers },
     { id: 'notifications', label: t('settings_page.notifications'), icon: MessageSquare },
     { id: 'roles', label: t('settings_page.roles'), icon: Fingerprint },
     { id: 'admins', label: t('settings_page.admins'), icon: Shield },
@@ -46,9 +45,12 @@ const Settings = ({ auth }) => {
       case 'services':
         return <ServicesCatalog />;
       case 'statuses':
-        return <OrderStatuses />;
-      case 'item_stages':
-        return <ItemStages />;
+        return (
+          <div className="space-y-6">
+            <OrderStatuses />
+            <ItemStatusLabels />
+          </div>
+        );
       case 'notifications':
         return <NotificationSettings />;
       case 'roles':

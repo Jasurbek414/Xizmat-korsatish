@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { TrendingUp, TrendingDown } from 'lucide-react';
 import { formatCurrency } from '../../utils/format';
+import { CATEGORY_LABELS } from './CreateTxModal';
 
 const CategoryBreakdown = ({ transactions }) => {
   const { t, i18n } = useTranslation();
@@ -55,32 +56,35 @@ const CategoryBreakdown = ({ transactions }) => {
         </div>
       </div>
 
-      {/* Progress Bars */}
+      {/* Progress Bars - ENG KATTA kategoriya birinchi ko'rsatiladi, chunki
+          bu tahlilning butun maqsadi - "eng ko'p qayerga ketyapti/kelyapti"
+          degan savolga darhol javob berish, ro'yxat tartibida emas. */}
       <div className="space-y-4 pt-2">
         {Object.keys(categoryStats).length === 0 ? (
           <p className="text-[10px] text-slate-400 dark:text-gray-500 font-medium py-6 text-center">
             Ushbu turdagi tranzaksiyalar mavjud emas
           </p>
         ) : (
-          Object.keys(categoryStats).map(cat => {
-            const amount = categoryStats[cat];
-            const percentage = currentTotal > 0 ? (amount / currentTotal) * 100 : 0;
-            return (
-              <div key={cat} className="space-y-1.5">
-                <div className="flex justify-between text-xs font-semibold">
-                  <span className="text-slate-600 dark:text-gray-400 uppercase text-[9px] tracking-wide font-bold">{cat}</span>
-                  <span className="text-slate-800 dark:text-white font-extrabold">{formatCurrency(amount, i18n.language)}</span>
+          Object.entries(categoryStats)
+            .sort((a, b) => b[1] - a[1])
+            .map(([cat, amount]) => {
+              const percentage = currentTotal > 0 ? (amount / currentTotal) * 100 : 0;
+              return (
+                <div key={cat} className="space-y-1.5">
+                  <div className="flex justify-between text-xs font-semibold">
+                    <span className="text-slate-600 dark:text-gray-400 text-[10px] tracking-wide font-bold">{CATEGORY_LABELS[cat] || cat}</span>
+                    <span className="text-slate-800 dark:text-white font-extrabold">{formatCurrency(amount, i18n.language)}</span>
+                  </div>
+                  <div className="w-full h-2 rounded-full bg-slate-100 dark:bg-white/5 overflow-hidden">
+                    <div
+                      className={`h-full rounded-full transition-all duration-500 ${activeTab === 'INCOME' ? 'bg-emerald-500' : 'bg-rose-500'}`}
+                      style={{ width: `${percentage}%` }}
+                    />
+                  </div>
+                  <p className="text-[9px] text-right text-slate-400 dark:text-gray-500 font-bold">{percentage.toFixed(1)}%</p>
                 </div>
-                <div className="w-full h-2 rounded-full bg-slate-100 dark:bg-white/5 overflow-hidden">
-                  <div 
-                    className={`h-full rounded-full transition-all duration-500 ${activeTab === 'INCOME' ? 'bg-emerald-500' : 'bg-rose-500'}`} 
-                    style={{ width: `${percentage}%` }}
-                  />
-                </div>
-                <p className="text-[9px] text-right text-slate-400 dark:text-gray-500 font-bold">{percentage.toFixed(1)}%</p>
-              </div>
-            );
-          })
+              );
+            })
         )}
       </div>
 

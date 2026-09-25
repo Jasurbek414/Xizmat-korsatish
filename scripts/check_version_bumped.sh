@@ -13,7 +13,7 @@
 set -euo pipefail
 
 PUBSPEC="$(dirname "$0")/../mobile-flutter/pubspec.yaml"
-VERSION_URL="https://namifor.ecos.uz/downloads/version.json"
+VERSION_URL="https://servicecore.ecos.uz/downloads/version.json"
 
 local_code=$(grep -oP '^version:\s*\K[0-9.]+\+\K[0-9]+' "$PUBSPEC" || true)
 if [ -z "$local_code" ]; then

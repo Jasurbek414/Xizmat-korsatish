@@ -3,13 +3,16 @@ package com.service.core.controller;
 import com.service.core.model.Company;
 import com.service.core.model.Debt;
 import com.service.core.model.Transaction;
+import com.service.core.model.User;
 import com.service.core.repository.CompanyRepository;
 import com.service.core.repository.DebtRepository;
 import com.service.core.repository.TransactionRepository;
+import com.service.core.repository.UserRepository;
 import com.service.core.tenant.TenantContext;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
@@ -29,12 +32,19 @@ public class DebtController {
     private final DebtRepository debtRepository;
     private final CompanyRepository companyRepository;
     private final TransactionRepository transactionRepository;
+    private final UserRepository userRepository;
 
     public DebtController(DebtRepository debtRepository, CompanyRepository companyRepository,
-                           TransactionRepository transactionRepository) {
+                           TransactionRepository transactionRepository, UserRepository userRepository) {
         this.debtRepository = debtRepository;
         this.companyRepository = companyRepository;
         this.transactionRepository = transactionRepository;
+        this.userRepository = userRepository;
+    }
+
+    private User getCurrentUser() {
+        String username = SecurityContextHolder.getContext().getAuthentication().getName();
+        return userRepository.findByUsername(username).orElse(null);
     }
 
     @GetMapping
@@ -116,6 +126,7 @@ public class DebtController {
         debt.setPaidAt(LocalDateTime.now());
         Debt saved = debtRepository.save(debt);
 
+        User currentUser = getCurrentUser();
         Transaction tx = Transaction.builder()
                 .company(debt.getCompany())
                 .type("PAYABLE".equals(debt.getType()) ? "EXPENSE" : "INCOME")
@@ -123,6 +134,8 @@ public class DebtController {
                 .category("DEBT_PAYMENT")
                 .description(("PAYABLE".equals(debt.getType()) ? "Qarz to'landi: " : "Qarz undirildi: ") + debt.getPerson())
                 .status("CONFIRMED")
+                .createdByName(currentUser != null ? currentUser.getFullName() : null)
+                .confirmedByName(currentUser != null ? currentUser.getFullName() : null)
                 .build();
         transactionRepository.save(tx);
 

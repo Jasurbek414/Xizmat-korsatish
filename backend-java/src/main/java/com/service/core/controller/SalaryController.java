@@ -18,6 +18,7 @@ import com.service.core.tenant.TenantContext;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 import java.math.BigDecimal;
@@ -38,6 +39,11 @@ public class SalaryController {
 
     private static LocalDate payYearMonthEnd(LocalDate payPeriod) {
         return YearMonth.from(payPeriod).atEndOfMonth();
+    }
+
+    private User getCurrentUser() {
+        String username = SecurityContextHolder.getContext().getAuthentication().getName();
+        return userRepository.findByUsername(username).orElse(null);
     }
 
     private final SalaryRepository salaryRepository;
@@ -206,6 +212,7 @@ public class SalaryController {
                 .subtract(salary.getDeductions() != null ? salary.getDeductions() : BigDecimal.ZERO)
                 .subtract(salary.getAttendanceDeduction() != null ? salary.getAttendanceDeduction() : BigDecimal.ZERO);
 
+        User currentUser = getCurrentUser();
         // Register EXPENSE transaction
         Transaction tx = Transaction.builder()
                 .company(salary.getCompany())
@@ -215,6 +222,8 @@ public class SalaryController {
                 .description(String.format("%s uchun %s oyi maoshi to'lovi",
                         salary.getUser().getFullName(), salary.getPayPeriod().toString().substring(0, 7)))
                 .status("CONFIRMED")
+                .createdByName(currentUser != null ? currentUser.getFullName() : null)
+                .confirmedByName(currentUser != null ? currentUser.getFullName() : null)
                 .build();
         Transaction savedTx = transactionRepository.save(tx);
 
@@ -298,6 +307,7 @@ public class SalaryController {
         salary.setDeductions(currentDeductions.add(amount));
         salaryRepository.save(salary);
 
+        User currentUser = getCurrentUser();
         // Register advance/deduction EXPENSE transaction
         Transaction tx = Transaction.builder()
                 .company(salary.getCompany())
@@ -307,6 +317,8 @@ public class SalaryController {
                 .description(String.format("%s uchun %s oyi uchun avans berildi",
                         salary.getUser().getFullName(), salary.getPayPeriod().toString().substring(0, 7)))
                 .status("CONFIRMED")
+                .createdByName(currentUser != null ? currentUser.getFullName() : null)
+                .confirmedByName(currentUser != null ? currentUser.getFullName() : null)
                 .build();
         transactionRepository.save(tx);
 
@@ -351,6 +363,7 @@ public class SalaryController {
         salary.setDeductions(currentDeductions.subtract(amount));
         salaryRepository.save(salary);
 
+        User currentUser = getCurrentUser();
         Transaction tx = Transaction.builder()
                 .company(salary.getCompany())
                 .type("INCOME")
@@ -359,6 +372,8 @@ public class SalaryController {
                 .description(String.format("%s uchun %s oyi - xato bilan berilgan avans/jarima qaytarildi",
                         salary.getUser().getFullName(), salary.getPayPeriod().toString().substring(0, 7)))
                 .status("CONFIRMED")
+                .createdByName(currentUser != null ? currentUser.getFullName() : null)
+                .confirmedByName(currentUser != null ? currentUser.getFullName() : null)
                 .build();
         transactionRepository.save(tx);
 

@@ -724,6 +724,11 @@ public class OrderController {
         order.setPaymentMethod(paymentMethod);
         order.setCashAmount(cashAmount);
         order.setCardAmount(cardAmount);
+        // Xodim qo'lida pul QANCHA vaqtdan beri turgani shu payt bo'yicha
+        // hisoblanadi (Order.paymentCollectedAt izohiga qarang) - `updatedAt`
+        // bilan farqli o'laroq, bu maydon KEYINGI (masalan izoh tahrirlash
+        // kabi) saqlashlarda o'zgarmaydi.
+        order.setPaymentCollectedAt(LocalDateTime.now());
         Order saved = orderRepository.save(order);
         return ResponseEntity.ok(saved);
     }
@@ -744,6 +749,10 @@ public class OrderController {
         if (!"COLLECTED".equals(order.getPaymentStatus())) {
             return ResponseEntity.badRequest().body(Map.of("message", "Bu buyurtma to'lovi topshirish kutilayotgan holatda emas"));
         }
+
+        // Kassaga qabul qilgan ANIQ xodim (buxgalter/admin) - moliyaviy audit
+        // uchun ("bu naqd pulni kim qabul qildi" degan savolga javob).
+        User currentUser = getCurrentUser();
 
         BigDecimal actualAmount = order.getCollectedPrice();
         if (request != null && request.containsKey("actual_amount")) {
@@ -777,6 +786,8 @@ public class OrderController {
                 .paymentMethod(order.getPaymentMethod())
                 .cashAmount(order.getCashAmount())
                 .cardAmount(order.getCardAmount())
+                .createdByName(currentUser != null ? currentUser.getFullName() : null)
+                .confirmedByName(currentUser != null ? currentUser.getFullName() : null)
                 .build();
         transactionRepository.save(transaction);
 

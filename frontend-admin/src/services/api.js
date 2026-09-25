@@ -415,46 +415,47 @@ export const api = {
     return handleResponse(res);
   },
 
-  // Gilam (OrderItem) bosqichlari - Buyurtma Statuslaridan MUSTAQIL, sex
-  // ichidagi ishlov holati (masalan Qabul qilindi -> Yuvildi -> Tayyor).
-  async getItemStages({ silent403 = false } = {}) {
-    const res = await authFetch(`${API_BASE_URL}/item-stages`, {
+  // Gilam (OrderItem) ishlov bosqichlari - "Buyurtma statuslari" bilan BIR
+  // XIL erkin CRUD (qo'shish/tahrirlash/o'chirish/tartib almashtirish).
+  // Batafsil: backend ItemStatusLabel/ItemStatusController izohi.
+  async getItemStatuses() {
+    const res = await authFetch(`${API_BASE_URL}/item-statuses`, {
       headers: getHeaders()
-    });
-    return handleResponse(res, { silent403 });
-  },
-
-  async createItemStage(stage) {
-    const res = await authFetch(`${API_BASE_URL}/item-stages`, {
-      method: 'POST',
-      headers: getHeaders(),
-      body: JSON.stringify(stage)
     });
     return handleResponse(res);
   },
 
-  async reorderItemStages(orderedIds) {
-    const res = await authFetch(`${API_BASE_URL}/item-stages/reorder`, {
+  async createItemStatusLabel(label) {
+    const res = await authFetch(`${API_BASE_URL}/item-statuses`, {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify(label)
+    });
+    return handleResponse(res);
+  },
+
+  async updateItemStatusLabel(itemKey, label) {
+    const res = await authFetch(`${API_BASE_URL}/item-statuses/${itemKey}`, {
+      method: 'PUT',
+      headers: getHeaders(),
+      body: JSON.stringify(label)
+    });
+    return handleResponse(res);
+  },
+
+  async deleteItemStatusLabel(itemKey) {
+    const res = await authFetch(`${API_BASE_URL}/item-statuses/${itemKey}`, {
+      method: 'DELETE',
+      headers: getHeaders()
+    });
+    return handleResponse(res);
+  },
+
+  async reorderItemStatuses(orderedIds) {
+    const res = await authFetch(`${API_BASE_URL}/item-statuses/reorder`, {
       method: 'PUT',
       headers: getHeaders(),
       body: JSON.stringify(orderedIds)
-    });
-    return handleResponse(res);
-  },
-
-  async updateItemStageDefinition(id, stage) {
-    const res = await authFetch(`${API_BASE_URL}/item-stages/${id}`, {
-      method: 'PUT',
-      headers: getHeaders(),
-      body: JSON.stringify(stage)
-    });
-    return handleResponse(res);
-  },
-
-  async deleteItemStage(id) {
-    const res = await authFetch(`${API_BASE_URL}/item-stages/${id}`, {
-      method: 'DELETE',
-      headers: getHeaders()
     });
     return handleResponse(res);
   },

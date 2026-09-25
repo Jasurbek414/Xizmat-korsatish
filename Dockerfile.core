@@ -1,0 +1,104 @@
+# service-core: TO'LIQ BITTA konteynerga jamlash (2026-09-09, aniq ko'rsatma
+# bilan) - Postgres + backend + frontend + nginx + cloudflared + Asterisk +
+# coturn, HAMMASI shu image ichida, supervisord ostida.
+
+# ================= Bosqich: backend-build =================
+FROM maven:3.9.6-eclipse-temurin-17-alpine AS backend-build
+WORKDIR /src/backend-java
+COPY backend-java/pom.xml .
+RUN mvn dependency:go-offline
+COPY backend-java/src ./src
+RUN mvn clean package -DskipTests
+
+# ================= Bosqich: asterisk-src (faqat COPY --from manbai) =================
+# Asterisk 22 noldan compile qilinmaydi - ishlab turgan andrius/asterisk:22
+# image'idan binary/modullar to'g'ridan-to'g'ri ko'chirib olinadi. Bu image
+# Debian 13 (trixie), x86_64 - jonli konteynerdan tasdiqlangan (2026-09-09).
+FROM andrius/asterisk:22 AS asterisk-src
+
+# ================= Frontend: Docker ICHIDA QURILMAYDI =================
+# frontend-admin/ papkasida manba index.html/vite.config yo'q - faqat
+# oldindan qurilgan dist/ bor ([[frontend-dist-hostda-quriladi]]). Tayyor
+# dist/ to'g'ridan-to'g'ri COPY qilinadi (pastda).
+
+# ================= Yakuniy bosqich =================
+FROM debian:trixie-slim
+
+ARG DEBIAN_FRONTEND=noninteractive
+
+# Postgres 16 - PGDG rasmiy repo orqali (trixie'ning O'Z apt reposida endi
+# faqat postgresql-17 bor, productiondagi postgres:16-alpine bilan MOS
+# versiyani saqlash uchun aniq 16 talab qilinadi).
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        ca-certificates curl gnupg lsb-release \
+    && install -d /usr/share/postgresql-common/pgdg \
+    && curl -fsSL -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc \
+        https://www.postgresql.org/media/keys/ACCC4CF8.asc \
+    && echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" \
+        > /etc/apt/sources.list.d/pgdg.list \
+    && apt-get update && apt-get install -y --no-install-recommends postgresql-16 \
+    && rm -rf /var/lib/apt/lists/*
+
+# Qolgan barcha runtime paketlar: nginx, coturn, supervisor, JRE, Asterisk
+# uchun kerakli dinamik kutubxonalar (jumladan "libbinutils" - avvalgi
+# sinovda aniqlangan "libbfd-2.44-system.so yo'q" xatosini tuzatadi).
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        ca-certificates \
+        curl \
+        gettext-base \
+        iproute2 \
+        nginx \
+        coturn \
+        supervisor \
+        openjdk-21-jre-headless \
+        libxml2 \
+        libxslt1.1 \
+        libsqlite3-0 \
+        libssl3 \
+        libjansson4 \
+        libuuid1 \
+        libedit2 \
+        libbsd0 \
+        libmd0 \
+        libbinutils \
+    && rm -rf /var/lib/apt/lists/*
+
+# cloudflared - rasmiy binary, GitHub "latest" havolasi orqali (aniq versiya
+# tag'i taxmin qilinganda 404 berganligi Bosqich-3'da aniqlangan).
+RUN curl -fsSL -o /usr/local/bin/cloudflared \
+        "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64" \
+    && chmod +x /usr/local/bin/cloudflared \
+    && /usr/local/bin/cloudflared --version
+
+# --- Asterisk: andrius/asterisk:22 dan binary/modul/config-skeleton ko'chirish ---
+COPY --from=asterisk-src /usr/sbin/asterisk /usr/sbin/asterisk
+COPY --from=asterisk-src /usr/lib/asterisk /usr/lib/asterisk
+COPY --from=asterisk-src /usr/lib/libasteriskssl.so.1 /usr/lib/libasteriskssl.so.1
+COPY --from=asterisk-src /usr/lib/libasteriskpj.so.2 /usr/lib/libasteriskpj.so.2
+COPY --from=asterisk-src /etc/asterisk /etc/asterisk
+COPY --from=asterisk-src /var/lib/asterisk /var/lib/asterisk
+RUN ldconfig && mkdir -p /var/log/asterisk /var/spool/asterisk
+
+# --- Backend jar ---
+RUN mkdir -p /app
+COPY --from=backend-build /src/backend-java/target/*.jar /app/app.jar
+
+# --- Frontend: oldindan qurilgan dist/ ---
+RUN mkdir -p /usr/share/nginx/html
+COPY frontend-admin/dist/ /usr/share/nginx/html/
+
+# --- nginx, supervisord, entrypoint, shablonlar ---
+RUN rm -f /etc/nginx/sites-enabled/default
+COPY nginx-core.conf /etc/nginx/conf.d/default.conf
+COPY supervisord.conf /etc/supervisor/conf.d/supervisord.conf
+COPY entrypoint.sh /usr/local/bin/entrypoint.sh
+COPY run-with-priority.sh /usr/local/bin/run-with-priority.sh
+COPY postgres-entrypoint.sh /usr/local/bin/postgres-entrypoint.sh
+COPY healthchecks/wait-for-db.sh /usr/local/bin/wait-for-db.sh
+COPY templates/ /etc/core-templates/
+RUN chmod +x /usr/local/bin/entrypoint.sh /usr/local/bin/run-with-priority.sh \
+        /usr/local/bin/postgres-entrypoint.sh /usr/local/bin/wait-for-db.sh
+
+EXPOSE 3005 8080 5060/udp 5060/tcp 16384-16483/udp 3478/tcp 3478/udp 443/tcp
+
+ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
