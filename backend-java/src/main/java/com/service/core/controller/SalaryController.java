@@ -1,11 +1,13 @@
 package com.service.core.controller;
 
+import com.service.core.model.Absence;
 import com.service.core.model.Company;
 import com.service.core.model.Order;
 import com.service.core.model.OrderStatus;
 import com.service.core.model.Salary;
 import com.service.core.model.Transaction;
 import com.service.core.model.User;
+import com.service.core.repository.AbsenceRepository;
 import com.service.core.repository.CompanyRepository;
 import com.service.core.repository.OrderRepository;
 import com.service.core.repository.OrderStatusRepository;
@@ -16,8 +18,10 @@ import com.service.core.tenant.TenantContext;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.YearMonth;
 import java.util.ArrayList;
@@ -32,22 +36,29 @@ import java.util.stream.Collectors;
 @PreAuthorize("@perm.has('salaries')")
 public class SalaryController {
 
+    private static LocalDate payYearMonthEnd(LocalDate payPeriod) {
+        return YearMonth.from(payPeriod).atEndOfMonth();
+    }
+
     private final SalaryRepository salaryRepository;
     private final TransactionRepository transactionRepository;
     private final UserRepository userRepository;
     private final CompanyRepository companyRepository;
     private final OrderRepository orderRepository;
     private final OrderStatusRepository orderStatusRepository;
+    private final AbsenceRepository absenceRepository;
 
     public SalaryController(SalaryRepository salaryRepository, TransactionRepository transactionRepository,
                              UserRepository userRepository, CompanyRepository companyRepository,
-                             OrderRepository orderRepository, OrderStatusRepository orderStatusRepository) {
+                             OrderRepository orderRepository, OrderStatusRepository orderStatusRepository,
+                             AbsenceRepository absenceRepository) {
         this.salaryRepository = salaryRepository;
         this.transactionRepository = transactionRepository;
         this.userRepository = userRepository;
         this.companyRepository = companyRepository;
         this.orderRepository = orderRepository;
         this.orderStatusRepository = orderStatusRepository;
+        this.absenceRepository = absenceRepository;
     }
 
     @GetMapping
@@ -91,10 +102,14 @@ public class SalaryController {
                 .map(s -> s.getUser().getId())
                 .collect(Collectors.toSet());
 
+        LocalDate periodEnd = payYearMonthEnd(payPeriod);
         List<User> eligible = userRepository.findByCompanyId(companyId).stream()
                 .filter(u -> u.getSalary() != null && u.getSalary() > 0)
                 .filter(u -> "ACTIVE".equalsIgnoreCase(u.getStatus()))
                 .filter(u -> !alreadyGenerated.contains(u.getId()))
+                // Oy tugagandan keyin ishga kirgan xodim shu davr uchun hali oylikka
+                // ega emas - hireDate kelasi oyda bo'lsa o'tkazib yuboriladi.
+                .filter(u -> u.getHireDate() == null || !u.getHireDate().isAfter(periodEnd))
                 .toList();
 
         // MUHIM (audit'da topilgan xato, tuzatildi): haydovchi komissiyasi avval
@@ -117,6 +132,8 @@ public class SalaryController {
         int kpiPercent = company.getDriverKpiPercent() != null ? company.getDriverKpiPercent() : 10;
         YearMonth payYearMonth = YearMonth.from(payPeriod);
 
+        int totalDaysInMonth = payYearMonth.lengthOfMonth();
+
         List<Salary> created = new ArrayList<>();
         for (User u : eligible) {
             BigDecimal commission = BigDecimal.ZERO;
@@ -131,11 +148,28 @@ public class SalaryController {
                         .divide(BigDecimal.valueOf(100));
             }
 
+            // Oy o'rtasida ishga kirgan xodim uchun shu oyda haqiqatan ishlashi
+            // kerak bo'lgan kunlar soni (hireDate oydan oldin bo'lsa - to'liq oy).
+            LocalDate employedFrom = (u.getHireDate() != null && u.getHireDate().isAfter(payPeriod))
+                    ? u.getHireDate() : payPeriod;
+            int workingDays = (int) (java.time.temporal.ChronoUnit.DAYS.between(employedFrom, periodEnd) + 1);
+
+            BigDecimal monthlyRate = BigDecimal.valueOf(u.getSalary());
+            BigDecimal dailyRate = monthlyRate.divide(BigDecimal.valueOf(totalDaysInMonth), 2, RoundingMode.HALF_UP);
+            BigDecimal proratedBase = dailyRate.multiply(BigDecimal.valueOf(workingDays));
+
+            List<Absence> absences = absenceRepository.findByUserIdAndDateBetween(u.getId(), employedFrom, periodEnd);
+            int absentDays = absences.size();
+            BigDecimal attendanceDeduction = dailyRate.multiply(BigDecimal.valueOf(absentDays));
+
             Salary salary = Salary.builder()
                     .company(company)
                     .user(u)
-                    .baseSalary(BigDecimal.valueOf(u.getSalary()))
+                    .baseSalary(proratedBase)
                     .bonus(commission)
+                    .workingDays(workingDays)
+                    .absentDays(absentDays)
+                    .attendanceDeduction(attendanceDeduction)
                     .payPeriod(payPeriod)
                     .build();
             created.add(salaryRepository.save(salary));
@@ -150,6 +184,7 @@ public class SalaryController {
 
     @PutMapping("/{id}/pay")
     @PreAuthorize("@perm.has('salaries')")
+    @Transactional
     public ResponseEntity<?> paySalary(@PathVariable UUID id) {
         String tenantId = TenantContext.getCurrentTenant();
         if (tenantId == null) {
@@ -165,14 +200,11 @@ public class SalaryController {
             return ResponseEntity.badRequest().body(Map.of("message", "Ushbu maosh allaqachon to'langan"));
         }
 
-        // Mark PAID
-        salary.setStatus("PAID");
-        salaryRepository.save(salary);
-
-        // Calculate net payout: base + bonus - deductions
+        // Calculate net payout: base + bonus - deductions - attendanceDeduction
         BigDecimal netAmount = salary.getBaseSalary()
                 .add(salary.getBonus() != null ? salary.getBonus() : BigDecimal.ZERO)
-                .subtract(salary.getDeductions() != null ? salary.getDeductions() : BigDecimal.ZERO);
+                .subtract(salary.getDeductions() != null ? salary.getDeductions() : BigDecimal.ZERO)
+                .subtract(salary.getAttendanceDeduction() != null ? salary.getAttendanceDeduction() : BigDecimal.ZERO);
 
         // Register EXPENSE transaction
         Transaction tx = Transaction.builder()
@@ -184,7 +216,49 @@ public class SalaryController {
                         salary.getUser().getFullName(), salary.getPayPeriod().toString().substring(0, 7)))
                 .status("CONFIRMED")
                 .build();
-        transactionRepository.save(tx);
+        Transaction savedTx = transactionRepository.save(tx);
+
+        // Mark PAID - tranzaksiya ID'si saqlanadi, xato bilan bosilgan
+        // "To'lash"ni keyinchalik /unpay orqali aniq shu tranzaksiyani
+        // o'chirib, balansni to'g'ri tiklagan holda bekor qilish uchun.
+        salary.setStatus("PAID");
+        salary.setPaymentTransactionId(savedTx.getId());
+        salaryRepository.save(salary);
+
+        return ResponseEntity.ok(salary);
+    }
+
+    /**
+     * Xato bilan "To'landi" deb belgilangan maoshni bekor qiladi: statusni
+     * UNPAID'ga qaytaradi va {@link #paySalary} yaratgan xarajat
+     * tranzaksiyasini o'chiradi - shu bilan Moliya balansi/hisobotlari ham
+     * to'g'ri holatga qaytadi ("summa o'z o'rniga qaytadi").
+     */
+    @PutMapping("/{id}/unpay")
+    @PreAuthorize("@perm.has('salaries')")
+    @Transactional
+    public ResponseEntity<?> unpaySalary(@PathVariable UUID id) {
+        String tenantId = TenantContext.getCurrentTenant();
+        if (tenantId == null) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of("message", "Tenant ID is missing"));
+        }
+
+        Salary salary = salaryRepository.findById(id).orElse(null);
+        if (salary == null || !salary.getCompany().getId().equals(UUID.fromString(tenantId))) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("message", "Maosh hisobi topilmadi"));
+        }
+        if (!"PAID".equalsIgnoreCase(salary.getStatus())) {
+            return ResponseEntity.badRequest().body(Map.of("message", "Ushbu maosh hali to'lanmagan"));
+        }
+
+        UUID txId = salary.getPaymentTransactionId();
+        salary.setStatus("UNPAID");
+        salary.setPaymentTransactionId(null);
+        salaryRepository.save(salary);
+
+        if (txId != null) {
+            transactionRepository.findById(txId).ifPresent(transactionRepository::delete);
+        }
 
         return ResponseEntity.ok(salary);
     }
@@ -207,7 +281,19 @@ public class SalaryController {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("message", "Maosh hisobi topilmadi"));
         }
 
-        BigDecimal amount = new BigDecimal(amountObj.toString());
+        // MUHIM (audit'da topilgan xato, tuzatildi): summa formati/ishorasi
+        // tekshirilmasdi - manfiy son yuborilsa `deductions` KAMAYIB
+        // (effektiv qaytarib) ketardi va Moliyaga manfiy EXPENSE
+        // tranzaksiyasi yozilardi.
+        BigDecimal amount;
+        try {
+            amount = new BigDecimal(amountObj.toString());
+        } catch (NumberFormatException e) {
+            return ResponseEntity.badRequest().body(Map.of("message", "Noto'g'ri summa formati"));
+        }
+        if (amount.compareTo(BigDecimal.ZERO) <= 0) {
+            return ResponseEntity.badRequest().body(Map.of("message", "Summa musbat bo'lishi shart"));
+        }
         BigDecimal currentDeductions = salary.getDeductions() != null ? salary.getDeductions() : BigDecimal.ZERO;
         salary.setDeductions(currentDeductions.add(amount));
         salaryRepository.save(salary);
@@ -225,5 +311,136 @@ public class SalaryController {
         transactionRepository.save(tx);
 
         return ResponseEntity.ok(salary);
+    }
+
+    /**
+     * Xato bilan kiritilgan avans/jarimani (yoki uning bir qismini) bekor
+     * qiladi. Bitta oyga bir nechta avans qo'shilishi mumkinligi sababli
+     * ({@link #addDeduction} har safar YANGI tranzaksiya yaratadi) aynan
+     * qaysi tranzaksiyani o'chirish kerakligini ishonchli aniqlab bo'lmaydi -
+     * shu sabab eski tranzaksiyani o'chirish o'rniga, teskari YOZUV
+     * (qaytarilgan summa - INCOME) yaratiladi. Natijada balans/hisobotlarda
+     * summa to'g'ri "o'z o'rniga qaytadi", va tarixda ikkalasi ham
+     * (avans + tuzatish) ko'rinib turadi.
+     */
+    @PutMapping("/{id}/deduction/remove")
+    @PreAuthorize("@perm.has('salaries')")
+    public ResponseEntity<?> removeDeduction(@PathVariable UUID id, @RequestBody Map<String, Object> request) {
+        String tenantId = TenantContext.getCurrentTenant();
+        if (tenantId == null) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of("message", "Tenant ID is missing"));
+        }
+
+        Salary salary = salaryRepository.findById(id).orElse(null);
+        if (salary == null || !salary.getCompany().getId().equals(UUID.fromString(tenantId))) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("message", "Maosh hisobi topilmadi"));
+        }
+        if ("PAID".equalsIgnoreCase(salary.getStatus())) {
+            return ResponseEntity.badRequest().body(Map.of("message", "To'langan hisobdagi chegirmani o'zgartirib bo'lmaydi"));
+        }
+
+        BigDecimal amount = parsePositiveAmount(request.get("amount"));
+        if (amount == null) {
+            return ResponseEntity.badRequest().body(Map.of("message", "Summa musbat son bo'lishi shart"));
+        }
+
+        BigDecimal currentDeductions = salary.getDeductions() != null ? salary.getDeductions() : BigDecimal.ZERO;
+        if (amount.compareTo(currentDeductions) > 0) {
+            return ResponseEntity.badRequest().body(Map.of("message", "Qaytariladigan summa joriy chegirmadan katta bo'lishi mumkin emas"));
+        }
+        salary.setDeductions(currentDeductions.subtract(amount));
+        salaryRepository.save(salary);
+
+        Transaction tx = Transaction.builder()
+                .company(salary.getCompany())
+                .type("INCOME")
+                .amount(amount)
+                .category("SALARY")
+                .description(String.format("%s uchun %s oyi - xato bilan berilgan avans/jarima qaytarildi",
+                        salary.getUser().getFullName(), salary.getPayPeriod().toString().substring(0, 7)))
+                .status("CONFIRMED")
+                .build();
+        transactionRepository.save(tx);
+
+        return ResponseEntity.ok(salary);
+    }
+
+    /**
+     * Qo'lda bonus qo'shish (masalan rag'bat, mukofot). Faqat hali to'lanmagan
+     * (UNPAID) hisobga qo'shish mumkin - to'lov allaqachon Moliyada
+     * tranzaksiya sifatida qayd etilgani uchun PAID hisob endi o'zgarmas.
+     */
+    @PutMapping("/{id}/bonus")
+    @PreAuthorize("@perm.has('salaries')")
+    public ResponseEntity<?> addBonus(@PathVariable UUID id, @RequestBody Map<String, Object> request) {
+        String tenantId = TenantContext.getCurrentTenant();
+        if (tenantId == null) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of("message", "Tenant ID is missing"));
+        }
+
+        Salary salary = salaryRepository.findById(id).orElse(null);
+        if (salary == null || !salary.getCompany().getId().equals(UUID.fromString(tenantId))) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("message", "Maosh hisobi topilmadi"));
+        }
+        if ("PAID".equalsIgnoreCase(salary.getStatus())) {
+            return ResponseEntity.badRequest().body(Map.of("message", "To'langan hisobga bonus qo'shib bo'lmaydi"));
+        }
+
+        BigDecimal amount = parsePositiveAmount(request.get("amount"));
+        if (amount == null) {
+            return ResponseEntity.badRequest().body(Map.of("message", "Bonus summasi musbat son bo'lishi shart"));
+        }
+
+        BigDecimal currentBonus = salary.getBonus() != null ? salary.getBonus() : BigDecimal.ZERO;
+        salary.setBonus(currentBonus.add(amount));
+        salaryRepository.save(salary);
+        return ResponseEntity.ok(salary);
+    }
+
+    /**
+     * Xato yoki bekor qilingan bonusni kamaytirish/olib tashlash (0 dan
+     * pastga tushmaydi). PAID hisob o'zgarmas - {@link #addBonus} bilan bir xil sabab.
+     */
+    @PutMapping("/{id}/bonus/remove")
+    @PreAuthorize("@perm.has('salaries')")
+    public ResponseEntity<?> removeBonus(@PathVariable UUID id, @RequestBody Map<String, Object> request) {
+        String tenantId = TenantContext.getCurrentTenant();
+        if (tenantId == null) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of("message", "Tenant ID is missing"));
+        }
+
+        Salary salary = salaryRepository.findById(id).orElse(null);
+        if (salary == null || !salary.getCompany().getId().equals(UUID.fromString(tenantId))) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("message", "Maosh hisobi topilmadi"));
+        }
+        if ("PAID".equalsIgnoreCase(salary.getStatus())) {
+            return ResponseEntity.badRequest().body(Map.of("message", "To'langan hisobdagi bonusni o'zgartirib bo'lmaydi"));
+        }
+
+        BigDecimal amount = parsePositiveAmount(request.get("amount"));
+        if (amount == null) {
+            return ResponseEntity.badRequest().body(Map.of("message", "Bonus summasi musbat son bo'lishi shart"));
+        }
+
+        BigDecimal currentBonus = salary.getBonus() != null ? salary.getBonus() : BigDecimal.ZERO;
+        if (amount.compareTo(currentBonus) > 0) {
+            return ResponseEntity.badRequest().body(Map.of("message", "Olib tashlanadigan summa joriy bonusdan katta bo'lishi mumkin emas"));
+        }
+        salary.setBonus(currentBonus.subtract(amount));
+        salaryRepository.save(salary);
+        return ResponseEntity.ok(salary);
+    }
+
+    private static BigDecimal parsePositiveAmount(Object amountObj) {
+        if (amountObj == null) {
+            return null;
+        }
+        BigDecimal amount;
+        try {
+            amount = new BigDecimal(amountObj.toString());
+        } catch (NumberFormatException e) {
+            return null;
+        }
+        return amount.compareTo(BigDecimal.ZERO) > 0 ? amount : null;
     }
 }

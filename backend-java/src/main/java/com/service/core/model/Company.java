@@ -40,6 +40,18 @@ public class Company {
     @Column(length = 500)
     private String address;
 
+    /**
+     * Korxonaning aniq GPS markazi - "Xarita" bo'limida boshlang'ich nuqta
+     * sifatida ishlatiladi (avval qattiq yozilgan Toshkent koordinatasi
+     * o'rniga). Admin panelda joriy brauzer joylashuvidan yoki xaritada
+     * qo'lda bosib belgilanadi (CompanyController.updateCompanySettings).
+     */
+    @Column
+    private Double latitude;
+
+    @Column
+    private Double longitude;
+
     @Builder.Default
     @Column(name = "min_order_price")
     private Integer minOrderPrice = 15000;
@@ -89,6 +101,102 @@ public class Company {
     @OrderColumn(name = "position")
     @Builder.Default
     private List<String> measurementUnits = new ArrayList<>(List.of("dona", "kv. metr", "kg", "litr", "metr"));
+
+    // Buxgalteriya > Yangi tranzaksiya oynasidagi standart kategoriyalar
+    // (SALARY, OFFICE_EXPENSE, ...) ustiga kompaniya o'zi qo'shgan qo'shimcha
+    // kirim/chiqim kategoriyalari - measurementUnits bilan bir xil naqsh.
+    @ElementCollection
+    @CollectionTable(name = "company_expense_categories", joinColumns = @JoinColumn(name = "company_id"))
+    @Column(name = "category", length = 100)
+    @OrderColumn(name = "position")
+    @Builder.Default
+    private List<String> customExpenseCategories = new ArrayList<>();
+
+    @ElementCollection
+    @CollectionTable(name = "company_income_categories", joinColumns = @JoinColumn(name = "company_id"))
+    @Column(name = "category", length = 100)
+    @OrderColumn(name = "position")
+    @Builder.Default
+    private List<String> customIncomeCategories = new ArrayList<>();
+
+    // Haydovchi mobil ilovada to'lov qabul qilgach Bluetooth termal
+    // printerga chek chiqarish funksiyasi - admin panelidan yoqiladi/
+    // o'chiriladi va cheк tarkibi/o'lchami shu yerdan boshqariladi.
+    @Column(name = "receipt_enabled")
+    @Builder.Default
+    private Boolean receiptEnabled = false;
+
+    // "58" yoki "80" (mm) - qog'oz kengligi, generator shunga qarab
+    // formatlaydi (esc_pos_utils_plus PaperSize).
+    @Column(name = "receipt_paper_size", length = 10)
+    @Builder.Default
+    private String receiptPaperSize = "58";
+
+    @Column(name = "receipt_show_address")
+    @Builder.Default
+    private Boolean receiptShowAddress = true;
+
+    @Column(name = "receipt_show_phone")
+    @Builder.Default
+    private Boolean receiptShowPhone = true;
+
+    @Column(name = "receipt_footer_text", length = 500)
+    @Builder.Default
+    private String receiptFooterText = "Xizmatimizdan foydalanganingiz uchun rahmat!";
+
+    // Chekning yuqori qismidagi sarlavha - bo'sh bo'lsa mobil ilova
+    // kompaniya nomini (name) ishlatadi, admin xohlasa alohida chek
+    // sarlavhasi (masalan qisqartirilgan brend nomi) kiritishi mumkin.
+    @Column(name = "receipt_header_text", length = 200)
+    private String receiptHeaderText;
+
+    // Chekda buyurtma tarkibi (gilamlar/mahsulotlar ro'yxati) chiqsinmi -
+    // ba'zi xizmatlar uchun (masalan bitta umumiy xizmat) bu ortiqcha
+    // bo'lishi mumkin.
+    @Column(name = "receipt_show_items")
+    @Builder.Default
+    private Boolean receiptShowItems = true;
+
+    // Chekda to'lov usuli (Naqd/Karta/Aralash) qatori ko'rsatilsinmi.
+    @Column(name = "receipt_show_payment_method")
+    @Builder.Default
+    private Boolean receiptShowPaymentMethod = true;
+
+    // Chekda buyurtma raqami (UUID'ning oxirgi 8 ta belgisi, mobil tomonda
+    // hosil qilinadi - backendda alohida qisqa raqamlash tizimi yo'q).
+    @Column(name = "receipt_show_order_number")
+    @Builder.Default
+    private Boolean receiptShowOrderNumber = true;
+
+    // Chekda to'lovni qabul qilgan haydovchi/xodim ismi ko'rsatilsinmi.
+    @Column(name = "receipt_show_employee_name")
+    @Builder.Default
+    private Boolean receiptShowEmployeeName = true;
+
+    // Bir bosishda nechta nusxa chop etilsin (masalan 1-mijoz, 1-kompaniya
+    // arxivi uchun). 1-5 oralig'ida - mobil tomonda ham cheklanadi.
+    @Column(name = "receipt_copies")
+    @Builder.Default
+    private Integer receiptCopies = 1;
+
+    // "normal" yoki "large" - chek matnining asosiy qatorlari (Xizmat/Mijoz/
+    // Manzil/Sana/tarkib) qanday shriftda chop etilishi.
+    @Column(name = "receipt_font_size", length = 10)
+    @Builder.Default
+    private String receiptFontSize = "normal";
+
+    // Kompaniya logotipi - base64 PNG (admin panelda kichraytirilib
+    // yuklanadi). Mobil tomon buni dekodlab, chek yuqorisiga rasm sifatida
+    // bosib chiqaradi (esc_pos_utils_plus Generator.image()).
+    // MUHIM: bu yerda @Lob ISHLATILMAYDI - Hibernate @Lob'ni String bilan
+    // birga PostgreSQL "Large Object" (oid, alohida pg_largeobject
+    // jadvali) sifatida talqin qiladi va uni o'qish avto-commit rejimida
+    // ishlamaydi ("Large Objects may not be used in auto-commit mode") -
+    // bu deyarli BARCHA so'rovlarni (User->Company orqali) 500 xato bilan
+    // buzib qo'ygan jonli xato edi. columnDefinition="TEXT" o'zi
+    // yetarli - oddiy matn ustuni sifatida saqlanadi.
+    @Column(name = "receipt_logo_base64", columnDefinition = "TEXT")
+    private String receiptLogoBase64;
 
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;

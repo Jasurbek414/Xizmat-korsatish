@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { api } from '../services/api';
+import { showToast } from '../services/toast';
 import { Plus } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import PlatformStats from './superadmin/PlatformStats';
@@ -41,7 +42,7 @@ const SuperadminDashboard = ({ tab }) => {
       setCompanies(prev => prev.map(c => c.id === company.id ? { ...c, status: nextStatus } : c));
     } catch (err) {
       console.error('Failed to toggle company status:', err);
-      alert(err.message || t('superadmin.status_update_error'));
+      showToast(err.message || t('superadmin.status_update_error'));
     }
   };
 

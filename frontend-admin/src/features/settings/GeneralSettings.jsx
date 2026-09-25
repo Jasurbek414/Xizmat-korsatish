@@ -1,7 +1,31 @@
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { api } from '../../services/api';
-import { Check, Info, AlertTriangle } from 'lucide-react';
+import { showToast } from '../../services/toast';
+import { Check, Info, AlertTriangle, Ruler, Hash, Droplets, Plus, X } from 'lucide-react';
+
+// O'lchov birligi qanday hisoblanishini ko'rsatadi (OrderItemController'dagi
+// backend mantig'i bilan BIR XIL qoida) - admin yangi birlik qo'shayotganda
+// tizim uni qanday tushunishini oldindan ko'rishi uchun:
+//  - "m²"/"kv. metr" -> maydon bo'yicha (eni x bo'yi x soni)
+//  - "dona" -> soni bo'yicha, har biri ALOHIDA kuzatiladi (butun son)
+//  - qolganlari (kg, litr, metr...) -> uzluksiz miqdor (kasr songa ruxsat)
+const classifyUnit = (unit) => {
+  const normalized = (unit || '').toLowerCase().replace(/\./g, '').trim();
+  if (normalized === 'm²' || normalized.includes('kv')) {
+    return { label: 'Maydon bo\'yicha', hint: "eni × bo'yi × soni", icon: Ruler, color: 'indigo' };
+  }
+  if (normalized.includes('dona')) {
+    return { label: "Dona bo'yicha", hint: 'har biri alohida, butun son', icon: Hash, color: 'emerald' };
+  }
+  return { label: 'Miqdor bo\'yicha', hint: 'kasr songa ruxsat (masalan 2.5)', icon: Droplets, color: 'amber' };
+};
+
+const UNIT_BADGE_CLASSES = {
+  indigo: 'bg-indigo-500/10 text-indigo-600 dark:text-indigo-400',
+  emerald: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400',
+  amber: 'bg-amber-500/10 text-amber-600 dark:text-amber-400',
+};
 
 const GeneralSettings = () => {
   const { t } = useTranslation();
@@ -38,7 +62,7 @@ const GeneralSettings = () => {
       setResetConfirmText('');
     } catch (err) {
       console.error("Failed to reset finance:", err);
-      alert(err.message || "Moliyani 0ga tushirishda xatolik yuz berdi.");
+      showToast(err.message || "Moliyani 0ga tushirishda xatolik yuz berdi.");
     } finally {
       setResetting(false);
     }
@@ -54,8 +78,8 @@ const GeneralSettings = () => {
           company_address: data.address || '',
           company_email: data.email || '',
           currency: 'so\'m',
-          min_order_price: data.minOrderPrice || 15000,
-          driver_kpi_percent: data.driverKpiPercent || 10,
+          min_order_price: data.minOrderPrice != null ? data.minOrderPrice : 15000,
+          driver_kpi_percent: data.driverKpiPercent != null ? data.driverKpiPercent : 10,
           work_start_time: data.workStartTime || '08:00',
           work_end_time: data.workEndTime || '22:00',
           measurement_units: (data.measurementUnits && data.measurementUnits.length > 0)
@@ -83,7 +107,7 @@ const GeneralSettings = () => {
     } catch (err) {
       console.error("Failed to update measurement units:", err);
       setSettings(prev => ({ ...prev, measurement_units: previous }));
-      alert(err.message || "O'lchov birligini saqlashda xatolik yuz berdi.");
+      showToast(err.message || "O'lchov birligini saqlashda xatolik yuz berdi.");
     }
   };
 
@@ -105,7 +129,7 @@ const GeneralSettings = () => {
       setTimeout(() => setSaved(false), 3000);
     } catch (err) {
       console.error("Failed to update company settings:", err);
-      alert(err.message || "Sozlamalarni saqlashda xatolik yuz berdi.");
+      showToast(err.message || "Sozlamalarni saqlashda xatolik yuz berdi.");
     }
   };
 
@@ -188,39 +212,55 @@ const GeneralSettings = () => {
             </div>
 
             {/* Measurement Units */}
-            <div className="border-t border-slate-100 dark:border-white/5 pt-4 space-y-2 select-none">
-              <label className="block text-slate-550 dark:text-gray-400 font-bold uppercase text-[9px] tracking-wider">
-                Kompaniya O'lchov Birliklari (Units)
-              </label>
-              
-              <div className="flex flex-wrap gap-1.5 py-1">
-                {(settings.measurement_units || ['dona', 'kv. metr', 'kg', 'litr', 'metr']).map((unit, index) => (
-                  <span 
-                    key={index} 
-                    className="inline-flex items-center gap-1 bg-indigo-500/10 border border-indigo-500/20 text-indigo-650 dark:text-indigo-400 px-2 py-0.5 rounded-lg text-[10px] font-bold"
-                  >
-                    <span>{unit}</span>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const updated = (settings.measurement_units || ['dona', 'kv. metr', 'kg', 'litr', 'metr']).filter((_, i) => i !== index);
-                        persistUnits(updated);
-                      }}
-                      className="text-slate-400 hover:text-rose-500 cursor-pointer font-bold ml-0.5 text-[8px]"
-                    >
-                      ✕
-                    </button>
-                  </span>
-                ))}
+            <div className="border-t border-slate-100 dark:border-white/5 pt-4 space-y-3 select-none">
+              <div>
+                <label className="block text-slate-800 dark:text-white font-bold text-[11px]">
+                  Kompaniya o'lchov birliklari
+                </label>
+                <p className="text-[9px] text-slate-400 dark:text-gray-500 mt-0.5 leading-relaxed">
+                  Xizmatlar katalogida tanlanadi va buyurtma miqdori qanday hisoblanishini belgilaydi.
+                </p>
               </div>
 
-              <div className="flex gap-2">
-                <input 
-                  type="text" 
-                  placeholder="Yangi o'lchov birligi, masalan: litr" 
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {(settings.measurement_units || ['dona', 'kv. metr', 'kg', 'litr', 'metr']).map((unit, index) => {
+                  const info = classifyUnit(unit);
+                  const Icon = info.icon;
+                  return (
+                    <div
+                      key={index}
+                      className="group flex items-center gap-2 bg-slate-50 dark:bg-white/2 border border-slate-200 dark:border-white/5 hover:border-slate-300 dark:hover:border-white/10 rounded-xl px-2.5 py-2 transition"
+                    >
+                      <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${UNIT_BADGE_CLASSES[info.color]}`}>
+                        <Icon className="w-3.5 h-3.5" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-slate-800 dark:text-white font-bold text-[11px] truncate">{unit}</p>
+                        <p className="text-[8px] text-slate-400 dark:text-gray-500 truncate">{info.label} · {info.hint}</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const updated = (settings.measurement_units || ['dona', 'kv. metr', 'kg', 'litr', 'metr']).filter((_, i) => i !== index);
+                          persistUnits(updated);
+                        }}
+                        title="O'chirish"
+                        className="shrink-0 w-6 h-6 rounded-lg flex items-center justify-center text-slate-300 dark:text-gray-600 opacity-0 group-hover:opacity-100 hover:bg-rose-500/10 hover:text-rose-500 transition cursor-pointer"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+
+              <div className="flex gap-2 pt-0.5">
+                <input
+                  type="text"
+                  placeholder="Yangi o'lchov birligi, masalan: litr"
                   value={newUnit}
                   onChange={(e) => setNewUnit(e.target.value)}
-                  className="flex-1 glass-input rounded-xl px-3 py-1.5 text-slate-800 dark:text-white focus:outline-none text-[11px]"
+                  className="flex-1 glass-input rounded-xl px-3 py-2 text-slate-800 dark:text-white focus:outline-none text-[11px]"
                   onKeyDown={(e) => {
                     if (e.key === 'Enter') {
                       e.preventDefault();
@@ -247,11 +287,22 @@ const GeneralSettings = () => {
                       setNewUnit('');
                     }
                   }}
-                  className="bg-indigo-500 hover:bg-indigo-600 text-white font-bold px-3 py-1.5 rounded-xl transition cursor-pointer text-[10px]"
+                  className="shrink-0 flex items-center gap-1 bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-3 py-2 rounded-xl transition cursor-pointer text-[10px]"
                 >
-                  Qo'shish
+                  <Plus className="w-3.5 h-3.5" /> Qo'shish
                 </button>
               </div>
+
+              {newUnit.trim() && (() => {
+                const preview = classifyUnit(newUnit);
+                const PreviewIcon = preview.icon;
+                return (
+                  <p className="flex items-center gap-1 text-[9px] text-slate-400 dark:text-gray-500 pl-0.5">
+                    <PreviewIcon className="w-3 h-3 shrink-0" />
+                    Tizim buni <span className="font-bold text-slate-600 dark:text-gray-300">{preview.label.toLowerCase()}</span> hisoblaydi ({preview.hint})
+                  </p>
+                );
+              })()}
             </div>
 
           </div>

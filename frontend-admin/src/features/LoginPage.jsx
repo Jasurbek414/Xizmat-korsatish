@@ -20,7 +20,7 @@ const LoginPage = ({ setAuth }) => {
   // JWT oqimidan foydalanadi, faqat forma va marshrut alohida.
   //
   // MUHIM (kompaniya maydoni): barcha kompaniyalar BITTA umumiy domenda
-  // (namifor.ecos.uz) ishlaydi - hostname orqali qaysi kompaniya ekanini
+  // (servicecore.ecos.uz) ishlaydi - hostname orqali qaysi kompaniya ekanini
   // aniqlab bo'lmaydi. Shu sabab foydalanuvchi kompaniya kodini QO'LDA
   // kiritadi; login muvaffaqiyatli bo'lgach HAQIQIY hisobning kompaniyasi
   // shu kiritilgan kod bilan solishtiriladi - mos kelmasa (masalan boshqa
@@ -44,14 +44,25 @@ const LoginPage = ({ setAuth }) => {
         return;
       }
 
-      const data = await api.login(username, password);
+      const data = await api.login(username, password, cleanSubdomain);
       const user = data.user;
 
+      // MUHIM (audit'da topilgan, xavfsizlik): api.login() token/refreshToken/
+      // auth_user'ni bu uch "rad etish" holati ANIQLANISHIDAN OLDIN
+      // localStorage'ga yozib bo'lgan bo'ladi. Avval bu yerda setAuth()
+      // chaqirilmasa ham, saqlangan sessiya localStorage'da QOLIB KETARDI -
+      // foydalanuvchi ekranda xato xabarini ko'rib "kira olmadim" deb
+      // ketardi, lekin sahifani qayta yuklasa (App.jsx localStorage'dan
+      // auth_user'ni tiklaydi) to'liq huquq bilan kirib qolardi. Endi har
+      // bir rad etish yo'lida sessiya darhol tozalanadi.
       if (user.role === 'SUPERADMIN') {
+        await api.logout();
         setError(t('login_page.use_superadmin_page'));
       } else if (['WORKER_DRIVER', 'WORKER', 'WORKER_SEH'].includes(user.role)) {
+        await api.logout();
         setError(t('login_page.use_mobile_app'));
       } else if ((user.companySubDomain || '').toLowerCase() !== cleanSubdomain) {
+        await api.logout();
         setError(t('login_page.company_mismatch', { company: user.companyName || '?' }));
       } else {
         setAuth(user);

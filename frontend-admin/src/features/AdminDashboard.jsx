@@ -17,6 +17,7 @@ const AdminDashboard = ({ tab }) => {
   const [statuses, setStatuses] = useState([]);
   const [financeStats, setFinanceStats] = useState({ totalIncome: 0, totalExpense: 0, balance: 0 });
   const [topDrivers, setTopDrivers] = useState([]);
+  const [driverKpiPercent, setDriverKpiPercent] = useState(10);
 
   // Chart and Donut states
   const [chartData, setChartData] = useState({ income: [], expense: [], labels: [] });
@@ -25,14 +26,35 @@ const AdminDashboard = ({ tab }) => {
   useEffect(() => {
     const loadData = async () => {
       try {
-        const [ordersData, clientsData, transactionsData, usersData, statusesData, financeData] = await Promise.all([
-          api.getOrders(),
-          api.getClients(),
-          api.getTransactions(),
-          api.getEmployees(),
-          api.getOrderStatuses(),
-          api.getFinanceStats()
+        // MUHIM: Boshqaruv paneli (Dashboard) hech qanday huquq bilan
+        // qulflanmagan (har kim kirganda ochiladi), lekin ichidagi
+        // so'rovlar turli huquq talab qiladi ("orders", "clients",
+        // "employees") - Dispetcher va Buxgalterda bularning ba'zilari yo'q.
+        // Avval bittasi 403 qaytarsa BUTUN bosh sahifa bo'sh qolardi - jonli
+        // aniqlangan, bu ikkala rol uchun HAR KIRISHDA bo'sh sahifa edi.
+        // MUHIM: getTransactions/getFinanceStats ham "finance" huquqini
+        // talab qiladi - ba'zi kompaniyalarda Dispetcher rolida bu huquq
+        // yo'q (RoleSeedService faqat YANGI kompaniyalar uchun standart
+        // qiymatlarni beradi, eski rollar kod o'zgarganda avtomatik
+        // yangilanmaydi). Boshqalari kabi ALOHIDA .catch bilan o'ralgan.
+        const [ordersData, clientsData, transactionsData, usersData, statusesData, financeData, companyData] = await Promise.all([
+          api.getOrders({ silent403: true }).catch(() => []),
+          api.getClients({ silent403: true }).catch(() => []),
+          api.getTransactions({ silent403: true }).catch(() => []),
+          api.getEmployees({ silent403: true }).catch(() => []),
+          api.getOrderStatuses({ silent403: true }).catch(() => []),
+          api.getFinanceStats({ silent403: true }).catch(() => ({ totalIncome: 0, totalExpense: 0, balance: 0 })),
+          api.getCompanySettings({ silent403: true }).catch(() => null)
         ]);
+
+        // MUHIM (audit'da topilgan xato, tuzatildi): "Top haydovchilar"
+        // vidjeti (Trophy karta) shu joyda qattiq yozilgan "10%" bilan
+        // hisoblardi va doim "10% KPI" deb ko'rsatardi - Sozlamalar >
+        // Umumiy'dagi "Haydovchi KPI foizi" o'zgartirilsa ham bu yerda
+        // (va faqat bu yerda - haqiqiy oylik SalaryController'da to'g'ri
+        // hisoblanadi) hech qachon o'zgarmasdi.
+        const kpiPercent = companyData?.driverKpiPercent != null ? companyData.driverKpiPercent : 10;
+        setDriverKpiPercent(kpiPercent);
 
         const orders = ordersData.map(o => ({
           id: o.id,
@@ -114,7 +136,7 @@ const AdminDashboard = ({ tab }) => {
         setDonutSegments(generateDonutSegments(filteredOrders, orderStatuses));
 
         // 7. Calculate Top Drivers
-        setTopDrivers(calculateTopDrivers(filteredOrders, users, orderStatuses));
+        setTopDrivers(calculateTopDrivers(filteredOrders, users, orderStatuses, kpiPercent));
       } catch (err) {
         console.error("Failed to load dashboard data:", err);
       }
@@ -226,7 +248,7 @@ const AdminDashboard = ({ tab }) => {
   };
 
   // Helper: calculates Top Drivers list
-  const calculateTopDrivers = (orders, users, orderStatuses) => {
+  const calculateTopDrivers = (orders, users, orderStatuses, kpiPercent = 10) => {
     const sortedStatuses = [...orderStatuses].sort((a, b) => a.sort_order - b.sort_order);
     const completedStatusId = sortedStatuses.length > 0 ? sortedStatuses.slice(-1)[0].id : null;
 
@@ -234,7 +256,7 @@ const AdminDashboard = ({ tab }) => {
     const driverStats = drivers.map(d => {
       const completedOrders = orders.filter(o => o.worker_name === d.full_name && o.status_id === completedStatusId);
       const completedCount = completedOrders.length;
-      const kpiEarnings = completedOrders.reduce((sum, item) => sum + (item.price * 0.1), 0);
+      const kpiEarnings = completedOrders.reduce((sum, item) => sum + (item.price * kpiPercent / 100), 0);
 
       return {
         ...d,
@@ -522,7 +544,7 @@ const AdminDashboard = ({ tab }) => {
                 </div>
                 <div className="text-right">
                   <span className="font-bold font-['Outfit'] text-indigo-650 dark:text-indigo-400">+{driver.kpiEarnings.toLocaleString()}</span>
-                  <span className="block text-[8px] text-slate-400 dark:text-gray-500">10% KPI</span>
+                  <span className="block text-[8px] text-slate-400 dark:text-gray-500">{driverKpiPercent}% KPI</span>
                 </div>
               </div>
             ))}
@@ -536,7 +558,7 @@ const AdminDashboard = ({ tab }) => {
         <div className="glass-card p-6 rounded-2xl border border-slate-200 dark:border-white/5 bg-white dark:bg-transparent shadow-sm space-y-4">
           <h4 className="font-bold text-slate-800 dark:text-white text-sm font-['Outfit'] flex items-center gap-2">
             <Wallet className="w-4 h-4 text-indigo-500" />
-            {t('settings_page.wallet_balances')}
+            {t('dashboard.wallet_balances')}
           </h4>
 
           <div className="space-y-3">

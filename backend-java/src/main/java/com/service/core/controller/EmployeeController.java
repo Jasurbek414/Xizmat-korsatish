@@ -2,15 +2,22 @@ package com.service.core.controller;
 
 import com.service.core.model.Company;
 import com.service.core.model.User;
+import com.service.core.repository.AppNotificationRepository;
+import com.service.core.repository.AuthSessionRepository;
 import com.service.core.repository.CompanyRepository;
 import com.service.core.repository.RoleRepository;
 import com.service.core.repository.UserRepository;
+import com.service.core.service.RefreshTokenService;
 import com.service.core.tenant.TenantContext;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
+import java.time.LocalDate;
+import java.time.format.DateTimeParseException;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -25,26 +32,56 @@ public class EmployeeController {
     private final CompanyRepository companyRepository;
     private final RoleRepository roleRepository;
     private final PasswordEncoder passwordEncoder;
+    private final AuthSessionRepository authSessionRepository;
+    private final AppNotificationRepository appNotificationRepository;
+    private final RefreshTokenService refreshTokenService;
 
     public EmployeeController(UserRepository userRepository, CompanyRepository companyRepository,
-                               RoleRepository roleRepository, PasswordEncoder passwordEncoder) {
+                               RoleRepository roleRepository, PasswordEncoder passwordEncoder,
+                               AuthSessionRepository authSessionRepository,
+                               AppNotificationRepository appNotificationRepository,
+                               RefreshTokenService refreshTokenService) {
         this.userRepository = userRepository;
         this.companyRepository = companyRepository;
         this.roleRepository = roleRepository;
         this.passwordEncoder = passwordEncoder;
+        this.authSessionRepository = authSessionRepository;
+        this.appNotificationRepository = appNotificationRepository;
+        this.refreshTokenService = refreshTokenService;
+    }
+
+    private User getCurrentUser() {
+        Object principal = SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+        if (!(principal instanceof String username)) {
+            return null;
+        }
+        return userRepository.findByUsername(username).orElse(null);
     }
 
     /**
      * Rol qiymati SUPERADMIN bo'lmasligi (API orqali imtiyoz ko'tarishning oldini olish) va
      * shu kompaniyada haqiqatan mavjud bo'lgan rolga ishora qilishi shart.
+     *
+     * MUHIM (KRITIK, audit'da topilgan xato, tuzatildi): avval faqat
+     * "SUPERADMIN" bloklanardi - "ADMIN" (kompaniya ichida BARCHA huquqqa
+     * ega rol) ni tayinlashga hech qanday to'sqinlik yo'q edi. Bu
+     * 'employees' ruxsati standart holatda MENEJER roliga ham berilgani
+     * (RoleSeedService.managerPermissions()) sabab - istalgan Menejer
+     * o'zini (yoki boshqa xodimni) PUT /employees/{id} orqali to'g'ridan
+     * to'g'ri ADMIN qilib qo'ya olar edi (to'liq imtiyoz ko'tarish). Endi
+     * ADMIN rolini FAQAT allaqachon ADMIN bo'lgan foydalanuvchi tayinlashi
+     * mumkin.
      */
-    private String validateAssignableRole(String tenantId, String role) {
+    private String validateAssignableRole(String tenantId, String role, User currentUser) {
         if (role == null || role.isBlank()) {
             return null;
         }
         String normalized = role.trim().toUpperCase();
         if (NON_ASSIGNABLE_ROLES.contains(normalized)) {
             throw new IllegalArgumentException("Bu rolni tayinlash mumkin emas");
+        }
+        if ("ADMIN".equals(normalized) && (currentUser == null || !"ADMIN".equals(currentUser.getRole()))) {
+            throw new IllegalArgumentException("Faqat administrator ADMIN rolini tayinlashi mumkin");
         }
         boolean exists = roleRepository.existsByCompanyIdAndKey(UUID.fromString(tenantId), normalized);
         if (!exists) {
@@ -53,22 +90,58 @@ public class EmployeeController {
         return normalized;
     }
 
+    /**
+     * MUHIM (KRITIK, audit'da topilgan xato, tuzatildi): ADMIN hisobini
+     * o'zgartirish/o'chirish/parolini tiklash faqat boshqa ADMIN'ga
+     * ruxsat etiladi - aks holda Menejer (yoki 'employees' huquqiga ega
+     * istalgan boshqa rol) ADMIN'ning parolini almashtirib hisobini
+     * egallab olishi yoki uni o'chirib yuborishi mumkin edi.
+     */
+    private boolean canModifyTarget(User target, User currentUser) {
+        if (!"ADMIN".equals(target.getRole())) {
+            return true;
+        }
+        return currentUser != null && "ADMIN".equals(currentUser.getRole());
+    }
+
     // MUHIM (audit'da topilgan xato, tuzatildi): avval faqat 'employees'
     // (veb-admin) ruxsati tekshirilardi - mobil "Jamoa" ekrani (TeamCubit)
     // ham aynan shu endpoint'ni chaqiradi, lekin mobil rollarga hech qachon
     // 'employees' berilmaydi (faqat 'mobile_team_view') - natijada "Jamoa"
     // bo'limi mobil_team_view huquqi berilgan xodimlar uchun ham doim 403
-    // bilan ishlamas edi.
+    // bilan ishlamas edi. 'salaries' ham qo'shildi - Buxgalter (faqat
+    // 'salaries' huquqiga ega) davomat belgilash uchun xodimlar ro'yxatini
+    // ko'ra olishi kerak (Oyliklar > Davomat oynasi).
     @GetMapping
-    @PreAuthorize("@perm.has('employees','mobile_team_view')")
+    @PreAuthorize("@perm.has('employees','mobile_team_view','salaries')")
     public ResponseEntity<?> getEmployees() {
         String tenantId = TenantContext.getCurrentTenant();
         if (tenantId == null) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of("message", "Tenant ID is missing"));
         }
 
-        List<User> employees = userRepository.findByCompanyId(UUID.fromString(tenantId));
+        // "O'chirilgan" (DELETED) xodimlar ro'yxatda ko'rinmaydi - lekin
+        // haqiqatan bazadan o'chirilmaydi (deleteEmployee'ga qarang), shu
+        // sabab ularning ismi eski buyurtma/oylik/tranzaksiyalarda hamon
+        // to'g'ri ko'rinib turadi.
+        List<User> employees = userRepository.findByCompanyId(UUID.fromString(tenantId)).stream()
+                .filter(u -> !"DELETED".equalsIgnoreCase(u.getStatus()))
+                .toList();
         return ResponseEntity.ok(employees);
+    }
+
+    // 2026-09-09 ishlash tezligi tuzatishi: boshqaruv paneli bosh ekrani
+    // (mobil) avval shu sonni ko'rsatish uchun getEmployees()'ning BUTUN
+    // ro'yxatini yuklab olardi - endi yengil COUNT endpoint (xuddi shu
+    // DELETED-filtr mantig'i bilan).
+    @GetMapping("/count")
+    @PreAuthorize("@perm.has('employees','mobile_team_view','salaries')")
+    public ResponseEntity<?> getEmployeesCount() {
+        String tenantId = TenantContext.getCurrentTenant();
+        if (tenantId == null) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of("message", "Tenant ID is missing"));
+        }
+        return ResponseEntity.ok(Map.of("count", userRepository.countByCompanyIdAndStatusNot(UUID.fromString(tenantId), "DELETED")));
     }
 
     @GetMapping("/drivers")
@@ -79,7 +152,9 @@ public class EmployeeController {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of("message", "Tenant ID is missing"));
         }
 
-        List<User> drivers = userRepository.findByCompanyIdAndRole(UUID.fromString(tenantId), "WORKER_DRIVER");
+        List<User> drivers = userRepository.findByCompanyIdAndRole(UUID.fromString(tenantId), "WORKER_DRIVER").stream()
+                .filter(u -> !"DELETED".equalsIgnoreCase(u.getStatus()))
+                .toList();
         return ResponseEntity.ok(drivers);
     }
 
@@ -107,7 +182,7 @@ public class EmployeeController {
 
         String validatedRole;
         try {
-            validatedRole = validateAssignableRole(tenantId, role);
+            validatedRole = validateAssignableRole(tenantId, role, getCurrentUser());
         } catch (IllegalArgumentException e) {
             return ResponseEntity.badRequest().body(Map.of("message", e.getMessage()));
         }
@@ -117,6 +192,13 @@ public class EmployeeController {
 
         String salaryStr = request.get("salary");
         String salaryType = request.get("salary_type");
+        String hireDateStr = request.get("hire_date");
+        LocalDate hireDate;
+        try {
+            hireDate = (hireDateStr != null && !hireDateStr.trim().isEmpty()) ? LocalDate.parse(hireDateStr.trim()) : null;
+        } catch (DateTimeParseException e) {
+            return ResponseEntity.badRequest().body(Map.of("message", "hire_date formati noto'g'ri (YYYY-MM-DD kutilgan)"));
+        }
 
         User employee = User.builder()
                 .company(company)
@@ -128,6 +210,7 @@ public class EmployeeController {
                 .status("ACTIVE")
                 .salary(salaryStr != null && !salaryStr.trim().isEmpty() ? Double.parseDouble(salaryStr.trim()) : null)
                 .salaryType(salaryType != null && !salaryType.trim().isEmpty() ? salaryType.trim().toUpperCase() : null)
+                .hireDate(hireDate)
                 .build();
 
         User saved = userRepository.save(employee);
@@ -147,6 +230,11 @@ public class EmployeeController {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("message", "Xodim topilmadi"));
         }
 
+        User currentUser = getCurrentUser();
+        if (!canModifyTarget(employee, currentUser)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of("message", "Faqat administrator boshqa administratorni o'zgartira oladi"));
+        }
+
         if (request.containsKey("username")) {
             String newUsername = request.get("username").trim();
             // Username butun tizim bo'ylab unikal (users.username unique constraint) -
@@ -163,7 +251,7 @@ public class EmployeeController {
         if (request.containsKey("phone")) employee.setPhone(request.get("phone"));
         if (request.containsKey("role")) {
             try {
-                employee.setRole(validateAssignableRole(tenantId, request.get("role")));
+                employee.setRole(validateAssignableRole(tenantId, request.get("role"), currentUser));
             } catch (IllegalArgumentException e) {
                 return ResponseEntity.badRequest().body(Map.of("message", e.getMessage()));
             }
@@ -177,13 +265,42 @@ public class EmployeeController {
             String s = request.get("salary_type");
             employee.setSalaryType(s != null && !s.trim().isEmpty() ? s.trim().toUpperCase() : null);
         }
+        if (request.containsKey("hire_date")) {
+            String s = request.get("hire_date");
+            try {
+                employee.setHireDate(s != null && !s.trim().isEmpty() ? LocalDate.parse(s.trim()) : null);
+            } catch (DateTimeParseException e) {
+                return ResponseEntity.badRequest().body(Map.of("message", "hire_date formati noto'g'ri (YYYY-MM-DD kutilgan)"));
+            }
+        }
 
         User saved = userRepository.save(employee);
         return ResponseEntity.ok(saved);
     }
 
+    // MUHIM (audit'da topilgan, YECHIM QAYTA KO'RIB CHIQILDI): users
+    // jadvaliga 13 ta jadval FK bilan bog'langan (orders, salaries,
+    // transactions va h.k.) - HAQIQIY (bazadan butunlay) o'chirish deyarli
+    // HAR BIR ishlagan xodim uchun DataIntegrityViolationException bilan
+    // barbod bo'lardi. Avval bu "bloklab, aniq sabab ko'rsatish" bilan hal
+    // qilingan edi, lekin foydalanuvchi buni istamadi: xodim RO'YXATDAN
+    // yo'qolishi (o'chirilgani ko'rinishi) kerak, LEKIN eski buyurtma/oylik/
+    // tranzaksiya yozuvlarida uning ISMI saqlanib qolishi kerak.
+    //
+    // Yechim - "soft delete": User qatori bazada QOLADI (shu sabab hech
+    // qanday FK buzilmaydi, worker.fullName/user.fullName kabi eski
+    // yozuvlardagi barcha havolalar ishlashda davom etadi), lekin:
+    //   - status = "DELETED" (User.isEnabled() faqat "ACTIVE"da true
+    //     qaytaradi - shu bilan login avtomatik butunlay yopiladi)
+    //   - username'ga tasodifiy suffiks qo'shiladi (shu username'dan
+    //     kelajakda yangi xodim yaratishda foydalanish mumkin bo'lishi uchun -
+    //     "username allaqachon mavjud" tekshiruvi endi to'sqinlik qilmaydi)
+    //   - getEmployees()/getDrivers() DELETED'ni ro'yxatdan chiqarib
+    //     tashlaydi - xodim "o'chirilgandek" ko'rinadi
+    //   - joriy sessiya/refresh token darhol bekor qilinadi (xavfsizlik)
     @DeleteMapping("/{id}")
     @PreAuthorize("@perm.has('employees')")
+    @Transactional
     public ResponseEntity<?> deleteEmployee(@PathVariable UUID id) {
         String tenantId = TenantContext.getCurrentTenant();
         if (tenantId == null) {
@@ -195,7 +312,18 @@ public class EmployeeController {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("message", "Xodim topilmadi"));
         }
 
-        userRepository.delete(employee);
+        if (!canModifyTarget(employee, getCurrentUser())) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of("message", "Faqat administrator boshqa administratorni o'chira oladi"));
+        }
+
+        employee.setStatus("DELETED");
+        employee.setUsername(employee.getUsername() + "_deleted_" + UUID.randomUUID().toString().substring(0, 8));
+        userRepository.save(employee);
+
+        authSessionRepository.deleteByUserId(id);
+        appNotificationRepository.deleteByUserId(id);
+        refreshTokenService.revokeAllForUser(id);
+
         return ResponseEntity.ok(Map.of("message", "Xodim muvaffaqiyatli o'chirildi"));
     }
 
@@ -217,8 +345,19 @@ public class EmployeeController {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("message", "Xodim topilmadi"));
         }
 
+        if (!canModifyTarget(employee, getCurrentUser())) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of("message", "Faqat administrator boshqa administratorning parolini tiklashi mumkin"));
+        }
+
         employee.setPassword(passwordEncoder.encode(password.trim()));
         userRepository.save(employee);
+        // MUHIM (audit'da topilgan, xavfsizlik): RefreshTokenService.revokeAllForUser
+        // mavjud edi, lekin hech qayerdan chaqirilmasdi. Parol admin tomonidan
+        // shubhali holat sabab (masalan qurilma o'g'irlangan) tiklansa, eski
+        // refresh token 30 kun davomida hamon o'zini yangilab, yangi access
+        // token olishda davom etardi - parolni tiklash amalda hech narsani
+        // to'xtatmasdi.
+        refreshTokenService.revokeAllForUser(id);
         return ResponseEntity.ok(Map.of("message", "Parol muvaffaqiyatli o'zgartirildi"));
     }
 }

@@ -37,13 +37,31 @@ public class OrderItem {
     @Builder.Default
     private BigDecimal width = BigDecimal.ZERO;
 
-    @Column(nullable = false)
+    // MUHIM: avval Integer edi - "kg", "litr", "metr" kabi uzluksiz
+    // o'lchov birliklarida kasr miqdor (masalan 2.5 kg) kiritish UMUMAN
+    // imkonsiz edi (butun songa yaxlitlanib/yo'qolib, narx noto'g'ri
+    // chiqardi). Endi BigDecimal - "dona"/maydon asosli (m², kv. metr)
+    // birliklarda hamon butun son sifatida ishlatiladi, lekin kg/litr/metr
+    // uchun aniq kasr qiymatga ruxsat beradi.
+    @Column(nullable = false, precision = 12, scale = 3)
     @Builder.Default
-    private Integer quantity = 1;
+    private BigDecimal quantity = BigDecimal.ONE;
 
+    // Har bir gilam sex xodimi tomonidan ALOHIDA narxlanishi mumkin (masalan
+    // yuvish/tozalash murakkabligiga qarab). Bo'sh/0 bo'lsa, buyurtma narxini
+    // hisoblashda shu gilam uchun xizmat narxi x o'lchov (eni*bo'yi*soni yoki
+    // soni) bo'yicha avtomatik hisoblanadi - OrderItemController.recalculatePrice'ga q.
+    @Column(precision = 12, scale = 2)
+    private BigDecimal price;
+
+    // ItemStage.stageKey'ga ishora qiladi (2026-09-12: gilam bosqichlarini
+    // to'liq sozlanadigan qilish - com.service.core.model.ItemStage). Qattiq
+    // kodlangan FK emas, String saqlanadi - standart bosqichlar
+    // (ACCEPTED/WASHED/DRIED/READY) uchun ItemStageSeedService AYNAN shu
+    // qiymatlar bilan seed qilingani sabab hech qanday migratsiya kerak emas.
     @Column(nullable = false, length = 50)
     @Builder.Default
-    private String status = "ACCEPTED"; // ACCEPTED, WASHED, DRIED, READY
+    private String status = "ACCEPTED";
 
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;

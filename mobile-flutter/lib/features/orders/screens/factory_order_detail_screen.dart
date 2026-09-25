@@ -41,6 +41,12 @@ class _FactoryOrderDetailScreenState extends State<FactoryOrderDetailScreen> {
   bool _saving = false;
   bool _addingItem = false;
 
+  /// Gilam bosqichlari (Sozlamalar -> Gilam bosqichlari) - OrdersCubit'ning
+  /// so'nggi holatidan BlocBuilder ichida yangilanadi (qarang build() pastda).
+  /// Avval bu yerda 4 ta qattiq kodlangan (ACCEPTED/WASHED/DRIED/READY)
+  /// qiymat bor edi - endi har bir kompaniya o'zi sozlaydi.
+  List<OrderItemStageInfo> _itemStages = [];
+
   /// Narx maydoniga foydalanuvchi o'zi qo'lda yozganmi (aks holda avtomatik
   /// hisoblangan taklif ko'rsatiladi va _save() da alohida yuborilmaydi -
   /// backend OrderItemController.recalculatePrice orqali o'lchovlardan
@@ -146,8 +152,11 @@ class _FactoryOrderDetailScreenState extends State<FactoryOrderDetailScreen> {
   /// bitta gilam kiritilgan bo'lishi SHART.
   bool get _hasItems => widget.order.items.isNotEmpty;
 
-  bool get _allItemsReady =>
-      _hasItems && widget.order.items.every((i) => i.status == 'READY');
+  bool get _allItemsReady {
+    if (!_hasItems) return false;
+    final lastKey = _itemStages.isNotEmpty ? _itemStages.last.key : 'READY';
+    return widget.order.items.every((i) => i.status == lastKey);
+  }
 
   /// Sex ishi tugagach buyurtma o'tkaziladigan status - haydovchi yana
   /// ko'radigan "yetkazish" zonasining birinchi statusi. Bitta bosishda
@@ -389,19 +398,18 @@ class _FactoryOrderDetailScreenState extends State<FactoryOrderDetailScreen> {
     if (await canLaunchUrl(uri)) await launchUrl(uri);
   }
 
-  /// Status nomi va rangi
-  static final Map<String, _ItemStatusInfo> _itemStatuses = {
-    'ACCEPTED': const _ItemStatusInfo('Qabul qilindi', AppTheme.amber),
-    'WASHED': const _ItemStatusInfo('Yuvildi', AppTheme.blue),
-    'DRIED': const _ItemStatusInfo('Quritildi', AppTheme.green),
-    'READY': const _ItemStatusInfo('Tayyor', AppTheme.teal),
-  };
+  /// Status nomi va rangi - endi `_itemStages`dan (Sozlamalar -> Gilam
+  /// bosqichlari), avvalgi qattiq kodlangan xarita o'rniga.
+  _ItemStatusInfo _itemStatusInfo(String status) {
+    for (final s in _itemStages) {
+      if (s.key == status) return _ItemStatusInfo(s.nameUz, AppTheme.hex(s.colorCode));
+    }
+    return _ItemStatusInfo(status, AppTheme.textMuted);
+  }
 
-  _ItemStatusInfo _itemStatusInfo(String status) =>
-      _itemStatuses[status] ?? _ItemStatusInfo(status, AppTheme.textMuted);
-
-  /// Gilam bosqichlari ketma-ketligi (yuqoridagi xarita tartibida).
-  static final List<String> _itemStatusOrder = _itemStatuses.keys.toList();
+  /// Gilam bosqichlari ketma-ketligi - `_itemStages` allaqachon backend'dan
+  /// sortOrder bo'yicha tartiblangan holda keladi (ItemStageController).
+  List<String> get _itemStatusOrder => _itemStages.map((s) => s.key).toList();
 
   /// Gilamni `from` bosqichidan `to` bosqichiga o'tkazish mumkinmi.
   ///
@@ -413,8 +421,9 @@ class _FactoryOrderDetailScreenState extends State<FactoryOrderDetailScreen> {
   /// orqaga qaytish esa ataylab ochiq qoldirilgan (xodim adashib bosgan
   /// bosqichni tuzata olishi uchun).
   bool _canMoveItemTo(String from, String to) {
-    final fromIdx = _itemStatusOrder.indexOf(from);
-    final toIdx = _itemStatusOrder.indexOf(to);
+    final order = _itemStatusOrder;
+    final fromIdx = order.indexOf(from);
+    final toIdx = order.indexOf(to);
     if (fromIdx == -1 || toIdx == -1) return true; // noma'lum status - cheklamaymiz
     return (toIdx - fromIdx).abs() == 1;
   }
@@ -509,6 +518,7 @@ class _FactoryOrderDetailScreenState extends State<FactoryOrderDetailScreen> {
             for (final o in cubitState.orders) {
               if (o.id == widget.order.id) { liveOrder = o; break; }
             }
+            _itemStages = cubitState.itemStages;
           }
           // Ensure controllers exist for all items (faqat aktiv buyurtma uchun)
           if (!_isCompleted) {
@@ -1030,12 +1040,13 @@ class _FactoryOrderDetailScreenState extends State<FactoryOrderDetailScreen> {
                 Wrap(
                   spacing: 6,
                   runSpacing: 4,
-                  children: _itemStatuses.entries.map((e) {
-                    final selected = item.status == e.key;
-                    final info = e.value;
+                  children: _itemStages.map((stage) {
+                    final key = stage.key;
+                    final selected = item.status == key;
+                    final info = _ItemStatusInfo(stage.nameUz, AppTheme.hex(stage.colorCode));
                     // Bosqichni sakrab o'tish taqiqlanadi - faqat qo'shni
                     // bosqichlar tanlanadi (izoh uchun _canMoveItemTo'ga qarang).
-                    final allowed = selected || _canMoveItemTo(item.status, e.key);
+                    final allowed = selected || _canMoveItemTo(item.status, key);
                     return ChoiceChip(
                       label: Text(info.label,
                           style: TextStyle(
@@ -1056,7 +1067,7 @@ class _FactoryOrderDetailScreenState extends State<FactoryOrderDetailScreen> {
                         if (!val || selected) return;
                         Navigator.pop(bctx);
                         try {
-                          await context.read<OrdersCubit>().changeOrderItemStatus(widget.order, item, e.key);
+                          await context.read<OrdersCubit>().changeOrderItemStatus(widget.order, item, key);
                           if (mounted) {
                             ScaffoldMessenger.of(context).showSnackBar(SnackBar(
                               content: Text('"${item.name.isEmpty ? "Gilam" : item.name}" → ${info.label}'),

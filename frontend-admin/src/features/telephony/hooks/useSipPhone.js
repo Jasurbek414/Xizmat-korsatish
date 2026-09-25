@@ -1,5 +1,26 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import JsSIP from 'jssip';
+import { showToast } from '../../../services/toast';
+
+// MUHIM (xavfsizlik, 2026-08-03): TURN foydalanuvchi/parol AVVAL shu faylga
+// QATTIQ YOZILGAN edi. Fayl git'da kuzatilgani va repo ochiq bo'lgani uchun
+// parol har commitda qayta oshkor bo'lardi - ya'ni parolni almashtirish
+// hech qanday foyda bermasdi. Endi qiymatlar build paytida
+// frontend-admin/.env.local faylidan olinadi (u gitignore'dagi "*.local"
+// qoidasi ostida, ya'ni hech qachon commit qilinmaydi).
+//
+// DIQQAT - bu TO'LIQ yechim EMAS: statik TURN kredensiali baribir brauzerga
+// yuboriladi, ya'ni JS bundle'ni ochgan har kim uni ko'radi (bundle
+// autentifikatsiyasiz tarqatiladi). Haqiqiy yechim - coturn'ning
+// "use-auth-secret" rejimi va backend beradigan qisqa muddatli HMAC
+// kredensiallari. Bu o'zgarish faqat GIT orqali sizishni yopadi.
+const TURN_HOST = import.meta.env.VITE_TURN_HOST || '192.168.100.10';
+const TURN_USER = import.meta.env.VITE_TURN_USER || 'webrtc';
+const TURN_CREDENTIAL = import.meta.env.VITE_TURN_CREDENTIAL || '';
+
+if (!TURN_CREDENTIAL) {
+  console.warn('[Telephony] VITE_TURN_CREDENTIAL build paytida berilmagan - TURN relay ishlamaydi (ovoz ulanmasligi mumkin).');
+}
 
 // Verbose JsSIP debug loglarini o'chirib qo'yamiz (brauzer konsolini tozalash).
 JsSIP.debug.disable('JsSIP:*');
@@ -55,7 +76,7 @@ const PC_CONFIG = {
     // manzil ham ro'yxatda: brauzer har biriga relay ajratishga urinib,
     // QAYSI ishlasa o'shani tanlaydi (ICE'ning standart xatti-harakati).
     // LAN manzili birinchi - mahalliy operator uchun tezroq topiladi.
-    { urls: 'turn:192.168.100.11:3478?transport=tcp', username: 'webrtc', credential: 'webrtcTURN2026x9k4relay' },
+    { urls: `turn:${TURN_HOST}:3478?transport=tcp`, username: TURN_USER, credential: TURN_CREDENTIAL },
 
     // ============================================================================
     // MUHIM - QO'NG'IROQLARNI BUZGAN HAQIQIY SABAB (2026-07-30, ICE loglari bilan
@@ -372,7 +393,7 @@ export default function useSipPhone({
             })
             .catch((err) => {
               console.error('[Telephony] getUserMedia XATOLIK:', err && err.name, err && err.message);
-              alert('Mikrofonni ochib bo\'lmadi (' + (err && err.name) + ').\n'
+              showToast('Mikrofonni ochib bo\'lmadi (' + (err && err.name) + ').\n'
                 + '1. Brauzerda manzil satridagi qulf belgisi orqali mikrofonga RUXSAT bering.\n'
                 + '2. Boshqa dastur (Zoom, Telegram, boshqa tab) mikrofonni band qilmaganini tekshiring.\n'
                 + '3. Naushnik/mikrofon ulanganini tekshiring.');
@@ -512,7 +533,7 @@ export default function useSipPhone({
       })
       .catch((err) => {
         console.error('[Telephony] getUserMedia XATOLIK (javob):', err && err.name, err && err.message);
-        alert('Mikrofonni ochib bo\'lmadi (' + (err && err.name) + ').\n'
+        showToast('Mikrofonni ochib bo\'lmadi (' + (err && err.name) + ').\n'
           + '1. Brauzerda manzil satridagi qulf belgisi orqali mikrofonga RUXSAT bering.\n'
           + '2. Boshqa dastur (Zoom, Telegram, boshqa tab) mikrofonni band qilmaganini tekshiring.\n'
           + '3. Naushnik/mikrofon ulanganini tekshiring.');

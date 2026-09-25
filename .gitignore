@@ -28,6 +28,12 @@
 backend-java/firebase-service-account.json
 mobile-flutter/android/app/google-services.json
 
+# APK imzolash kaliti - sizib chiqsa, boshqa odam ilova nomidan (bir xil
+# applicationId bilan) soxta yangilanish tarqatishi mumkin bo'lardi.
+mobile-flutter/android/key.properties
+mobile-flutter/android/app/release-key.jks
+mobile-flutter/android/app/*.jks
+
 # Misc
 .DS_Store
 *.pem
@@ -71,3 +77,9 @@ asterisk-config/moh/*
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+
+# Manba arxivlari — GitHub'ning 100 MB chegarasidan oshadi va ichidagi kod
+# mobile-flutter/ papkasidagining aynan nusxasi (2026-09-25 tekshirilgan: ikkalasi
+# ham 2.10.8+61).
+mobile-flutter.zip
+*.zip

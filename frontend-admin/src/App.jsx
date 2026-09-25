@@ -4,11 +4,14 @@ import { useTranslation } from 'react-i18next';
 import { Sun, Moon } from 'lucide-react';
 import Sidebar from './components/Sidebar';
 import SuperadminDashboard from './features/SuperadminDashboard';
+import BroadcastPanel from './features/superadmin/BroadcastPanel';
+import SuperadminSettings from './features/superadmin/SuperadminSettings';
 import AdminDashboard from './features/AdminDashboard';
 import Clients from './features/Clients';
 import Employees from './features/Employees';
 import Orders from './features/Orders';
 import Finance from './features/Finance';
+import Reports from './features/Reports';
 import Salaries from './features/Salaries';
 import Settings from './features/Settings';
 import LeafletMap from './features/LeafletMap';
@@ -159,19 +162,31 @@ const SuperadminPortal = ({ auth, setAuth, theme, toggleTheme }) => {
   const [currentTab, setCurrentTab] = useState('dashboard');
   const navigate = useNavigate();
 
-  const handleLogout = () => {
-    localStorage.removeItem('auth_user');
-    localStorage.removeItem('auth_token');
-    setAuth(null);
-    navigate('/spd');
+  // Refresh tokenni SERVERDA ham bekor qilamiz - shunchaki localStorage'ni
+  // tozalash yetarli emas edi: token nusxasi bo'lgan odam undan 30 kun
+  // davomida foydalanaverardi.
+  // MUHIM (jonli holatda topilgan xato, tuzatildi): avval faqat `setAuth(null)`
+  // + client-side navigate() bilan chiqilardi - React ilova xotirasida
+  // (state) qolib ketardi. Foydalanuvchi shu BROWSER TAB'da darhol boshqa
+  // kompaniya hisobiga kirsa, ba'zi komponentlar hali TO'LIQ qayta
+  // yuklanmagan (yoki oxirgi so'rov javobi kech kelgan) holatda OLDINGI
+  // kompaniyaning ma'lumotlarini bir zumga ko'rsatishi mumkin edi - "Namifor
+  // ma'lumotlari Test kompaniyada ham ko'rinyapti" shikoyati aynan shundan.
+  // window.location.reload() - api.js'dagi 401 holatida ishlatiladigan
+  // BIR XIL, isbotlangan yechim: butun JS xotirasini tozalab, chiqishni
+  // KAFOLATLANGAN toza holatga olib keladi.
+  const handleLogout = async () => {
+    await api.logout();
+    // To'liq sahifa yuklanishi - JS xotirasidagi HAMMA state tozalanadi.
+    window.location.href = '/spd';
   };
 
   return (
     <div className="flex bg-[#f1f5f9] dark:bg-[#030712] min-h-screen text-slate-800 dark:text-gray-100 font-sans w-full transition-colors duration-200">
-      <Sidebar 
-        currentTab={currentTab} 
-        setCurrentTab={setCurrentTab} 
-        role="SUPERADMIN" 
+      <Sidebar
+        currentTab={currentTab}
+        setCurrentTab={setCurrentTab}
+        role="SUPERADMIN"
         handleLogout={handleLogout} 
       />
       <div className="flex-1 flex flex-col h-screen overflow-hidden">
@@ -198,7 +213,10 @@ const SuperadminPortal = ({ auth, setAuth, theme, toggleTheme }) => {
           </div>
         </header>
         <main className="p-8 flex-1 overflow-y-auto bg-[#f1f5f9] dark:bg-[#030712] transition-colors duration-200">
-          {currentTab === 'companies' ? <SuperadminDashboard tab="companies" /> : <SuperadminDashboard tab="dashboard" />}
+          {currentTab === 'companies' && <SuperadminDashboard tab="companies" />}
+          {currentTab === 'broadcast' && <BroadcastPanel />}
+          {currentTab === 'settings' && <SuperadminSettings />}
+          {currentTab !== 'companies' && currentTab !== 'broadcast' && currentTab !== 'settings' && <SuperadminDashboard tab="dashboard" />}
         </main>
       </div>
     </div>
@@ -231,11 +249,14 @@ const AdminPortal = ({ auth, setAuth, theme, toggleTheme }) => {
     }
   }, [currentTab, perms]);
 
-  const handleLogout = () => {
-    localStorage.removeItem('auth_user');
-    localStorage.removeItem('auth_token');
-    setAuth(null);
-    navigate('/login');
+  // MUHIM (jonli holatda topilgan xato, tuzatildi): yuqoridagi superadmin
+  // chiqishidagi bilan bir xil sabab - client-side navigate() JS xotirasini
+  // tozalamaydi, shu tabda darhol BOSHQA kompaniya hisobiga kirilsa, eski
+  // kompaniyaning ma'lumotlari bir zumga (yoki ba'zi komponentlarda uzoqroq)
+  // ko'rinib qolishi mumkin edi.
+  const handleLogout = async () => {
+    await api.logout();
+    window.location.href = '/login';
   };
 
   const renderAdminTab = () => {
@@ -250,6 +271,8 @@ const AdminPortal = ({ auth, setAuth, theme, toggleTheme }) => {
         return <Orders tab="orders" />;
       case 'finance':
         return <Finance tab="finance" />;
+      case 'reports':
+        return <Reports />;
       case 'salaries':
         return <Salaries tab="salaries" />;
       case 'settings':

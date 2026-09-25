@@ -19,6 +19,12 @@ public class Debt {
     @GeneratedValue(strategy = GenerationType.AUTO)
     private UUID id;
 
+    // Optimistik lock: bitta qarzni ikki marta parallel "to'landi" deb belgilash
+    // (masalan ikki marta bosish) ikkinchi save()da xatolik bilan to'xtaydi,
+    // shu orqali bitta qarz uchun ikkita tranzaksiya yozilib ketmaydi.
+    @Version
+    private Long version;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "company_id", nullable = false)
     private Company company;

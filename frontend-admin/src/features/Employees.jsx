@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { addNotification } from '../store/mockDb';
-import { Plus } from 'lucide-react';
+import { Plus, Send } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { api } from '../services/api';
+import { confirmDialog } from '../services/confirmDialog';
+import PageLoader from '../components/PageLoader';
 
 // Import modular sub-components
 import EmployeesStats from './employees/EmployeesStats';
@@ -10,12 +12,14 @@ import EmployeesFilters from './employees/EmployeesFilters';
 import EmployeesTable from './employees/EmployeesTable';
 import EmployeeDetailsModal from './employees/EmployeeDetailsModal';
 import CreateEmployeeModal from './employees/CreateEmployeeModal';
+import SendMessageModal from './employees/SendMessageModal';
 
 const Employees = ({ tab }) => {
   const { t } = useTranslation();
-  
+
   // DB States
   const [users, setUsers] = useState([]);
+  const [pageLoading, setPageLoading] = useState(true);
   const [orders, setOrders] = useState([]);
   const [completedStatusId, setCompletedStatusId] = useState(null);
 
@@ -26,6 +30,7 @@ const Employees = ({ tab }) => {
 
   // Modal States
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showMessageModal, setShowMessageModal] = useState(false);
   const [selectedUserForDetails, setSelectedUserForDetails] = useState(null);
   const [selectedUserForEdit, setSelectedUserForEdit] = useState(null);
 
@@ -48,7 +53,8 @@ const Employees = ({ tab }) => {
           status: u.status,
           password: u.password,
           salary: u.salary || '',
-          salary_type: u.salaryType || ''
+          salary_type: u.salaryType || '',
+          hire_date: u.hireDate || ''
         }));
 
         const mappedOrders = ordersData.map(o => ({
@@ -69,6 +75,8 @@ const Employees = ({ tab }) => {
         setCompletedStatusId(lastStatusId);
       } catch (err) {
         console.error("Failed to load employees:", err);
+      } finally {
+        setPageLoading(false);
       }
     };
     loadData();
@@ -112,7 +120,8 @@ const Employees = ({ tab }) => {
           role: payload.role,
           status: payload.status,
           salary: payload.salary,
-          salary_type: payload.salary_type
+          salary_type: payload.salary_type,
+          hire_date: payload.hire_date
         });
 
         const updatedUsers = users.map(u => u.id === payload.id ? {
@@ -124,7 +133,8 @@ const Employees = ({ tab }) => {
           status: saved.status,
           password: saved.password,
           salary: saved.salary || '',
-          salary_type: saved.salaryType || ''
+          salary_type: saved.salaryType || '',
+          hire_date: saved.hireDate || ''
         } : u);
 
         setUsers(updatedUsers);
@@ -136,12 +146,13 @@ const Employees = ({ tab }) => {
       try {
         const saved = await api.createEmployee({
           username: payload.username,
-          password: payload.password || 'admin',
+          password: payload.password,
           full_name: payload.full_name,
           phone: payload.phone,
           role: payload.role,
           salary: payload.salary,
-          salary_type: payload.salary_type
+          salary_type: payload.salary_type,
+          hire_date: payload.hire_date
         });
 
         const newEmployee = {
@@ -153,7 +164,8 @@ const Employees = ({ tab }) => {
           status: saved.status,
           password: saved.password,
           salary: saved.salary || '',
-          salary_type: saved.salaryType || ''
+          salary_type: saved.salaryType || '',
+          hire_date: saved.hireDate || ''
         };
 
         setUsers(prev => [...prev, newEmployee]);
@@ -175,11 +187,14 @@ const Employees = ({ tab }) => {
     }
   };
 
-  // Delete Employee
+  // Delete Employee - backend endi "soft delete" qiladi: xodim ro'yxatdan
+  // (bu ro'yxat va getEmployees()dan) yo'qoladi, lekin bazadagi yozuvi
+  // saqlanib qoladi - shu sabab eski buyurtma/oylik/tranzaksiyalarda uning
+  // ISMI hamon to'g'ri ko'rinadi ("worker.fullName" kabi havolalar buzilmaydi).
   const handleDeleteEmployee = async (userId) => {
     const targetUser = users.find(u => u.id === userId);
     if (!targetUser) return;
-    if (!window.confirm("Haqiqatan ham ushbu xodimni o'chirib yubormoqchimisiz? Barcha ish haqi va maosh tarixi ham tozalanadi.")) return;
+    if (!(await confirmDialog("Haqiqatan ham ushbu xodimni o'chirib yubormoqchimisiz? U ro'yxatdan yo'qoladi, lekin eski buyurtma/oylik tarixida ismi saqlanib qoladi.", { danger: true }))) return;
 
     try {
       await api.deleteEmployee(userId);
@@ -190,12 +205,14 @@ const Employees = ({ tab }) => {
         `Xodim o'chirildi`,
         `Сотрудник удален`,
         `Employee deleted`,
-        `${targetUser.full_name} tizimdan butunlay o'chirib yuborildi.`,
-        `Сотрудник ${targetUser.full_name} был полностью удален из системы.`,
-        `Employee ${targetUser.full_name} was completely deleted from the system.`,
+        `${targetUser.full_name} xodimlar ro'yxatidan o'chirib yuborildi.`,
+        `Сотрудник ${targetUser.full_name} удален из списка сотрудников.`,
+        `Employee ${targetUser.full_name} was removed from the employee list.`,
         'ERROR'
       );
     } catch (err) {
+      // api.js'dagi handleResponse() xato xabarini avtomatik toast qilib
+      // ko'rsatadi - shu yerda faqat konsolga yozish yetarli.
       console.error("Failed to delete employee:", err);
     }
   };
@@ -213,6 +230,8 @@ const Employees = ({ tab }) => {
     return matchesSearch && matchesRole && matchesStatus;
   });
 
+  if (pageLoading) return <PageLoader />;
+
   return (
     <div className="space-y-6 animate-fade-in text-xs font-semibold">
       
@@ -223,13 +242,23 @@ const Employees = ({ tab }) => {
           <p className="text-xs text-slate-500 dark:text-gray-400 font-medium">{t('employees_page.desc')}</p>
         </div>
 
-        <button 
-          onClick={() => { setSelectedUserForEdit(null); setShowCreateModal(true); }}
-          className="flex items-center gap-2 premium-btn text-white px-4 py-2 rounded-xl text-xs font-bold transition cursor-pointer w-fit shadow-sm"
-        >
-          <Plus className="w-4 h-4" /> {t('employees_page.add_employee')}
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setShowMessageModal(true)}
+            className="flex items-center gap-2 bg-indigo-600/10 hover:bg-indigo-600/20 text-indigo-600 dark:text-indigo-400 border border-indigo-500/10 px-4 py-2 rounded-xl text-xs font-bold transition duration-200 cursor-pointer w-fit"
+          >
+            <Send className="w-4 h-4" /> Xabar yuborish
+          </button>
+          <button
+            onClick={() => { setSelectedUserForEdit(null); setShowCreateModal(true); }}
+            className="flex items-center gap-2 premium-btn text-white px-4 py-2 rounded-xl text-xs font-bold transition cursor-pointer w-fit shadow-sm"
+          >
+            <Plus className="w-4 h-4" /> {t('employees_page.add_employee')}
+          </button>
+        </div>
       </div>
+
+      <SendMessageModal isOpen={showMessageModal} onClose={() => setShowMessageModal(false)} />
 
       {/* Stats overview cards */}
       <EmployeesStats users={users} />
@@ -263,7 +292,7 @@ const Employees = ({ tab }) => {
       />
 
       {/* Add / Edit Employee modal form */}
-      <CreateEmployeeModal 
+      <CreateEmployeeModal
         isOpen={showCreateModal || !!selectedUserForEdit}
         onClose={() => { setShowCreateModal(false); setSelectedUserForEdit(null); }}
         employee={selectedUserForEdit}

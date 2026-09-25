@@ -4,7 +4,8 @@ import { useTranslation } from 'react-i18next';
 
 const AdvanceModal = ({ isOpen, onClose, salary, wallets, onSubmit }) => {
   const { t } = useTranslation();
-  const [type, setType] = useState('ADVANCE'); // ADVANCE or FINE
+  const [category, setCategory] = useState('DEDUCTION'); // DEDUCTION or BONUS
+  const [type, setType] = useState('ADVANCE'); // ADVANCE/FINE (chegirish) yoki BONUS_ADD/BONUS_REMOVE (bonus)
   const [amount, setAmount] = useState('');
   const [description, setDescription] = useState('');
   const [walletId, setWalletId] = useState('');
@@ -14,10 +15,19 @@ const AdvanceModal = ({ isOpen, onClose, salary, wallets, onSubmit }) => {
     if (isOpen && wallets && wallets.length > 0) {
       setWalletId(wallets[0].id);
     }
+    if (isOpen) {
+      setCategory('DEDUCTION');
+      setType('ADVANCE');
+    }
     setError('');
   }, [isOpen, wallets]);
 
   if (!isOpen || !salary) return null;
+
+  const handleCategoryChange = (nextCategory) => {
+    setCategory(nextCategory);
+    setType(nextCategory === 'BONUS' ? 'BONUS_ADD' : 'ADVANCE');
+  };
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -35,6 +45,16 @@ const AdvanceModal = ({ isOpen, onClose, salary, wallets, onSubmit }) => {
         setError("Tanlangan hisobda yetarli mablag' mavjud emas! Joriy balans: " + selectedWallet.balance.toLocaleString() + " UZS");
         return;
       }
+    }
+
+    if (type === 'BONUS_REMOVE' && amt > salary.bonus) {
+      setError("Olib tashlanadigan summa joriy bonusdan (" + salary.bonus.toLocaleString() + " UZS) katta bo'lishi mumkin emas");
+      return;
+    }
+
+    if (type === 'DEDUCTION_REMOVE' && amt > salary.deductions) {
+      setError("Qaytariladigan summa joriy chegirmadan (" + salary.deductions.toLocaleString() + " UZS) katta bo'lishi mumkin emas");
+      return;
     }
 
     onSubmit(salary.id, type, amt, description, walletId);
@@ -69,30 +89,94 @@ const AdvanceModal = ({ isOpen, onClose, salary, wallets, onSubmit }) => {
             </div>
           )}
 
-          {/* Toggle Type */}
+          {/* Toggle Category: Deduction vs Bonus */}
           <div>
-            <label className="block text-slate-500 dark:text-gray-400 mb-1">Amal turi</label>
+            <label className="block text-slate-500 dark:text-gray-400 mb-1">Kategoriya</label>
             <div className="grid grid-cols-2 gap-2">
-              <button 
-                type="button" 
-                onClick={() => setType('ADVANCE')}
+              <button
+                type="button"
+                onClick={() => handleCategoryChange('DEDUCTION')}
                 className={`py-2 rounded-xl font-bold transition cursor-pointer ${
-                  type === 'ADVANCE' ? 'bg-indigo-600 text-white shadow-sm' : 'bg-slate-100 dark:bg-white/5 text-slate-500 dark:text-gray-400 hover:bg-slate-200 dark:hover:bg-white/10'
+                  category === 'DEDUCTION' ? 'bg-slate-700 text-white shadow-sm' : 'bg-slate-100 dark:bg-white/5 text-slate-500 dark:text-gray-400 hover:bg-slate-200 dark:hover:bg-white/10'
                 }`}
               >
-                {t('salaries_page.advance')}
+                Chegirish
               </button>
-              <button 
-                type="button" 
-                onClick={() => setType('FINE')}
+              <button
+                type="button"
+                onClick={() => handleCategoryChange('BONUS')}
                 className={`py-2 rounded-xl font-bold transition cursor-pointer ${
-                  type === 'FINE' ? 'bg-rose-600 text-white shadow-sm' : 'bg-slate-100 dark:bg-white/5 text-slate-500 dark:text-gray-400 hover:bg-slate-200 dark:hover:bg-white/10'
+                  category === 'BONUS' ? 'bg-emerald-600 text-white shadow-sm' : 'bg-slate-100 dark:bg-white/5 text-slate-500 dark:text-gray-400 hover:bg-slate-200 dark:hover:bg-white/10'
                 }`}
               >
-                {t('salaries_page.fine')}
+                Bonus
               </button>
             </div>
           </div>
+
+          {/* Toggle Type */}
+          {category === 'DEDUCTION' ? (
+            <div>
+              <label className="block text-slate-500 dark:text-gray-400 mb-1">Amal turi</label>
+              <div className="grid grid-cols-3 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setType('ADVANCE')}
+                  className={`py-2 rounded-xl font-bold transition cursor-pointer text-[10px] ${
+                    type === 'ADVANCE' ? 'bg-indigo-600 text-white shadow-sm' : 'bg-slate-100 dark:bg-white/5 text-slate-500 dark:text-gray-400 hover:bg-slate-200 dark:hover:bg-white/10'
+                  }`}
+                >
+                  {t('salaries_page.advance')}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setType('FINE')}
+                  className={`py-2 rounded-xl font-bold transition cursor-pointer text-[10px] ${
+                    type === 'FINE' ? 'bg-rose-600 text-white shadow-sm' : 'bg-slate-100 dark:bg-white/5 text-slate-500 dark:text-gray-400 hover:bg-slate-200 dark:hover:bg-white/10'
+                  }`}
+                >
+                  {t('salaries_page.fine')}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setType('DEDUCTION_REMOVE')}
+                  className={`py-2 rounded-xl font-bold transition cursor-pointer text-[10px] ${
+                    type === 'DEDUCTION_REMOVE' ? 'bg-emerald-600 text-white shadow-sm' : 'bg-slate-100 dark:bg-white/5 text-slate-500 dark:text-gray-400 hover:bg-slate-200 dark:hover:bg-white/10'
+                  }`}
+                >
+                  Xato - qaytarish
+                </button>
+              </div>
+              {type === 'DEDUCTION_REMOVE' && (
+                <p className="text-[9px] text-slate-400 mt-1 font-normal">Joriy chegirma: {(salary.deductions || 0).toLocaleString()} UZS</p>
+              )}
+            </div>
+          ) : (
+            <div>
+              <label className="block text-slate-500 dark:text-gray-400 mb-1">Amal turi</label>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setType('BONUS_ADD')}
+                  className={`py-2 rounded-xl font-bold transition cursor-pointer ${
+                    type === 'BONUS_ADD' ? 'bg-emerald-600 text-white shadow-sm' : 'bg-slate-100 dark:bg-white/5 text-slate-500 dark:text-gray-400 hover:bg-slate-200 dark:hover:bg-white/10'
+                  }`}
+                >
+                  Qo'shish
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setType('BONUS_REMOVE')}
+                  className={`py-2 rounded-xl font-bold transition cursor-pointer ${
+                    type === 'BONUS_REMOVE' ? 'bg-rose-600 text-white shadow-sm' : 'bg-slate-100 dark:bg-white/5 text-slate-500 dark:text-gray-400 hover:bg-slate-200 dark:hover:bg-white/10'
+                  }`}
+                >
+                  Olib tashlash
+                </button>
+              </div>
+              <p className="text-[9px] text-slate-400 mt-1 font-normal">Joriy bonus: {(salary.bonus || 0).toLocaleString()} UZS</p>
+            </div>
+          )}
 
           {/* Wallet selection (only for advance) */}
           {type === 'ADVANCE' && (
@@ -141,7 +225,13 @@ const AdvanceModal = ({ isOpen, onClose, salary, wallets, onSubmit }) => {
           {/* Worker Alert context */}
           <div className="flex items-center gap-1.5 text-[9px] font-bold text-amber-600 bg-amber-500/5 p-2 rounded-lg border border-amber-500/10">
             <AlertTriangle className="w-3.5 h-3.5" />
-            <span>Ushbu summa {salary.full_name}ning joriy oydagi maoshidan chegiriladi.</span>
+            <span>
+              {category === 'DEDUCTION'
+                ? (type === 'DEDUCTION_REMOVE'
+                    ? `Xato bilan berilgan avans/jarima ${salary.full_name}ning chegirmasidan olib tashlanadi va summa balansga qaytariladi.`
+                    : `Ushbu summa ${salary.full_name}ning joriy oydagi maoshidan chegiriladi.`)
+                : `Ushbu summa ${salary.full_name}ning joriy oydagi maoshiga ${type === 'BONUS_ADD' ? "qo'shiladi" : "bonusidan olib tashlanadi"}.`}
+            </span>
           </div>
 
           {/* Footer Actions */}

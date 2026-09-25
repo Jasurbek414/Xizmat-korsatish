@@ -87,7 +87,20 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
   }
 
   Future<void> _onAppStarted(AppStartedEvent event, Emitter<AuthState> emit) async {
-    final restored = await _repository.restoreSession();
+    // 2026-09-09 (tuzatish): avval restoreSession() ichida kutilmagan xato
+    // (masalan tarmoq/parsing) chiqsa, bu handler HECH QACHON emit()
+    // chaqirmasdan yiqilib qolardi - ekran abadiy "AuthInitial" (aylanuvchi
+    // yuklanish belgisi) holatida qotib qolardi, ya'ni "interfeys
+    // ochilmayapti" ko'rinishidagi xatoning aynan o'zi. Endi qanday xato
+    // chiqmasin, foydalanuvchi hech bo'lmasa login ekraniga tushadi
+    // (sessiya tiklanmagan bo'lsa ham, ilova ISHLAYDI).
+    LoginResult? restored;
+    try {
+      restored = await _repository.restoreSession();
+    } catch (_) {
+      restored = null;
+    }
+
     if (restored != null) {
       emit(
         Authenticated(

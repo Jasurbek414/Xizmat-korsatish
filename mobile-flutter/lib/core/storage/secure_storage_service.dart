@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:math';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../constants.dart';
 
@@ -17,6 +18,7 @@ class SecureStorageService {
     required String subdomain,
     required Map<String, dynamic> user,
     required Map<String, dynamic> permissions,
+    String? refreshToken,
   }) async {
     await Future.wait([
       _storage.write(key: AppConstants.keyToken, value: token),
@@ -27,10 +29,40 @@ class SecureStorageService {
         key: AppConstants.keyPermissions,
         value: jsonEncode(permissions),
       ),
+      if (refreshToken != null)
+        _storage.write(key: AppConstants.keyRefreshToken, value: refreshToken),
     ]);
   }
 
   Future<String?> readToken() => _storage.read(key: AppConstants.keyToken);
+
+  Future<String?> readRefreshToken() =>
+      _storage.read(key: AppConstants.keyRefreshToken);
+
+  /// Faqat tokenlarni almashtiradi (refresh oqimi uchun) - qolgan sessiya
+  /// ma'lumotlari (user, permissions) o'z joyida qoladi.
+  Future<void> saveTokens({required String token, String? refreshToken}) async {
+    await _storage.write(key: AppConstants.keyToken, value: token);
+    if (refreshToken != null) {
+      await _storage.write(
+        key: AppConstants.keyRefreshToken,
+        value: refreshToken,
+      );
+    }
+  }
+
+  /// Qurilma identifikatori - refresh token AYNAN shu qurilmaga bog'lanadi.
+  /// Bir marta yaratiladi va qurilmada doimiy qoladi; sessiya tozalanganda
+  /// ham o'chirilmaydi (bu qurilmaning o'ziga tegishli, sessiyaga emas).
+  Future<String> deviceId() async {
+    final existing = await _storage.read(key: AppConstants.keyDeviceId);
+    if (existing != null && existing.isNotEmpty) return existing;
+
+    final rnd = Random.secure().nextInt(0x7fffffff);
+    final generated = '${DateTime.now().microsecondsSinceEpoch}-$rnd';
+    await _storage.write(key: AppConstants.keyDeviceId, value: generated);
+    return generated;
+  }
 
   Future<String?> readSubdomain() =>
       _storage.read(key: AppConstants.keySubdomain);
@@ -47,12 +79,23 @@ class SecureStorageService {
     return jsonDecode(raw) as Map<String, dynamic>;
   }
 
+  /// Faqat ruxsatlar keshini yangilaydi (sessiya tiklanganda serverdan
+  /// qayta so'ralgan yangi qiymat bilan) - qolgan sessiya ma'lumotlariga
+  /// tegmaydi.
+  Future<void> savePermissions(Map<String, dynamic> permissions) async {
+    await _storage.write(
+      key: AppConstants.keyPermissions,
+      value: jsonEncode(permissions),
+    );
+  }
+
   Future<void> clearSession() async {
     await Future.wait([
       _storage.delete(key: AppConstants.keyToken),
       _storage.delete(key: AppConstants.keyTenantId),
       _storage.delete(key: AppConstants.keyUser),
       _storage.delete(key: AppConstants.keyPermissions),
+      _storage.delete(key: AppConstants.keyRefreshToken),
     ]);
   }
 

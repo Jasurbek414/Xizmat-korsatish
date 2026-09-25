@@ -29,6 +29,43 @@ class OrderStatusInfo {
   }
 }
 
+/// Gilam (OrderItem) bosqichi - OrderStatusInfo'dan MUSTAQIL: bu buyurtma
+/// darajasidagi status EMAS, sex ichida har bir gilamning o'z ishlov holati
+/// (masalan Qabul qilindi -> Yuvildi -> Tayyor). Avval bu 4 ta qattiq
+/// kodlangan qiymat (ACCEPTED/WASHED/DRIED/READY) edi, endi backend'dagi
+/// `/item-stages`dan (ItemStage entity) to'liq sozlanadigan holda keladi.
+class OrderItemStageInfo {
+  final String id;
+  final String key;
+  final String nameUz;
+  final String nameRu;
+  final String nameEn;
+  final String colorCode;
+  final int sortOrder;
+
+  OrderItemStageInfo({
+    required this.id,
+    required this.key,
+    required this.nameUz,
+    required this.nameRu,
+    required this.nameEn,
+    required this.colorCode,
+    required this.sortOrder,
+  });
+
+  factory OrderItemStageInfo.fromJson(Map<String, dynamic> json) {
+    return OrderItemStageInfo(
+      id: json['id'] ?? '',
+      key: json['stageKey'] ?? '',
+      nameUz: json['nameUz'] ?? '',
+      nameRu: json['nameRu'] ?? '',
+      nameEn: json['nameEn'] ?? '',
+      colorCode: json['colorCode'] ?? '#3b82f6',
+      sortOrder: (json['sortOrder'] as num?)?.toInt() ?? 0,
+    );
+  }
+}
+
 class OrderClientInfo {
   final String fullName;
   final String phone;

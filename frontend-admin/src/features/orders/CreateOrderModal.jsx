@@ -73,13 +73,24 @@ const CreateOrderModal = ({ isOpen, onClose, clients, services, workers, newOrde
                   const cleanPhone = c.phone ? c.phone.replace(/\D/g, '') : '';
                   return cleanPhone && cleanPhone.endsWith(cleanInput) && cleanInput.length >= 7;
                 });
-                
+
+                // MUHIM (jonli holatda topilgan xato, tuzatildi): avval
+                // `found` topilsa, ISM MAYDONI HAR DOIM saqlangan qiymat
+                // bilan ustidan yozilardi - hatto foydalanuvchi ANIQ shu
+                // formada ismni endigina qo'lda o'zgartirgan bo'lsa ham
+                // (masalan kirillchadan lotinchaga). Buyurtma tahrirlashda
+                // ism maydoni allaqachon TO'LDIRILGAN holda ochiladi - agar
+                // operator keyin telefon maydoniga tegib ketsa (hatto bir
+                // xil raqamni qayta terib "tasdiqlasa" ham), yangi yozgan
+                // ismi jimgina eski nomga qaytarilib ketardi. Endi ism FAQAT
+                // hali BO'SH bo'lsa avtomatik to'ldiriladi - qo'lda
+                // kiritilgan/tahrirlangan qiymatga hech qachon tegilmaydi.
                 if (found) {
                   setNewOrder({
                     ...newOrder,
                     client_phone: val,
-                    client_name: found.fullName || found.full_name || '',
-                    address: found.address || newOrder.address || ''
+                    client_name: newOrder.client_name || found.fullName || found.full_name || '',
+                    address: newOrder.address || found.address || ''
                   });
                 } else {
                   setNewOrder({
@@ -107,19 +118,47 @@ const CreateOrderModal = ({ isOpen, onClose, clients, services, workers, newOrde
           </div>
           <div>
             <label className="block text-slate-500 dark:text-gray-400 mb-1">{t('orders_page.service_type')}</label>
-            <select 
+            <select
               value={newOrder.service_id}
-              onChange={(e) => setNewOrder({...newOrder, service_id: e.target.value})}
+              onChange={(e) => {
+                // Xizmat tanlanganda summa uning narxi bilan to'ldiriladi,
+                // lekin qo'lda o'zgartirish mumkin - kelishilgan narx
+                // katalogdagidan farq qiladigan holatlar uchun.
+                const svc = services.find(s => s.id === e.target.value);
+                setNewOrder({
+                  ...newOrder,
+                  service_id: e.target.value,
+                  price: svc ? String(svc.price ?? '') : ''
+                });
+              }}
               className="w-full glass-input rounded-xl px-3 py-2 text-slate-800 dark:text-white focus:outline-none cursor-pointer"
               required
             >
               <option value="" className="bg-white dark:bg-[#111827] text-slate-400">-- {t('common.search')} --</option>
               {services.map(s => (
                 <option key={s.id} value={s.id} className="bg-white dark:bg-[#111827] text-slate-800 dark:text-gray-200">
-                  {s.name_uz} ({s.price.toLocaleString()} UZS)
+                  {s.name_uz} ({Number(s.price ?? 0).toLocaleString()} UZS)
                 </option>
               ))}
             </select>
+          </div>
+
+          <div>
+            <label className="block text-slate-500 dark:text-gray-400 mb-1">
+              Buyurtma summasi (UZS)
+            </label>
+            <input
+              type="number"
+              min="0"
+              step="1000"
+              value={newOrder.price ?? ''}
+              onChange={(e) => setNewOrder({ ...newOrder, price: e.target.value })}
+              placeholder="0"
+              className="w-full glass-input rounded-xl px-3 py-2 text-slate-800 dark:text-white focus:outline-none font-bold"
+            />
+            <p className="text-[10px] text-slate-400 dark:text-gray-500 font-semibold mt-1">
+              Xizmat tanlanganda avtomatik to'ladi. Kelishilgan narx boshqacha bo'lsa qo'lda o'zgartiring.
+            </p>
           </div>
           <div>
             <label className="block text-slate-500 dark:text-gray-400 mb-1">{t('orders_page.worker')}</label>

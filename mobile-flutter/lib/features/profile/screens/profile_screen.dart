@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:lucide_icons/lucide_icons.dart';
+import '../../../core/services/update_checker.dart';
+import '../../../core/services/update_dialog.dart';
 import '../../../core/storage/secure_storage_service.dart';
 import '../../../core/theme.dart';
 import '../../../core/theme_notifier.dart';
@@ -92,6 +94,8 @@ class ProfileScreen extends StatelessWidget {
         _sectionHeader('Sozlamalar'),
         const SizedBox(height: 12),
         _darkModeTile(context, isDark),
+        const SizedBox(height: 10),
+        _updateCheckTile(context, isDark),
         const SizedBox(height: 32),
 
         // --- Chiqish ---
@@ -196,6 +200,85 @@ class ProfileScreen extends StatelessWidget {
         },
       ),
     ).animate().fadeIn(delay: 200.ms).slideY(begin: 0.1);
+  }
+
+  /// "Yangilanishni tekshirish" - `main.dart` ilova ochilganda avtomatik
+  /// tekshirsa ham, foydalanuvchi o'zi ham qo'lda bosib tekshira olishi
+  /// kerak (masalan push bildirishnomani o'tkazib yuborgan bo'lsa).
+  Widget _updateCheckTile(BuildContext context, bool isDark) {
+    return Container(
+      decoration: BoxDecoration(
+        color: isDark ? AppTheme.darkSurfaceColor : AppTheme.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+            color: isDark ? AppTheme.darkBorderColor : AppTheme.borderColor),
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(16),
+          onTap: () => _checkForUpdate(context),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            child: Row(
+              children: [
+                Container(
+                  width: 32,
+                  height: 32,
+                  decoration: BoxDecoration(
+                    color: isDark
+                        ? const Color(0xFF21262D)
+                        : AppTheme.primary.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Icon(
+                    LucideIcons.download,
+                    size: 16,
+                    color: isDark ? AppTheme.darkTextPrimaryColor : AppTheme.primary,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    'Yangilanishni tekshirish',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w600,
+                      fontSize: 14,
+                      color: isDark ? AppTheme.darkTextPrimaryColor : AppTheme.textPrimary,
+                    ),
+                  ),
+                ),
+                Icon(LucideIcons.chevronRight, size: 16,
+                    color: isDark ? AppTheme.darkTextSecondaryColor : AppTheme.textSecondary),
+              ],
+            ),
+          ),
+        ),
+      ),
+    ).animate().fadeIn(delay: 250.ms).slideY(begin: 0.1);
+  }
+
+  Future<void> _checkForUpdate(BuildContext context) async {
+    ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+      const SnackBar(
+        content: Text('Tekshirilmoqda...'),
+        duration: Duration(seconds: 2),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+    final info = await UpdateChecker.check();
+    if (!context.mounted) return;
+    if (info == null) {
+      ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+        const SnackBar(
+          content: Text('Siz eng yangi versiyadasiz'),
+          behavior: SnackBarBehavior.floating,
+          backgroundColor: AppTheme.successColor,
+        ),
+      );
+      return;
+    }
+    await showUpdateDialog(context, info);
   }
 
   Future<void> _confirmLogout(BuildContext context) async {

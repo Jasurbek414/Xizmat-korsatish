@@ -14,4 +14,5 @@ public interface CallSessionRepository extends JpaRepository<CallSession, UUID> 
     // CallSession'da to'g'ridan-to'g'ri company_id yo'q - tenant izolyatsiyasi
     // sipAccount orqali (sipAccount.company.id) amalga oshiriladi.
     List<CallSession> findBySipAccount_Company_Id(UUID companyId);
+    void deleteByDispatcherId(UUID dispatcherId);
 }

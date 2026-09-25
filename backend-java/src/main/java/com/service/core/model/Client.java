@@ -33,6 +33,20 @@ public class Client {
     @Column(columnDefinition = "TEXT")
     private String address;
 
+    /**
+     * Mijoz manzilining aniq GPS koordinatasi - haydovchi buyurtmani olib
+     * ketish uchun BORGANDA, mijoz uyi oldida turib "Joylashuvni belgilash"
+     * tugmasini bosishi orqali yoziladi (OrderController.updateOrderLocation).
+     * Shu mijozning KEYINGI barcha buyurtmalarida ham qayta ishlatiladi -
+     * matn manzil noaniq/adashtiruvchi bo'lsa ham, xarita navigatsiyasi
+     * to'g'ridan-to'g'ri aniq nuqtaga olib boradi.
+     */
+    @Column
+    private Double latitude;
+
+    @Column
+    private Double longitude;
+
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
 

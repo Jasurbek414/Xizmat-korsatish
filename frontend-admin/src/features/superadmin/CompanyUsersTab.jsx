@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { KeyRound } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { api } from '../../services/api';
+import { confirmDialog } from '../../services/confirmDialog';
 
 const CompanyUsersTab = ({ companyId }) => {
   const { t } = useTranslation();
@@ -16,7 +17,7 @@ const CompanyUsersTab = ({ companyId }) => {
   }, [companyId]);
 
   const handleResetPassword = async (user) => {
-    if (!window.confirm(t('superadmin.reset_password_confirm'))) return;
+    if (!(await confirmDialog(t('superadmin.reset_password_confirm'), { danger: false }))) return;
     setError('');
     try {
       const result = await api.resetCompanyUserPassword(companyId, user.id);

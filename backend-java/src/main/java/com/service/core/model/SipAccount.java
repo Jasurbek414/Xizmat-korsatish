@@ -1,5 +1,6 @@
 package com.service.core.model;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.service.core.config.SipPasswordConverter;
 import jakarta.persistence.*;
 import lombok.*;
@@ -35,6 +36,11 @@ public class SipAccount {
     @Column(nullable = false, length = 100)
     private String username;
 
+    // Himoya qatlami: bu entity hech qachon to'g'ridan-to'g'ri qaytarilmasligi kerak
+    // (SipAccountController doim DTO — SipAccountResponse/SipCredentialsResponse — orqali
+    // qaytaradi), lekin @JsonIgnore kelajakda kimdir shu qoidani unutib entity'ni bevosita
+    // serialize qilib qo'yishidan mudofaa qiladi.
+    @JsonIgnore
     @Convert(converter = SipPasswordConverter.class)
     @Column(nullable = false, length = 512)
     private String password;

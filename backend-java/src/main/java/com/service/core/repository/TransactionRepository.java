@@ -12,4 +12,5 @@ public interface TransactionRepository extends JpaRepository<Transaction, UUID> 
     List<Transaction> findByCompanyIdAndStatus(UUID companyId, String status);
     List<Transaction> findByCompanyIdAndWorkerId(UUID companyId, UUID workerId);
     List<Transaction> findByStatus(String status);
+    boolean existsByWorkerId(UUID workerId);
 }

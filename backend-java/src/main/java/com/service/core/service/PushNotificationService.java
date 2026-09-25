@@ -7,11 +7,16 @@ import com.google.firebase.messaging.FirebaseMessagingException;
 import com.google.firebase.messaging.Message;
 import com.google.firebase.messaging.Notification;
 import com.service.core.config.FirebaseConfig;
+import com.service.core.model.AppNotification;
 import com.service.core.model.Order;
 import com.service.core.model.User;
+import com.service.core.repository.AppNotificationRepository;
+import com.service.core.repository.UserRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
+
+import java.util.UUID;
 
 /**
  * Xodimlarga (haydovchi/ishchi) yangi buyurtma tayinlanganda yoki boshqa muhim
@@ -29,9 +34,15 @@ public class PushNotificationService {
     private static final String ORDERS_CHANNEL_ID = "orders_channel";
 
     private final FirebaseConfig firebaseConfig;
+    private final AppNotificationRepository notificationRepository;
+    private final UserRepository userRepository;
 
-    public PushNotificationService(FirebaseConfig firebaseConfig) {
+    public PushNotificationService(FirebaseConfig firebaseConfig,
+                                    AppNotificationRepository notificationRepository,
+                                    UserRepository userRepository) {
         this.firebaseConfig = firebaseConfig;
+        this.notificationRepository = notificationRepository;
+        this.userRepository = userRepository;
     }
 
     /**
@@ -41,7 +52,7 @@ public class PushNotificationService {
      */
     public void notifyOrderAssigned(Order order) {
         User worker = order.getWorker();
-        if (worker == null || worker.getFcmToken() == null || worker.getFcmToken().isBlank()) {
+        if (worker == null) {
             return;
         }
 
@@ -67,10 +78,101 @@ public class PushNotificationService {
         }
 
         sendToToken(worker.getFcmToken(), title, body.toString());
+        saveNotification(worker, title, body.toString(), "ORDER_ASSIGNED");
+    }
+
+    /** Push jo'natilsin-jo'natilmasin (token yo'q/xato) - ilova ichidagi tarix baribir saqlanadi. */
+    private void saveNotification(User user, String title, String body, String type) {
+        try {
+            notificationRepository.save(AppNotification.builder()
+                    .user(user)
+                    .title(title)
+                    .body(body)
+                    .type(type)
+                    .build());
+        } catch (Exception e) {
+            log.warn("Bildirishnoma tarixga yozilmadi: {}", e.getMessage());
+        }
+    }
+
+    /**
+     * Yangi mobil versiya chiqqanda BARCHA qurilmalarga (barcha kompaniyalar
+     * bo'ylab) bir vaqtda yuboriladi - `app_updates` MAVZUSIGA (topic).
+     * Alohida-alohida token bo'ylab yubormaydi (bu yuzlab so'rov degani),
+     * FCM o'zi obuna bo'lgan barcha qurilmalarga tarqatadi.
+     *
+     * Ma'lumot (data) turida yuboriladi, `notification` bloki YO'Q - aks
+     * holda Android xabarni O'ZI ko'rsatib qo'yardi (sarlavha/matn
+     * mobil ilova nazorat qilmagan holda), ilova esa mijoz kodida
+     * (`push_notification_service.dart`) `data['type']=='APP_UPDATE'` ni
+     * tekshirib, HAQIQIY yangilanish oynasini (majburiy bo'lishi mumkin)
+     * o'zi ko'rsatadi.
+     */
+    public boolean broadcastAppUpdate(String version, String message) {
+        if (!firebaseConfig.isInitialized()) {
+            log.warn("Firebase sozlanmagan - yangilanish bildirishnomasi yuborilmadi.");
+            return false;
+        }
+
+        Message fcmMessage = Message.builder()
+                .setTopic("app_updates")
+                .putData("type", "APP_UPDATE")
+                .putData("version", version == null ? "" : version)
+                .putData("message", message == null ? "" : message)
+                .build();
+
+        try {
+            String messageId = FirebaseMessaging.getInstance().send(fcmMessage);
+            log.info("Yangilanish bildirishnomasi 'app_updates' mavzusiga yuborildi (messageId={})", messageId);
+
+            // Mavzu (topic) obunasi FCM'ning o'zida - backend kim obuna bo'lganini
+            // bilmaydi, shuning uchun ilova ichidagi tarixga BARCHA faol
+            // foydalanuvchilar uchun yozamiz (superadmin bundan mustasno emas).
+            String title = version == null || version.isBlank() ? "Yangilanish mavjud" : "Yangilanish mavjud — " + version;
+            String body = message == null || message.isBlank() ? "Ilovaning yangi versiyasi chiqdi." : message;
+            for (User u : userRepository.findByStatus("ACTIVE")) {
+                saveNotification(u, title, body, "APP_UPDATE");
+            }
+            return true;
+        } catch (Exception e) {
+            log.warn("Yangilanish bildirishnomasini yuborishda xatolik: {} (sabab: {})",
+                    e.getMessage(), e.getCause() != null ? e.getCause().getMessage() : "yo'q", e);
+            return false;
+        }
+    }
+
+    /**
+     * Kompaniya administratori/menejeri o'z xodimlariga (haydovchi, ishchi,
+     * sex xodimi va h.k.) qisqa xabar yuborishi uchun - masalan ish jadvali
+     * o'zgarishi yoki muhim e'lon haqida. Faqat SHU kompaniya xodimlariga
+     * yetadi (superadmin'ning `broadcastAppUpdate`si esa BARCHA kompaniyalar
+     * bo'ylab - ikkisi ataylab alohida, chalkashmasin).
+     */
+    public int broadcastToCompany(UUID companyId, UUID senderId, String title, String body) {
+        int count = 0;
+        for (User u : userRepository.findByCompanyId(companyId)) {
+            if (u.getId().equals(senderId)) continue;
+            if (!"ACTIVE".equalsIgnoreCase(u.getStatus())) continue;
+            if (u.getFcmToken() != null && !u.getFcmToken().isBlank()) {
+                sendToToken(u.getFcmToken(), title, body);
+            }
+            saveNotification(u, title, body, "COMPANY_ANNOUNCEMENT");
+            count++;
+        }
+        return count;
     }
 
     private void sendToToken(String token, String title, String body) {
-        if (!firebaseConfig.isInitialized()) {
+        // MUHIM (audit'da topilgan, tuzatildi): avval bu tekshiruv
+        // notifyOrderAssigned'ning ENG boshida turardi va FCM token yo'q
+        // bo'lsa saveNotification'gacha yetib bormasdi butunlay qaytib
+        // ketardi - shu holda ilova ichidagi bildirishnoma tarixi HAM
+        // yozilmasdi, garchi saveNotification'ning o'z izohi "push
+        // jo'natilsin-jo'natilmasin tarix baribir saqlanadi" deb va'da
+        // qilsa ham. Endi bu tekshiruv shu yerga (faqat push yuborishni
+        // o'chiradigan joyga) ko'chirildi - chaqiruvchi endi doim
+        // saveNotification'gacha yetib boradi.
+        if (token == null || token.isBlank() || !firebaseConfig.isInitialized()) {
             return;
         }
 

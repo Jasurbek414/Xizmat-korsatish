@@ -8,6 +8,7 @@ import '../../../core/theme.dart';
 import '../../../models/user.dart';
 import '../../gps/widgets/shift_toggle_button.dart';
 import '../../notifications/services/push_notification_service.dart';
+import '../../notifications/widgets/notification_bell.dart';
 import '../../orders/bloc/orders_cubit.dart';
 import '../../orders/screens/create_order_screen.dart';
 import '../../orders/screens/driver_orders_screen.dart';
@@ -169,7 +170,10 @@ class _MainDashboardState extends State<MainDashboard> with WidgetsBindingObserv
         title: widget.user.fullName,
         titleWidget: _headerTitle(),
         permissions: widget.permissions,
-        actions: widget.permissions.canTrackGps ? const [ShiftToggleButton()] : null,
+        actions: [
+          const Padding(padding: EdgeInsets.only(right: 8), child: NotificationBell()),
+          if (widget.permissions.canTrackGps) const Padding(padding: EdgeInsets.only(right: 12), child: ShiftToggleButton()),
+        ],
         centerIcon: LucideIcons.plus,
         centerLabel: _isFactory ? 'Qabul qilish' : 'Yangi buyurtma',
         onCenterTap: _canSeeOrders ? _openCreateOrder : null,

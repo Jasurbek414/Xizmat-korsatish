@@ -15,6 +15,13 @@ class ApiClient {
   /// barcha nusxalarning 401 xatoligida ishga tushadi.
   static void Function()? onUnauthorized;
 
+  // 2026-09-09: "ulashiladigan Dio" optimallashtirishi (TCP ulanishni qayta
+  // ishlatish uchun) HAQIQIY, hali sababi to'liq aniqlanmagan xatoga olib
+  // keldi - ba'zi holatlarda /roles so'roviga Authorization header UMUMAN
+  // qo'shilmay qoldi (interceptor chaqirilmadi), natijada foydalanuvchi
+  // ruxsatlari bo'sh qaytib, mobil menyular yo'qolib qolardi. Xavfsizlik
+  // ustunroq, shuning uchun HAR BIR ApiClient() yana o'zining alohida Dio'si
+  // va interceptor'iga ega bo'ladi - bu avval isbotlangan holicha ishlaydi.
   ApiClient({SecureStorageService? storage, Dio? dio})
     : _storage = storage ?? SecureStorageService(),
       _dio =
@@ -24,6 +31,7 @@ class ApiClient {
               baseUrl: AppConstants.baseApiUrl,
               connectTimeout: const Duration(seconds: 12),
               receiveTimeout: const Duration(seconds: 12),
+              sendTimeout: const Duration(seconds: 20),
             ),
           ) {
     _dio.interceptors.add(
@@ -35,14 +43,79 @@ class ApiClient {
           }
           handler.next(options);
         },
-        onError: (error, handler) {
-          if (error.response?.statusCode == 401) {
+        onError: (error, handler) async {
+          final status = error.response?.statusCode;
+          final path = error.requestOptions.path;
+
+          // 401 kelganda avval JIMGINA yangilashga urinamiz. Avval bu yerda
+          // darhol logout chaqirilardi - ya'ni token eskirishi bilan haydovchi
+          // ish o'rtasida login ekraniga otib yuborilardi.
+          //
+          // /auth/ endpointlari ISTISNO: login parolining xatosi ham 401
+          // qaytaradi va uni yangilashga urinish ma'nosiz (hamda cheksiz
+          // halqaga olib kelardi).
+          if (status == 401 && !path.contains('/auth/')) {
+            final refreshed = await _tryRefresh();
+            if (refreshed) {
+              try {
+                final opts = error.requestOptions;
+                final token = await _storage.readToken();
+                opts.headers['Authorization'] = 'Bearer $token';
+                final retry = await _dio.fetch(opts);
+                return handler.resolve(retry);
+              } catch (_) {
+                // qayta urinish ham muvaffaqiyatsiz - pastdagi logout ishlaydi
+              }
+            }
             ApiClient.onUnauthorized?.call();
           }
           handler.next(error);
         },
       ),
     );
+  }
+
+  /// Bir vaqtda bir nechta so'rov 401 olsa, HAR BIRI refresh yubormasligi
+  /// kerak: birinchisi so'rov yuboradi, qolganlari SHU Future'ga ulanadi.
+  /// Aks holda rotatsiya tufayli ikkinchisi allaqachon ishlatilgan tokenni
+  /// yuborib, server buni o'g'irlik deb hisoblab butun sessiyani yopardi -
+  /// ya'ni "tuzatish"ning o'zi foydalanuvchini chiqarib yuborardi.
+  static Future<bool>? _refreshFuture;
+
+  Future<bool> _tryRefresh() {
+    return _refreshFuture ??= _performRefresh().whenComplete(() {
+      _refreshFuture = null;
+    });
+  }
+
+  Future<bool> _performRefresh() async {
+    final refreshToken = await _storage.readRefreshToken();
+    if (refreshToken == null || refreshToken.isEmpty) return false;
+
+    try {
+      // ATAYIN alohida Dio: joriy nusxaning interceptor'i bu so'rovga ham
+      // qo'shilib, 401 da o'zini qayta chaqirishi mumkin edi.
+      final plain = Dio(BaseOptions(baseUrl: AppConstants.baseApiUrl));
+      final res = await plain.post(
+        '/auth/refresh',
+        data: {
+          'refresh_token': refreshToken,
+          'device_id': await _storage.deviceId(),
+        },
+      );
+
+      final data = res.data;
+      if (data is Map && data['token'] is String) {
+        await _storage.saveTokens(
+          token: data['token'] as String,
+          refreshToken: data['refreshToken'] as String?,
+        );
+        return true;
+      }
+      return false;
+    } catch (_) {
+      return false;
+    }
   }
 
   Future<dynamic> get(String path, {Map<String, dynamic>? query}) =>

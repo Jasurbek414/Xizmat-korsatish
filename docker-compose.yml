@@ -77,14 +77,16 @@ services:
       # esa https://namifor-api.ecos.uz (Cloudflare tunnel) orqali
       # (mobile-flutter/lib/core/constants.dart). Endi faqat shu mashinadan -
       # lokal debug uchun ochiq qoladi, tashqaridan yopiq.
-      - "127.0.0.1:8082:8080"
+      # VAQTINCHALIK (2026-09-09, mahalliy telefon sinovi uchun): 0.0.0.0 -
+      # shu Wi-Fi tarmog'idagi qurilmalar (masalan test telefon) ham yeta oladi.
+      - "0.0.0.0:8082:8080"
     environment:
       - DB_HOST=db
       - DB_PORT=5432
       - DB_USER=${DB_USER:-postgres}
       - DB_PASSWORD=${DB_PASSWORD:-postgres}
       - JWT_SECRET=${JWT_SECRET}
-      - CORS_ALLOWED_ORIGINS=${CORS_ALLOWED_ORIGINS:-http://localhost:3005}
+      - CORS_ALLOWED_ORIGINS=${CORS_ALLOWED_ORIGINS:-http://localhost:3005,http://localhost:5173,https://namifor.ecos.uz,https://namifor-api.ecos.uz,https://servicecore.ecos.uz}
       - FIREBASE_SERVICE_ACCOUNT_PATH=${FIREBASE_SERVICE_ACCOUNT_PATH:-}
       # Asterisk ARI (REST+WebSocket) bilan aloqa - parol asterisk-config/ari.conf'da
       # o'rnatilgan qiymat bilan BIR XIL bo'lishi SHART, aks holda ARI

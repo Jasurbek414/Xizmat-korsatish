@@ -22,7 +22,8 @@ const PayslipModal = ({ isOpen, onClose, salary, orders = [], completedStatusId 
   });
   const totalOrdersAmount = workerOrders.reduce((sum, o) => sum + o.price, 0);
 
-  const netSalary = salary.base_salary + salary.bonus - salary.deductions;
+  const attendanceDeduction = salary.attendance_deduction || 0;
+  const netSalary = salary.base_salary + salary.bonus - salary.deductions - attendanceDeduction;
 
   const handlePrint = () => {
     window.print();
@@ -85,6 +86,10 @@ const PayslipModal = ({ isOpen, onClose, salary, orders = [], completedStatusId 
               <p className="text-[10px] font-mono text-slate-700 dark:text-gray-300">{salary.user_id}</p>
             </div>
             <div>
+              <p className="text-[9px] text-slate-400 font-bold uppercase">Ishga kirgan sana</p>
+              <p className="text-[10px] font-mono text-slate-700 dark:text-gray-300">{salary.hire_date || 'Kiritilmagan'}</p>
+            </div>
+            <div>
               <p className="text-[9px] text-slate-400 font-bold uppercase">Tizim Sanasi</p>
               <p className="text-[10px] font-mono text-slate-700 dark:text-gray-300">{new Date().toLocaleDateString()}</p>
             </div>
@@ -115,6 +120,19 @@ const PayslipModal = ({ isOpen, onClose, salary, orders = [], completedStatusId 
                 <span className="text-slate-500 dark:text-gray-400">{t('salaries_page.deductions')} (Avans / Chegirma)</span>
                 <span className="text-rose-600 font-bold">-{formatCurrency(salary.deductions, i18n.language)}</span>
               </div>
+
+              {/* Attendance deduction */}
+              {salary.absent_days > 0 && (
+                <div className="flex justify-between items-center py-1">
+                  <div className="space-y-0.5">
+                    <span className="text-slate-500 dark:text-gray-400">Davomat chegirmasi</span>
+                    <span className="text-[9px] text-slate-400 block font-normal">
+                      Ishga kelmagan: {salary.absent_days} kun{salary.working_days ? ` / ${salary.working_days} ish kunidan` : ''}
+                    </span>
+                  </div>
+                  <span className="text-rose-600 font-bold">-{formatCurrency(attendanceDeduction, i18n.language)}</span>
+                </div>
+              )}
 
               {/* Summary line */}
               <div className="flex justify-between items-center bg-indigo-500/5 px-3 py-2.5 rounded-xl border border-indigo-500/10 mt-3">

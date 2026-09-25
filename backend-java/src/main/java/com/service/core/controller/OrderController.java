@@ -8,11 +8,14 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 import java.math.BigDecimal;
 import java.util.List;
+import java.time.LocalDateTime;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 
 @RestController
@@ -27,19 +30,62 @@ public class OrderController {
     private final UserRepository userRepository;
     private final PushNotificationService pushNotificationService;
     private final TransactionRepository transactionRepository;
+    private final com.service.core.service.GeocodingService geocodingService;
 
     public OrderController(OrderRepository orderRepository, CompanyRepository companyRepository,
                            ClientRepository clientRepository, ServiceRepository serviceRepository,
                            OrderStatusRepository orderStatusRepository, UserRepository userRepository,
-                           PushNotificationService pushNotificationService, TransactionRepository transactionRepository) {
+                           PushNotificationService pushNotificationService, TransactionRepository transactionRepository,
+                           com.service.core.service.GeocodingService geocodingService) {
         this.orderRepository = orderRepository;
         this.companyRepository = companyRepository;
         this.clientRepository = clientRepository;
         this.serviceRepository = serviceRepository;
         this.orderStatusRepository = orderStatusRepository;
         this.userRepository = userRepository;
+        this.geocodingService = geocodingService;
         this.pushNotificationService = pushNotificationService;
         this.transactionRepository = transactionRepository;
+    }
+
+    // MUHIM (jonli xato bo'yicha qo'shildi: "kim buyurtmani olsa, aynan
+    // o'sha akkaunt yozilishi kerak" - lekin qaysi ROLDA ekani ham aniq
+    // bo'lishi kerak edi): `order.worker` "hozirgi egasi" sifatida eski
+    // mantiq bo'yicha ishlashda davom etadi, lekin BUNGA QO'SHIMCHA -
+    // worker qaysi rolda ekaniga qarab `driver` yoki `sexWorker`
+    // maydonlariga HAM yoziladi va keyinchalik status bosqichi qanday
+    // o'zgarsa ham HECH QACHON tozalanmaydi - shu sabab buyurtmada "qaysi
+    // haydovchi olib ketgan" va "qaysi sex hodimi ishlagan" doim aniq,
+    // bir-biriga aralashmagan holda ko'rinadi.
+    private void assignWorker(Order order, User worker) {
+        order.setWorker(worker);
+        if (worker == null || worker.getRole() == null) {
+            return;
+        }
+        if ("WORKER_DRIVER".equals(worker.getRole())) {
+            order.setDriver(worker);
+        } else if ("WORKER_SEH".equals(worker.getRole())) {
+            order.setSexWorker(worker);
+        }
+    }
+
+    // MUHIM (jonli so'rov: "kim buyurtma olsa, aynan o'sha akkaunt
+    // yozilishi kerak") - OrderItemController.autoClaimForSexWorker() bilan
+    // BIR XIL sabab va BIR XIL tuzatish: `order.worker`ga TEGILMAYDI (u
+    // mobil ilovada haydovchining "_isMine"/to'lov qabul qilish tugmasi
+    // uchun ishlatiladi - shu maydonni bu yerda o'zgartirish buyurtma
+    // sexdan haydovchiga qaytganda to'lov tugmasini yashirib qo'yardi).
+    // Faqat `sexWorker` (alohida yozuv) belgilanadi.
+    private void autoClaimForSexWorker(Order order) {
+        if (order.getSexWorker() != null) {
+            return;
+        }
+        User currentUser = getCurrentUser();
+        if (currentUser == null || !"WORKER_SEH".equals(currentUser.getRole())) {
+            return;
+        }
+        order.setSexWorker(currentUser);
+        orderRepository.save(order);
     }
 
     // MUHIM (xavfsizlik, audit'da topilgan): avval @PreAuthorize yo'q edi -
@@ -55,8 +101,29 @@ public class OrderController {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of("message", "Tenant ID is missing"));
         }
 
-        List<Order> orders = orderRepository.findByCompanyId(UUID.fromString(tenantId));
+        List<Order> orders = orderRepository.findByCompanyIdOrderByCreatedAtDesc(UUID.fromString(tenantId));
         return ResponseEntity.ok(orders);
+    }
+
+    // 2026-09-09 ishlash tezligi tuzatishi: boshqaruv paneli bosh ekrani
+    // (mobil) avval shu sonlarni ko'rsatish uchun getOrders()'ning BUTUN
+    // ro'yxatini (mijoz/xodim ma'lumotlari bilan) yuklab, "bugungi"larni
+    // ilova ichida sanardi - endi ikkalasi ham serverda yengil COUNT
+    // so'rovlari bilan hisoblanadi.
+    @GetMapping("/count")
+    @PreAuthorize("@perm.has('orders')")
+    public ResponseEntity<?> getOrdersCount() {
+        String tenantId = TenantContext.getCurrentTenant();
+        if (tenantId == null) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of("message", "Tenant ID is missing"));
+        }
+        UUID companyId = UUID.fromString(tenantId);
+        LocalDateTime todayStart = LocalDateTime.now().toLocalDate().atStartOfDay();
+        LocalDateTime todayEnd = todayStart.plusDays(1);
+        return ResponseEntity.ok(Map.of(
+                "total", orderRepository.countByCompanyId(companyId),
+                "today", orderRepository.countByCompanyIdAndCreatedAtBetween(companyId, todayStart, todayEnd)
+        ));
     }
 
     /**
@@ -114,6 +181,7 @@ public class OrderController {
      */
     @PutMapping("/{id}/accept")
     @PreAuthorize("@perm.has('orders','mobile_orders')")
+    @Transactional
     public ResponseEntity<?> acceptOrder(@PathVariable UUID id) {
         String tenantId = TenantContext.getCurrentTenant();
         if (tenantId == null) {
@@ -130,11 +198,20 @@ public class OrderController {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("message", "Buyurtma topilmadi"));
         }
 
-        if (order.getWorker() != null) {
+        // MUHIM (jonli xato, tuzatildi): avval `order.getWorker()` (umumiy
+        // "hozirgi egasi") tekshirilardi - lekin bu maydonda SEX HODIMI ham
+        // turishi mumkin (masalan mijoz gilamni to'g'ridan-to'g'ri sexga
+        // olib kelgan, haydovchisiz "yo'lga tushgan" buyurtma). Bunday
+        // holatda buyurtma sex ishini tugatib "yetkazish" bosqichiga
+        // chiqqanda ham, hech qanday haydovchi uni HECH QACHON qabul qila
+        // olmasdi (har doim "band" ko'rinardi, garchi HAYDOVCHISI umuman
+        // yo'q bo'lsa ham). Endi faqat `driver` maydoni tekshiriladi - sex
+        // hodimi band qilgani haydovchiga to'sqinlik qilmaydi.
+        if (order.getDriver() != null) {
             return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of("message", "Bu buyurtma allaqachon boshqa haydovchiga biriktirilgan"));
         }
 
-        order.setWorker(currentUser);
+        assignWorker(order, currentUser);
         orderRepository.save(order);
         return ResponseEntity.ok(order);
     }
@@ -200,7 +277,28 @@ public class OrderController {
                 .price(new BigDecimal(priceObj.toString()))
                 .address(address)
                 .description(description)
+                // MUHIM (audit'da topilgan, tuzatildi): mijoz uchun avvalgi
+                // buyurtmada haydovchi GPS orqali aniq lokatsiyani belgilagan
+                // bo'lsa (updateOrderLocation - mijozning o'ziga saqlanadi),
+                // bu yangi buyurtmaga hech qachon ko'chirilmasdi - har safar
+                // yana YANGIDAN belgilash kerak bo'lardi, garchi butun
+                // funksiyaning maqsadi aynan "keyingi buyurtmalarda qayta
+                // ishlatish" bo'lsa ham. client null bo'lsa ham
+                // getLatitude()/getLongitude() xavfsiz null qaytaradi.
+                .latitude(client.getLatitude())
+                .longitude(client.getLongitude())
+                // Admin panelidagi kalendar orqali eski kunga buyurtma kiritish.
+                // Berilmasa null qoladi va @PrePersist joriy vaqtni qo'yadi.
+                .createdAt(parseBackdate(request.get("created_at")))
                 .build();
+
+        if (worker != null) {
+            if ("WORKER_DRIVER".equals(worker.getRole())) {
+                order.setDriver(worker);
+            } else if ("WORKER_SEH".equals(worker.getRole())) {
+                order.setSexWorker(worker);
+            }
+        }
 
         Order saved = orderRepository.save(order);
 
@@ -209,6 +307,35 @@ public class OrderController {
         }
 
         return ResponseEntity.status(HttpStatus.CREATED).body(saved);
+    }
+
+    /**
+     * Kalendar orqali kiritilgan "eski sana"ni o'qiydi.
+     *
+     * Ikkala format ham qabul qilinadi: to'liq ISO vaqt ("2026-07-20T14:30")
+     * va faqat sana ("2026-07-20"). Faqat sana berilganda o'sha kunning
+     * JORIY SOAT-DAQIQASI qo'yiladi - `atStartOfDay()` ishlatilsa bir kunga
+     * kiritilgan barcha buyurtmalar bir xil vaqt oladi va ro'yxatda tartibi
+     * beqaror bo'lib qolardi.
+     *
+     * Kelajak sana ATAYIN rad etiladi: bu maydon o'tgan kunni qayd etish
+     * uchun, hisobotlarni oldinga surib yuborish uchun emas.
+     */
+    private LocalDateTime parseBackdate(Object raw) {
+        if (raw == null) return null;
+        String value = raw.toString().trim();
+        if (value.isEmpty()) return null;
+
+        LocalDateTime parsed;
+        try {
+            parsed = value.length() <= 10
+                    ? java.time.LocalDate.parse(value).atTime(java.time.LocalTime.now())
+                    : LocalDateTime.parse(value);
+        } catch (java.time.format.DateTimeParseException e) {
+            return null;
+        }
+
+        return parsed.isAfter(LocalDateTime.now()) ? null : parsed;
     }
 
     // MUHIM (xavfsizlik, audit'da topilgan): avval hech qanday ruxsat
@@ -298,7 +425,7 @@ public class OrderController {
                 .filter(w -> w.getCompany() != null && w.getCompany().getId().equals(UUID.fromString(tenantId)))
                 .orElseThrow(() -> new RuntimeException("Kuryer topilmadi"));
 
-        order.setWorker(worker);
+        assignWorker(order, worker);
         orderRepository.save(order);
         pushNotificationService.notifyOrderAssigned(order);
 
@@ -347,7 +474,7 @@ public class OrderController {
             User worker = userRepository.findById(UUID.fromString(workerIdStr))
                     .filter(w -> w.getCompany() != null && w.getCompany().getId().equals(UUID.fromString(tenantId)))
                     .orElseThrow(() -> new RuntimeException("Kuryer topilmadi"));
-            order.setWorker(worker);
+            assignWorker(order, worker);
         } else if (request.containsKey("worker_id")) {
             order.setWorker(null);
         }
@@ -384,6 +511,8 @@ public class OrderController {
                     .body(Map.of("message", "Tarixga o'tgan buyurtma narxini o'zgartirish taqiqlanadi"));
         }
 
+        autoClaimForSexWorker(order);
+
         Object priceObj = request.get("price");
         if (priceObj == null) {
             return ResponseEntity.badRequest().body(Map.of("message", "Yangi narx kiritilishi shart"));
@@ -396,6 +525,61 @@ public class OrderController {
         }
 
         Order saved = orderRepository.save(order);
+        return ResponseEntity.ok(saved);
+    }
+
+    /**
+     * Haydovchi mijoz manziliga BORGANDA, telefonning joriy GPS
+     * koordinatasini shu buyurtmaga (va - keyingi barcha buyurtmalarda ham
+     * ishlatilishi uchun - mijozning o'ziga) yozib qo'yadi. Matn manzil
+     * ("address") ko'pincha noaniq/adashtiruvchi bo'ladi - aniq nuqta
+     * saqlanganidan keyin xarita navigatsiyasi (mobil ilovadagi "Yo'l
+     * ko'rsatish" tugmasi) to'g'ridan-to'g'ri shu koordinataga olib boradi.
+     */
+    @PutMapping("/{id}/location")
+    @PreAuthorize("@perm.has('orders','mobile_orders')")
+    @Transactional
+    public ResponseEntity<?> updateOrderLocation(@PathVariable UUID id, @RequestBody Map<String, Object> request) {
+        String tenantId = TenantContext.getCurrentTenant();
+        if (tenantId == null) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of("message", "Tenant ID is missing"));
+        }
+
+        Object latObj = request.get("latitude");
+        Object lngObj = request.get("longitude");
+        if (latObj == null || lngObj == null) {
+            return ResponseEntity.badRequest().body(Map.of("message", "latitude va longitude kiritilishi shart"));
+        }
+
+        Order order = orderRepository.findById(id).orElse(null);
+        if (order == null || !order.getCompany().getId().equals(UUID.fromString(tenantId))) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("message", "Buyurtma topilmadi"));
+        }
+
+        double latitude = Double.parseDouble(latObj.toString());
+        double longitude = Double.parseDouble(lngObj.toString());
+
+        order.setLatitude(latitude);
+        order.setLongitude(longitude);
+        Order saved = orderRepository.save(order);
+
+        if (order.getClient() != null) {
+            Client client = order.getClient();
+            client.setLatitude(latitude);
+            client.setLongitude(longitude);
+            // MUHIM (jonli so'rov bo'yicha qo'shildi): koordinata belgilangach
+            // mijozning MATN manzili shu aniq nuqtadan HISOBLANADI (teskari
+            // geokodlash) - qo'lda kiritilgan, ko'pincha noaniq/eski manzil
+            // o'rniga. Xizmat javob bermasa (tarmoq/limit) jimgina eski
+            // matnni saqlab qolamiz - koordinatani saqlashning o'zi buni
+            // kutmasligi kerak.
+            String geocodedAddress = geocodingService.reverseGeocode(latitude, longitude);
+            if (geocodedAddress != null) {
+                client.setAddress(geocodedAddress);
+            }
+            clientRepository.save(client);
+        }
+
         return ResponseEntity.ok(saved);
     }
 
@@ -499,14 +683,54 @@ public class OrderController {
             return ResponseEntity.badRequest().body(Map.of("message", "Summa manfiy bo'lishi mumkin emas"));
         }
 
+        // To'lov usuli - naqd/karta/aralash (ixtiyoriy, berilmasa eski
+        // xatti-harakat bilan mos kelishi uchun standart CASH deb olinadi).
+        String paymentMethod = request.get("payment_method") != null
+                ? request.get("payment_method").toString().trim().toUpperCase() : "CASH";
+        if (!Set.of("CASH", "CARD", "MIXED").contains(paymentMethod)) {
+            return ResponseEntity.badRequest().body(Map.of("message", "To'lov usuli CASH, CARD yoki MIXED bo'lishi kerak"));
+        }
+
+        BigDecimal cashAmount;
+        BigDecimal cardAmount;
+        if ("MIXED".equals(paymentMethod)) {
+            Object cashObj = request.get("cash_amount");
+            Object cardObj = request.get("card_amount");
+            if (cashObj == null || cardObj == null) {
+                return ResponseEntity.badRequest().body(Map.of("message", "Aralash to'lovda naqd va karta summasi kiritilishi shart"));
+            }
+            try {
+                cashAmount = new BigDecimal(cashObj.toString());
+                cardAmount = new BigDecimal(cardObj.toString());
+            } catch (NumberFormatException e) {
+                return ResponseEntity.badRequest().body(Map.of("message", "Noto'g'ri summa formati"));
+            }
+            if (cashAmount.compareTo(BigDecimal.ZERO) < 0 || cardAmount.compareTo(BigDecimal.ZERO) < 0) {
+                return ResponseEntity.badRequest().body(Map.of("message", "Summalar manfiy bo'lishi mumkin emas"));
+            }
+            if (cashAmount.add(cardAmount).compareTo(amount) != 0) {
+                return ResponseEntity.badRequest().body(Map.of("message", "Naqd + karta summasi jami summaga teng bo'lishi shart"));
+            }
+        } else if ("CARD".equals(paymentMethod)) {
+            cashAmount = BigDecimal.ZERO;
+            cardAmount = amount;
+        } else {
+            cashAmount = amount;
+            cardAmount = BigDecimal.ZERO;
+        }
+
         order.setCollectedPrice(amount);
         order.setPaymentStatus("COLLECTED");
+        order.setPaymentMethod(paymentMethod);
+        order.setCashAmount(cashAmount);
+        order.setCardAmount(cardAmount);
         Order saved = orderRepository.save(order);
         return ResponseEntity.ok(saved);
     }
 
     @PutMapping("/{id}/confirm-handover")
     @PreAuthorize("@perm.has('orders')")
+    @Transactional
     public ResponseEntity<?> confirmHandover(@PathVariable UUID id, @RequestBody(required = false) Map<String, Object> request) {
         String tenantId = TenantContext.getCurrentTenant();
         if (tenantId == null) {
@@ -534,15 +758,25 @@ public class OrderController {
         order.setPaymentStatus("HANDED_OVER");
         Order savedOrder = orderRepository.save(order);
 
-        // Create Transaction
+        // Create Transaction - tavsif haydovchi tanlagan to'lov usuliga qarab
+        // ("naqd pul" deb yozilaversa, karta orqali kelgan to'lov uchun ham
+        // moliya jurnalida chalg'ituvchi bo'lardi).
+        String methodLabel = switch (order.getPaymentMethod() != null ? order.getPaymentMethod() : "CASH") {
+            case "CARD" -> "karta orqali";
+            case "MIXED" -> "aralash (naqd + karta) to'lov";
+            default -> "naqd pul";
+        };
         Transaction transaction = Transaction.builder()
                 .company(order.getCompany())
                 .order(order)
                 .type("INCOME")
                 .amount(actualAmount)
                 .category("ORDER_PAYMENT")
-                .description("Kuryerdan topshirib olingan naqd pul: Buyurtma #" + order.getId().toString().substring(0, 8))
+                .description("Kuryerdan topshirib olingan " + methodLabel + ": Buyurtma #" + order.getId().toString().substring(0, 8))
                 .status("CONFIRMED")
+                .paymentMethod(order.getPaymentMethod())
+                .cashAmount(order.getCashAmount())
+                .cardAmount(order.getCardAmount())
                 .build();
         transactionRepository.save(transaction);
 

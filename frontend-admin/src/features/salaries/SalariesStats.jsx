@@ -1,9 +1,9 @@
 import React from 'react';
-import { DollarSign, CheckCircle, AlertCircle, CreditCard, FilePlus2 } from 'lucide-react';
+import { DollarSign, CheckCircle, AlertCircle, CreditCard, FilePlus2, CalendarX2 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { formatCurrency } from '../../utils/format';
 
-const SalariesStats = ({ summary, onPayAll, onGeneratePayroll }) => {
+const SalariesStats = ({ summary, onPayAll, onGeneratePayroll, onOpenAttendance }) => {
   const { t, i18n } = useTranslation();
 
   return (
@@ -17,6 +17,12 @@ const SalariesStats = ({ summary, onPayAll, onGeneratePayroll }) => {
         </div>
 
         <div className="flex items-center gap-2">
+          <button
+            onClick={onOpenAttendance}
+            className="flex items-center gap-2 bg-slate-100 hover:bg-slate-200 dark:bg-white/5 dark:hover:bg-white/10 text-slate-700 dark:text-gray-200 px-4 py-2 rounded-xl text-xs font-bold transition cursor-pointer w-fit"
+          >
+            <CalendarX2 className="w-4 h-4" /> Davomat
+          </button>
           <button
             onClick={onGeneratePayroll}
             className="flex items-center gap-2 bg-slate-100 hover:bg-slate-200 dark:bg-white/5 dark:hover:bg-white/10 text-slate-700 dark:text-gray-200 px-4 py-2 rounded-xl text-xs font-bold transition cursor-pointer w-fit"

@@ -16,6 +16,10 @@ class OrdersLoaded extends OrdersState {
   final List<Order> orders;
   final List<OrderStatusInfo> statuses;
 
+  /// Gilam bosqichlari (OrderStatusInfo'dan MUSTAQIL - qarang models/order.dart
+  /// va order_zone.dart'dagi izoh).
+  final List<OrderItemStageInfo> itemStages;
+
   /// So'nggi (jimgina) yangilanishda YANGI paydo bo'lgan buyurtmalar id'lari -
   /// UI'da ularni "YANGI" belgisi bilan ajratib ko'rsatish uchun. Haydovchi
   /// ko'rgach `markSeen()` bilan tozalanadi.
@@ -24,17 +28,20 @@ class OrdersLoaded extends OrdersState {
   OrdersLoaded({
     required this.orders,
     required this.statuses,
+    this.itemStages = const [],
     this.newOrderIds = const {},
   });
 
   OrdersLoaded copyWith({
     List<Order>? orders,
     List<OrderStatusInfo>? statuses,
+    List<OrderItemStageInfo>? itemStages,
     Set<String>? newOrderIds,
   }) {
     return OrdersLoaded(
       orders: orders ?? this.orders,
       statuses: statuses ?? this.statuses,
+      itemStages: itemStages ?? this.itemStages,
       newOrderIds: newOrderIds ?? this.newOrderIds,
     );
   }
@@ -65,24 +72,24 @@ class OrdersCubit extends Cubit<OrdersState> {
     // va dispatch pool bilan birlashtiriladi. Shunday qilib "Tarix" bo'limida
     // bajarib bo'lingan buyurtmalar ko'rinadi.
     //
-    // MUHIM: completed orders alohida try/catch bilan o'ralgan - backend hali
-    // deploy qilinmagan bo'lsa yoki xato qaytarsa, asosiy (available) va
-    // statuses ma'lumotlari baribir yuklanadi.
+    // 2026-09-09 (ishlash tezligi tuzatishi): completed orders avval
+    // yuqoridagi ikkitasi TUGAGANDAN KEYIN, alohida await qilinardi - har
+    // refresh() (ya'ni har bir yozish amalidan keyin ham) qo'shimcha bitta
+    // to'liq tarmoq davri kutilardi. Endi hammasi BIR VAQTDA (Future.wait)
+    // so'raladi - completed uchun .catchError bilan xatosizlik xususiyati
+    // (backend eski/vaqtinchalik ishlamasa ham asosiy ma'lumot yuklanishda
+    // davom etadi) TO'LIQ saqlanadi.
     final results = await Future.wait([
       _repository.fetchAvailableOrders(),
       _repository.fetchOrderStatuses(),
+      _repository.fetchCompletedOrders().catchError((_) => <Order>[]),
+      _repository.fetchItemStages().catchError((_) => <OrderItemStageInfo>[]),
     ]);
 
     final available = results[0] as List<Order>;
     final statuses = results[1] as List<OrderStatusInfo>;
-
-    // Completed orders - agar xato bo'lsa, bo'sh ro'yxat bilan davom etamiz
-    List<Order> completed = [];
-    try {
-      completed = await _repository.fetchCompletedOrders();
-    } catch (_) {
-      // Completed endpoint ishlamasa - mavjud data bilan davom etamiz
-    }
+    final completed = results[2] as List<Order>;
+    final itemStages = results[3] as List<OrderItemStageInfo>;
 
     // Dispatch pool + completed = barcha buyurtmalar (dublikatlarsiz)
     final seenIds = available.map((o) => o.id).toSet();
@@ -94,7 +101,7 @@ class OrdersCubit extends Cubit<OrdersState> {
       }
     }
 
-    return [allOrders, statuses];
+    return [allOrders, statuses, itemStages];
   }
 
   /// Haydovchi bo'sh (yoki boshqa) buyurtmani O'ZIGA biriktiradi.
@@ -134,6 +141,7 @@ class OrdersCubit extends Cubit<OrdersState> {
       emit(OrdersLoaded(
         orders: data[0] as List<Order>,
         statuses: data[1] as List<OrderStatusInfo>,
+        itemStages: data[2] as List<OrderItemStageInfo>,
       ));
     } on ApiException catch (e) {
       emit(OrdersError(e.message));
@@ -163,6 +171,7 @@ class OrdersCubit extends Cubit<OrdersState> {
       emit(OrdersLoaded(
         orders: newOrders,
         statuses: data[1] as List<OrderStatusInfo>,
+        itemStages: data[2] as List<OrderItemStageInfo>,
         // Oldingi ko'rilmagan "yangi"larni ham saqlaymiz (haydovchi hali ko'rmagan bo'lsa).
         newOrderIds: {...current.newOrderIds, ...freshIds},
       ));
@@ -257,9 +266,15 @@ class OrdersCubit extends Cubit<OrdersState> {
     final workshopStatuses = zone.workshopStatuses(current.statuses);
     if (workshopStatuses.length < 2) return; // sinxronlash uchun joy yo'q
 
+    // Qattiq kodlangan 'ACCEPTED' o'rniga - shu kompaniyaning haqiqatan
+    // sozlangan ENG BIRINCHI gilam bosqichi (bosqichlar hali yuklanmagan
+    // bo'lsa, zaxira sifatida eski qiymat ishlatiladi).
+    final firstStageKey =
+        current.itemStages.isNotEmpty ? current.itemStages.first.key : 'ACCEPTED';
+
     // Serverdagi yangi holatni mahalliy hisoblaymiz (refresh hali bo'lmagan).
     final anyStarted = order.items.any((i) =>
-        i.id == changed.id ? newStatus != 'ACCEPTED' : i.status != 'ACCEPTED');
+        i.id == changed.id ? newStatus != firstStageKey : i.status != firstStageKey);
 
     final target = anyStarted ? workshopStatuses[1] : workshopStatuses.first;
     if (order.status?.id == target.id) return;

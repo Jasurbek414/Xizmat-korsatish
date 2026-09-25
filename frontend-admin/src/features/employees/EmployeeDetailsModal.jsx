@@ -12,6 +12,21 @@ const EmployeeDetailsModal = ({ isOpen, onClose, user, orders = [], completedSta
   const workerOrders = orders.filter(o => o.worker_name.toLowerCase() === user.full_name.toLowerCase());
   const completedOrders = workerOrders.filter(o => completedStatusId !== null && o.status_id === completedStatusId);
 
+  // Ishga kirgan sanadan hozirgi kungacha necha oy/yil o'tganini hisoblash
+  const formatTenure = (hireDate) => {
+    if (!hireDate) return null;
+    const start = new Date(hireDate);
+    const now = new Date();
+    let months = (now.getFullYear() - start.getFullYear()) * 12 + (now.getMonth() - start.getMonth());
+    if (now.getDate() < start.getDate()) months -= 1;
+    if (months < 0) return null;
+    const years = Math.floor(months / 12);
+    const remMonths = months % 12;
+    if (years === 0) return `${remMonths} oy`;
+    return remMonths === 0 ? `${years} yil` : `${years} yil ${remMonths} oy`;
+  };
+  const tenure = formatTenure(user.hire_date);
+
   // Map settings
   const lat = user.lat || 41.311081;
   const lng = user.lng || 69.240562;
@@ -68,6 +83,12 @@ const EmployeeDetailsModal = ({ isOpen, onClose, user, orders = [], completedSta
               <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Ish haqi / Oylik</p>
               <p className="text-[11px] font-bold text-indigo-600 dark:text-indigo-400 mt-1">
                 {user.salary ? `${parseFloat(user.salary).toLocaleString()} UZS (${user.salary_type === 'MONTHLY' ? 'Oylik' : user.salary_type === 'DAILY' ? 'Kunlik' : 'Soatlik'})` : 'Kiritilmagan'}
+              </p>
+            </div>
+            <div>
+              <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Ishga kirgan sana</p>
+              <p className="text-[11px] font-bold text-slate-700 dark:text-gray-300 mt-1">
+                {user.hire_date ? `${user.hire_date} (${tenure || '0 oy'} ishlagan)` : 'Kiritilmagan'}
               </p>
             </div>
           </div>

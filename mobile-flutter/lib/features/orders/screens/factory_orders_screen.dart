@@ -42,11 +42,19 @@ class _FactoryOrdersScreenState extends State<FactoryOrdersScreen> {
 
   /// Gilamlar (order item) statuslaridan buyurtmaning sexdagi bosqichini aniqlaydi.
   /// Item kiritilmagan bo'lsa (hali o'lchov/gilam qo'shilmagan) - "Keldi".
-  _WorkshopStage _stageOf(Order o) {
+  ///
+  /// Avval bu yerda qattiq kodlangan 'READY'/'ACCEPTED' solishtirilardi - endi
+  /// shu kompaniyaning haqiqatan sozlangan ENG OXIRGI/ENG BIRINCHI gilam
+  /// bosqichi (`itemStages`, sortOrder bo'yicha tartiblangan) ishlatiladi -
+  /// nechta oraliq bosqich bo'lishidan qat'i nazar tamoyil o'zgarmaydi:
+  /// birinchi = "Keldi", oxirgi = "Tugatilmoqda", oralig'i = "Bajarilmoqda".
+  _WorkshopStage _stageOf(Order o, List<OrderItemStageInfo> itemStages) {
     if (o.items.isEmpty) return _WorkshopStage.keldi;
-    final allReady = o.items.every((i) => i.status == 'READY');
+    final firstKey = itemStages.isNotEmpty ? itemStages.first.key : 'ACCEPTED';
+    final lastKey = itemStages.isNotEmpty ? itemStages.last.key : 'READY';
+    final allReady = o.items.every((i) => i.status == lastKey);
     if (allReady) return _WorkshopStage.tugatilmoqda;
-    final anyStarted = o.items.any((i) => i.status != 'ACCEPTED');
+    final anyStarted = o.items.any((i) => i.status != firstKey);
     return anyStarted ? _WorkshopStage.bajarilmoqda : _WorkshopStage.keldi;
   }
 
@@ -78,6 +86,8 @@ class _FactoryOrdersScreenState extends State<FactoryOrdersScreen> {
         final loaded = state is OrdersLoaded ? state : null;
         final orders = loaded?.orders ?? const <Order>[];
         final statuses = (loaded?.statuses ?? const <OrderStatusInfo>[]).toList()
+          ..sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
+        final itemStages = (loaded?.itemStages ?? const <OrderItemStageInfo>[]).toList()
           ..sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
         final zoneBoundary = OrderZoneBoundary.fromStatuses(statuses);
         final authState = context.read<AuthBloc>().state;
@@ -112,9 +122,9 @@ class _FactoryOrdersScreenState extends State<FactoryOrdersScreen> {
           for (var i = 0; i < filtered.length; i++) filtered[i].id: i,
         };
 
-        final keldi = filtered.where((o) => _stageOf(o) == _WorkshopStage.keldi).toList();
-        final bajarilmoqda = filtered.where((o) => _stageOf(o) == _WorkshopStage.bajarilmoqda).toList();
-        final tugatilmoqda = filtered.where((o) => _stageOf(o) == _WorkshopStage.tugatilmoqda).toList();
+        final keldi = filtered.where((o) => _stageOf(o, itemStages) == _WorkshopStage.keldi).toList();
+        final bajarilmoqda = filtered.where((o) => _stageOf(o, itemStages) == _WorkshopStage.bajarilmoqda).toList();
+        final tugatilmoqda = filtered.where((o) => _stageOf(o, itemStages) == _WorkshopStage.tugatilmoqda).toList();
 
         final showKeldi = _stageFilter == null || _stageFilter == _WorkshopStage.keldi;
         final showBajarilmoqda = _stageFilter == null || _stageFilter == _WorkshopStage.bajarilmoqda;

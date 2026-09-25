@@ -74,13 +74,17 @@ class OrdersRepository {
     return _api.put('/orders/$orderId/items/$itemId', data: {'status': status});
   }
 
+  /// MUHIM: `status` ATAYLAB yuborilmaydi - avval bu yerda qattiq kodlangan
+  /// 'ACCEPTED' edi. Endi backend (OrderItemController.firstStageKey())
+  /// shu kompaniyaning "Sozlamalar -> Gilam bosqichlari"da sozlangan ENG
+  /// BIRINCHI bosqichini avtomatik tanlaydi - admin standart 4 tadan boshqa
+  /// nom/tartib qo'ysa ham to'g'ri ishlaydi.
   Future<void> addOrderItem(String orderId, String name, double length, double width, int quantity) {
     return _api.post('/orders/$orderId/items', data: {
       'name': name,
       'length': length,
       'width': width,
       'quantity': quantity,
-      'status': 'ACCEPTED'
     });
   }
 
@@ -94,6 +98,15 @@ class OrdersRepository {
     return data
         .cast<Map<String, dynamic>>()
         .map(OrderStatusInfo.fromJson)
+        .toList();
+  }
+
+  /// Gilam bosqichlari (OrderStatusInfo'dan MUSTAQIL - qarang models/order.dart).
+  Future<List<OrderItemStageInfo>> fetchItemStages() async {
+    final data = await _api.get('/item-stages') as List;
+    return data
+        .cast<Map<String, dynamic>>()
+        .map(OrderItemStageInfo.fromJson)
         .toList();
   }
 

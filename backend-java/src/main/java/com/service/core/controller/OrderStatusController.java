@@ -30,7 +30,12 @@ public class OrderStatusController {
         this.orderRepository = orderRepository;
     }
 
+    // MUHIM: yozish (POST/PUT/DELETE) faqat 'orders'ga cheklangan, lekin O'QISH shart emas —
+    // mobil ilovadagi haydovchilar (faqat 'mobile_orders' huquqiga ega) buyurtma holatlarini
+    // ko'rish uchun shu endpointdan foydalanadi (mobile-flutter/lib/features/orders/repository/
+    // orders_repository.dart:93). Faqat 'orders' talab qilinsa, haydovchi ilovasi buziladi.
     @GetMapping
+    @PreAuthorize("@perm.has('orders','mobile_orders')")
     public ResponseEntity<?> getStatuses() {
         String tenantId = TenantContext.getCurrentTenant();
         if (tenantId == null) {
@@ -80,6 +85,7 @@ public class OrderStatusController {
 
     @PutMapping("/reorder")
     @PreAuthorize("@perm.has('orders')")
+    @org.springframework.transaction.annotation.Transactional
     public ResponseEntity<?> reorderStatuses(@RequestBody List<String> orderedIds) {
         String tenantId = TenantContext.getCurrentTenant();
         if (tenantId == null) {
@@ -87,14 +93,38 @@ public class OrderStatusController {
         }
 
         UUID companyId = UUID.fromString(tenantId);
-        for (int i = 0; i < orderedIds.size(); i++) {
-            UUID statusId = UUID.fromString(orderedIds.get(i));
-            OrderStatus status = orderStatusRepository.findById(statusId).orElse(null);
+        List<OrderStatus> statuses = new java.util.ArrayList<>();
+        for (String rawId : orderedIds) {
+            OrderStatus status = orderStatusRepository.findById(UUID.fromString(rawId)).orElse(null);
             if (status != null && status.getCompany().getId().equals(companyId)) {
-                status.setSortOrder(i + 1);
-                orderStatusRepository.save(status);
+                statuses.add(status);
             }
         }
+
+        // MUHIM (2026-09-12 topilgan jonli xato): (company_id, sort_order) UNIQUE
+        // cheklovi bor. Har bir yozuvni birma-bir TO'G'RIDAN-TO'G'RI yangi (final)
+        // qiymatga o'zgartirish - masalan ikkinchi statusni birinchi o'ringa
+        // ko'chirish - u hali eskisini ushlab turgan boshqa yozuv bilan bir xil
+        // sort_order'ga ega bo'lib qolib, DARHOL constraint xatosiga uchraydi.
+        // Istalgan qo'shni almashtirish (admin panelidagi "yuqoriga/pastga"
+        // tugmalari - OrderStatuses.jsx moveStatus()) HAR DOIM shu xatoni berardi -
+        // ya'ni bu funksiya ishlab chiqarishda hech qachon to'g'ri ishlamagan.
+        // Yechim: avval hammasini VAQTINCHA hech kim bilan to'qnashmaydigan
+        // MANFIY qiymatlarga, so'ng haqiqiy (1..N) qiymatlarga o'tkazish.
+        for (int i = 0; i < statuses.size(); i++) {
+            statuses.get(i).setSortOrder(-(i + 1));
+        }
+        // MUHIM: flush() SHART - aks holda Hibernate ikkala save() ni bitta
+        // tranzaksiya ichida "dirty checking" orqali birlashtirib, faqat OXIRGI
+        // (musbat) qiymat bilan bitta SQL yuboradi va manfiy oraliq bosqich
+        // hech qachon bazaga yozilmaydi - bu holda constraint xatosi USHBU
+        // tuzatishdan KEYIN ham davom etaverardi.
+        orderStatusRepository.saveAll(statuses);
+        orderStatusRepository.flush();
+        for (int i = 0; i < statuses.size(); i++) {
+            statuses.get(i).setSortOrder(i + 1);
+        }
+        orderStatusRepository.saveAll(statuses);
 
         return ResponseEntity.ok(Map.of("message", "Statuslar ketma-ketligi muvaffaqiyatli saqlandi"));
     }
@@ -138,6 +168,23 @@ public class OrderStatusController {
         // biriktirilgan buyurtmalar bazadagi FK cheklovi tufayli xatolikka uchramasligi uchun
         // ularning status maydoni o'chirishdan oldin bo'shatiladi (mavjud tarixi saqlanib qoladi).
         List<Order> affectedOrders = orderRepository.findByStatusId(id);
+
+        // MUHIM (audit'da topilgan xato, tuzatildi): FAOL (hali kassaga
+        // topshirilmagan, paymentStatus != HANDED_OVER) buyurtmalar uchun
+        // status'ni null qilib qo'yish xavfli - mobil ilova (OrderZoneBoundary)
+        // status=null buyurtmani "hali boshlanmagan" (pickup) zonaga qaytarib
+        // qo'yadi, garchi u aslida deyarli tugagan (masalan sexda) bo'lsa ham -
+        // buyurtma hech kimning ekranida to'g'ri joyda ko'rinmay "yo'qolib"
+        // qoladi. Tarixga o'tgan (HANDED_OVER) buyurtmalar uchun bu xavfsiz
+        // (ular endi hech qanday ish oqimida faol emas), shu sabab FAQAT faol
+        // buyurtmalari bo'lgan statusni o'chirish taqiqlanadi.
+        boolean hasActiveOrders = affectedOrders.stream()
+                .anyMatch(order -> !"HANDED_OVER".equals(order.getPaymentStatus()));
+        if (hasActiveOrders) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of(
+                    "message", "Bu statusda hali faol (tugallanmagan) buyurtmalar bor - avval ularni boshqa statusga o'tkazing yoki yakunlang"));
+        }
+
         for (Order order : affectedOrders) {
             order.setStatus(null);
         }

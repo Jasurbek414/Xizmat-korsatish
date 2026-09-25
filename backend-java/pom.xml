@@ -78,6 +78,17 @@
 			<artifactId>firebase-admin</artifactId>
 			<version>9.4.2</version>
 		</dependency>
+		<!-- MUHIM: spring-boot-starter-parent'ning dependencyManagement'i
+		     google-auth-library-credentials'ni ESKI (1.23.0) versiyaga
+		     qulflab qo'yadi, firebase-admin esa google-auth-library-oauth2-http
+		     1.29.0'ni talab qiladi - ikkisi mos kelmay, push yuborishda
+		     "NoClassDefFoundError: CredentialTypeForMetrics" xatosi berardi
+		     (bu klass faqat 1.29.0'da bor). Versiyani mos qilib qulflaymiz. -->
+		<dependency>
+			<groupId>com.google.auth</groupId>
+			<artifactId>google-auth-library-credentials</artifactId>
+			<version>1.29.0</version>
+		</dependency>
 		<dependency>
 			<groupId>org.projectlombok</groupId>
 			<artifactId>lombok</artifactId>

@@ -1,6 +1,6 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
-import { LayoutDashboard, Building2, LogOut } from 'lucide-react';
+import { LayoutDashboard, Building2, Send, Settings, LogOut } from 'lucide-react';
 import { MODULE_DEFS } from '../utils/modules';
 
 const Sidebar = ({ currentTab, setCurrentTab, role, roleLabel, perms = {}, handleLogout }) => {
@@ -10,11 +10,15 @@ const Sidebar = ({ currentTab, setCurrentTab, role, roleLabel, perms = {}, handl
     ? [
       { id: 'dashboard', label: t('menu.dashboard'), icon: LayoutDashboard },
       { id: 'companies', label: t('superadmin.menu_companies'), icon: Building2 },
+      { id: 'broadcast', label: t('superadmin.menu_broadcast'), icon: Send },
+      { id: 'settings', label: t('superadmin.menu_settings'), icon: Settings },
     ]
     : [
       { id: 'dashboard', label: t('menu.dashboard'), icon: LayoutDashboard },
       ...MODULE_DEFS
-        .filter(m => perms[m.id])
+        // permKey: ba'zi modullar (masalan Hisobotlar) mustaqil ruxsat
+        // kalitiga ega emas, mavjud boshqa modulning ruxsatidan foydalanadi.
+        .filter(m => perms[m.permKey || m.id])
         .map(m => ({ id: m.id, label: t(m.labelKey), icon: m.icon }))
     ];
 

@@ -212,6 +212,25 @@ void _onStart(ServiceInstance service) async {
   });
 }
 
+// 2026-09-09 (ishlash tezligi tuzatishi): avval HAR BIR GPS signalida (15
+// soniyada bir marta, ya'ni ilova ochiq turgan har daqiqada 4 marta) yangi
+// Dio/HttpClient yaratilardi - hech qanday muddat (timeout) ham sozlanmagan
+// edi, ya'ni tarmoq muammosida so'rov muddatsiz osilib qolishi mumkin edi.
+// Bu fon xizmati (flutter_background_service) alohida izolyatda ishlagani
+// uchun yuqoridagi ApiClient'ning umumiy Dio'sini ULASHA OLMAYDI - shuning
+// uchun shu faylning o'zida, faqat BIR MARTA yaratiladigan alohida nusxa.
+Dio? _gpsDio;
+Dio _getGpsDio() {
+  return _gpsDio ??= Dio(
+    BaseOptions(
+      baseUrl: AppConstants.baseApiUrl,
+      connectTimeout: const Duration(seconds: 10),
+      receiveTimeout: const Duration(seconds: 10),
+      sendTimeout: const Duration(seconds: 10),
+    ),
+  );
+}
+
 Future<bool> _sendPosition(
   String token,
   double latitude,
@@ -219,7 +238,7 @@ Future<bool> _sendPosition(
   DateTime recordedAt,
 ) async {
   try {
-    final dio = Dio(BaseOptions(baseUrl: AppConstants.baseApiUrl));
+    final dio = _getGpsDio();
     await dio.post(
       '/gps/log',
       data: {

@@ -1,5 +1,6 @@
 package com.service.core.config;
 
+import com.google.api.client.http.javanet.NetHttpTransport;
 import com.google.auth.oauth2.GoogleCredentials;
 import com.google.firebase.FirebaseApp;
 import com.google.firebase.FirebaseOptions;
@@ -47,8 +48,16 @@ public class FirebaseConfig {
         }
 
         try (FileInputStream serviceAccount = new FileInputStream(path.toFile())) {
+            // MUHIM (2026-08-06): Firebase Admin SDK STANDART holda Apache HTTP
+            // transportini ishlatadi - u gzip javobni O'ZI shaffof dekodlaydi,
+            // keyin google-http-client YANA (ikkinchi marta) dekodlashga
+            // urinib "Not in GZIP format" xatosini berardi (har bir push -
+            // shu jumladan oddiy token yangilashning o'zi - muvaffaqiyatsiz
+            // tugardi). Java'ning o'z (javanet) transportiga o'tkazish bu
+            // qo'sh-dekodlash ziddiyatini oldini oladi.
             FirebaseOptions options = FirebaseOptions.builder()
                     .setCredentials(GoogleCredentials.fromStream(serviceAccount))
+                    .setHttpTransport(new NetHttpTransport())
                     .build();
 
             if (FirebaseApp.getApps().isEmpty()) {

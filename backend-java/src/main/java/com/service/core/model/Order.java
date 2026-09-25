@@ -10,7 +10,11 @@ import java.util.List;
 import java.util.ArrayList;
 
 @Entity
-@Table(name = "orders")
+// 2026-09-09 ishlash tezligi auditi: company_id har bir tenant-scoped
+// so'rovda (findByCompanyId*) filtrlanadi, lekin indeks yo'q edi - katta
+// jadvalda bu to'liq skanerlashga olib keladi (xuddi shu naqsh
+// GpsLog/DriverTrip'da avval topilib tuzatilgan edi).
+@Table(name = "orders", indexes = @Index(name = "idx_orders_company_id", columnList = "company_id"))
 @Getter
 @Setter
 @NoArgsConstructor
@@ -21,6 +25,14 @@ public class Order {
     @Id
     @GeneratedValue(strategy = GenerationType.AUTO)
     private UUID id;
+
+    // Optimistik lock: bir xil buyurtmaga ikkita parallel so'rov (masalan ikki
+    // haydovchi "accept" tugmasini bir vaqtda bosishi yoki bitta so'rovning
+    // tarmoq xatosi tufayli qayta yuborilishi) natijasida ikkinchi save()
+    // ObjectOptimisticLockingFailureException tashlaydi (409 ga aylantiriladi)
+    // shart-tekshir-yoz (check-then-act) yorig'idan ikki marta o'tib ketmasin.
+    @Version
+    private Long version;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "company_id", nullable = false)
@@ -42,7 +54,30 @@ public class Order {
     @JoinColumn(name = "worker_id")
     private User worker;
 
-    @OneToMany(mappedBy = "order", cascade = CascadeType.ALL, fetch = FetchType.EAGER)
+    // MUHIM (jonli xato bo'yicha qo'shildi: "worker_id" ham haydovchini, ham
+    // sex hodimini bitta joyga yozgani sabab, buyurtma hozir aynan kim
+    // qo'lida ekanini faqat status bilan solishtirib aniqlash mumkin edi -
+    // bu chalkashib, buyurtma "Boshlash" bosqichida qotib qolgan holatni
+    // payqashni qiyinlashtirgan edi. Endi HAR BIR rol o'z alohida, doimiy
+    // maydonida saqlanadi - `worker` baribir "hozirgi egasi" sifatida eski
+    // mantiq bo'yicha ishlashda davom etadi (endpointlar o'zgarmaydi),
+    // lekin bu ikkitasi kim ekanini status bosqichidan qat'iy nazar
+    // HECH QACHON adashtirmasdan ko'rsatadi.
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "driver_id")
+    private User driver;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "sex_worker_id")
+    private User sexWorker;
+
+    // 2026-09-09: EAGER'dan LAZY'ga o'zgartirildi - avval har bir order
+    // ro'yxati so'rovida (masalan /orders/available) items HAM darhol
+    // yuklanardi, hatto ro'yxat ekranida ular ishlatilmasa ham. LAZY +
+    // application.properties'dagi hibernate.default_batch_fetch_size
+    // birgalikda: items faqat haqiqatan kerak bo'lganda (order detail)
+    // yuklanadi, va yuklansa ham N ta alohida so'rov o'rniga guruhlab.
+    @OneToMany(mappedBy = "order", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     @JsonIgnoreProperties("order")
     @Builder.Default
     private List<OrderItem> items = new ArrayList<>();
@@ -67,6 +102,22 @@ public class Order {
     @Builder.Default
     private String paymentStatus = "PENDING"; // PENDING, COLLECTED, HANDED_OVER
 
+    // To'lov usuli - haydovchi to'lovni qabul qilganda tanlaydi (naqd/karta/aralash).
+    // Kassaga topshirish (confirm-handover) shu ma'lumotni o'zgartirmaydi -
+    // faqat qanday olinganini keyinchalik hisobotda ko'rsatish uchun saqlanadi.
+    @Column(name = "payment_method", length = 20)
+    private String paymentMethod; // CASH, CARD, MIXED
+
+    // MIXED to'lovda naqd va karta ulushi alohida saqlanadi (CASH bo'lsa =
+    // collectedPrice, CARD bo'lsa 0 va aksincha) - hisobotda aniq ajratish uchun.
+    @Column(name = "cash_amount", precision = 10, scale = 2)
+    @Builder.Default
+    private BigDecimal cashAmount = BigDecimal.ZERO;
+
+    @Column(name = "card_amount", precision = 10, scale = 2)
+    @Builder.Default
+    private BigDecimal cardAmount = BigDecimal.ZERO;
+
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
 
@@ -82,7 +133,14 @@ public class Order {
 
     @PrePersist
     protected void onCreate() {
-        createdAt = LocalDateTime.now();
+        // MUHIM: avval bu yerda shartsiz `LocalDateTime.now()` yozilardi, ya'ni
+        // buyurtmani O'TGAN SANA bilan kiritish umuman imkonsiz edi - kontroller
+        // qanday sana bersa ham JPA uni ustidan yozib yuborardi. Endi faqat
+        // BO'SH bo'lsa to'ldiriladi, shuning uchun admin panelidagi kalendar
+        // orqali eski kunga buyurtma qo'shish mumkin.
+        if (createdAt == null) {
+            createdAt = LocalDateTime.now();
+        }
         updatedAt = LocalDateTime.now();
     }
 

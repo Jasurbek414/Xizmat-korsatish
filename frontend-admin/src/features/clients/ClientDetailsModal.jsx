@@ -1,5 +1,5 @@
 import React from 'react';
-import { Phone, MapPin, Edit2, X, FileText, ShoppingBag } from 'lucide-react';
+import { Phone, MapPin, Edit2, X, FileText, ShoppingBag, Navigation } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 const ClientDetailsModal = ({
@@ -63,10 +63,27 @@ const ClientDetailsModal = ({
               </div>
             </div>
             <div className="bg-slate-50 dark:bg-white/2 border border-slate-100 dark:border-white/5 p-3.5 rounded-xl flex items-center gap-3 sm:col-span-2">
-              <MapPin className="w-4 h-4 text-indigo-500" />
-              <div>
-                <p className="text-[9px] text-slate-400 dark:text-gray-500 font-bold uppercase tracking-wider">{t('clients_page.address')}</p>
-                <p className="text-xs text-slate-800 dark:text-gray-200 font-semibold mt-0.5">{selectedClient.address || 'Kiritilmagan'}</p>
+              <MapPin className="w-4 h-4 text-indigo-500 shrink-0" />
+              <div className="flex-1 min-w-0 flex items-center justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="text-[9px] text-slate-400 dark:text-gray-500 font-bold uppercase tracking-wider">{t('clients_page.address')}</p>
+                  <p className="text-xs text-slate-800 dark:text-gray-200 font-semibold mt-0.5 truncate">{selectedClient.address || 'Kiritilmagan'}</p>
+                </div>
+                {/* MUHIM: haydovchi mobil ilovada "Joylashuvni belgilash"ni
+                    bosgan bo'lsa - aniq GPS nuqtasi shu yerda ko'rinadi va
+                    xaritada ochish mumkin. Matn manzil noaniq bo'lsa ham
+                    (yoki umuman bo'lmasa) bu ustuvor va aniq. */}
+                {selectedClient.latitude != null && selectedClient.longitude != null && (
+                  <a
+                    href={`https://www.google.com/maps/search/?api=1&query=${selectedClient.latitude},${selectedClient.longitude}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="shrink-0 flex items-center gap-1 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 px-2.5 py-1.5 rounded-lg text-[10px] font-bold transition"
+                    title="GPS orqali belgilangan aniq joylashuv"
+                  >
+                    <Navigation className="w-3 h-3" /> Xaritada
+                  </a>
+                )}
               </div>
             </div>
           </div>

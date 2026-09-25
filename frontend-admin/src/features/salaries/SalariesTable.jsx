@@ -1,13 +1,14 @@
 import React from 'react';
-import { CheckCircle, AlertCircle, CreditCard, FileText, PlusCircle } from 'lucide-react';
+import { CheckCircle, AlertCircle, CreditCard, FileText, PlusCircle, RotateCcw } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { formatCurrency } from '../../utils/format';
 
-const SalariesTable = ({ 
-  salaries, 
-  onPaySalary, 
-  onOpenAdvance, 
-  onOpenPayslip 
+const SalariesTable = ({
+  salaries,
+  onPaySalary,
+  onUnpaySalary,
+  onOpenAdvance,
+  onOpenPayslip
 }) => {
   const { t, i18n } = useTranslation();
 
@@ -29,6 +30,7 @@ const SalariesTable = ({
               <th className="p-4">{t('salaries_page.base_salary')}</th>
               <th className="p-4">{t('salaries_page.bonus')}</th>
               <th className="p-4">{t('salaries_page.deductions')}</th>
+              <th className="p-4">Kelmagan kun</th>
               <th className="p-4">{t('salaries_page.net_salary')}</th>
               <th className="p-4">{t('salaries_page.period')}</th>
               <th className="p-4">Status</th>
@@ -38,20 +40,23 @@ const SalariesTable = ({
           <tbody className="divide-y divide-slate-100 dark:divide-white/5 text-slate-700 dark:text-gray-300">
             {salaries.length === 0 ? (
               <tr>
-                <td colSpan="8" className="p-8 text-center text-slate-400 dark:text-gray-500 font-semibold">
+                <td colSpan="9" className="p-8 text-center text-slate-400 dark:text-gray-500 font-semibold">
                   Maosh ma'lumotlari topilmadi
                 </td>
               </tr>
             ) : (
               salaries.map((s) => {
-                const netSalary = s.base_salary + s.bonus - s.deductions;
+                const attendanceDeduction = s.attendance_deduction || 0;
+                const netSalary = s.base_salary + s.bonus - s.deductions - attendanceDeduction;
                 return (
                   <tr key={s.id} className="hover:bg-slate-50/50 dark:hover:bg-white/2 transition">
-                    
+
                     {/* Worker Info */}
                     <td className="p-4">
                       <span className="font-semibold text-slate-800 dark:text-white block">{s.full_name}</span>
-                      <span className="text-[9px] text-slate-400 font-medium">ID: {s.user_id}</span>
+                      <span className="text-[9px] text-slate-400 font-medium">
+                        ID: {s.user_id}{s.hire_date ? ` · Ishga kirgan: ${s.hire_date}` : ''}
+                      </span>
                     </td>
                     
                     {/* Base Salary */}
@@ -68,7 +73,19 @@ const SalariesTable = ({
                     <td className="p-4 text-rose-600 dark:text-rose-400 font-extrabold font-['Outfit']">
                       -{formatCurrency(s.deductions, i18n.language)}
                     </td>
-                    
+
+                    {/* Absent days / attendance deduction */}
+                    <td className="p-4">
+                      {s.absent_days > 0 ? (
+                        <div>
+                          <span className="text-amber-600 dark:text-amber-400 font-extrabold font-['Outfit']">{s.absent_days} kun</span>
+                          <span className="block text-[9px] text-rose-500 font-medium">-{formatCurrency(attendanceDeduction, i18n.language)}</span>
+                        </div>
+                      ) : (
+                        <span className="text-slate-400">—</span>
+                      )}
+                    </td>
+
                     {/* Net Salary */}
                     <td className="p-4 font-extrabold text-indigo-600 dark:text-indigo-400 font-['Outfit']">
                       {formatCurrency(netSalary, i18n.language)}
@@ -125,7 +142,13 @@ const SalariesTable = ({
                             <CreditCard className="w-3 h-3" /> {t('salaries_page.pay')}
                           </button>
                         ) : (
-                          <span className="text-[10px] text-slate-400 font-medium px-2">Kop hisoblandi</span>
+                          <button
+                            onClick={() => onUnpaySalary(s.id)}
+                            title="Xato bilan to'landi deb belgilangan bo'lsa, bekor qiling"
+                            className="flex items-center gap-1 bg-slate-100 hover:bg-rose-500/10 dark:bg-white/5 dark:hover:bg-rose-500/10 text-slate-500 hover:text-rose-600 dark:text-gray-400 dark:hover:text-rose-400 text-[10px] font-bold px-3 py-1.5 rounded-xl transition cursor-pointer"
+                          >
+                            <RotateCcw className="w-3 h-3" /> Bekor qilish
+                          </button>
                         )}
                       </div>
                     </td>

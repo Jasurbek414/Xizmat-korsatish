@@ -9,6 +9,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.socket.CloseStatus;
 import org.springframework.web.socket.TextMessage;
 import org.springframework.web.socket.WebSocketSession;
+import org.springframework.web.socket.handler.ConcurrentWebSocketSessionDecorator;
 import org.springframework.web.socket.handler.TextWebSocketHandler;
 
 import jakarta.annotation.PostConstruct;
@@ -30,7 +31,16 @@ public class TelephonyWebSocketHandler extends TextWebSocketHandler implements T
     private final DeviceRepository deviceRepository;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
-    private final Map<UUID, WebSocketSession> userSessions = new ConcurrentHashMap<>();
+    // MUHIM (audit'da topilgan thread-xavfsizlik xatosi): Spring'ning
+    // WebSocketSession implementatsiyalari BIR VAQTNING O'ZIDA (concurrent)
+    // sendMessage() chaqirilishiga mo'ljallanmagan - eventBus har bir hodisani
+    // alohida thread'da (newCachedThreadPool) yuboradi, shu sabab bitta
+    // operatorga ikki hodisa (masalan INCOMING va shu ortidan QUEUED) deyarli
+    // bir vaqtda kelsa, ikkita thread bitta xom session'ga parallel yozardi -
+    // bu xabarni yo'qotishi yoki ulanishni uzib qo'yishi mumkin edi.
+    // ConcurrentWebSocketSessionDecorator yozuvlarni ichki navbatga qo'yib,
+    // ketma-ket jo'natadi.
+    private final Map<UUID, ConcurrentWebSocketSessionDecorator> userSessions = new ConcurrentHashMap<>();
 
     public TelephonyWebSocketHandler(TelephonyService telephonyService, TelephonyEventBus eventBus,
                                       PresenceManager presenceManager, DeviceRepository deviceRepository) {
@@ -67,7 +77,7 @@ public class TelephonyWebSocketHandler extends TextWebSocketHandler implements T
         // mijozdan kelgan hech qanday qiymatga ishonilmaydi.
         UUID userId = (UUID) session.getAttributes().get("userId");
         if (userId != null) {
-            userSessions.put(userId, session);
+            userSessions.put(userId, new ConcurrentWebSocketSessionDecorator(session, 10_000, 512 * 1024));
             // MUHIM (audit: 13-band, "onlayn holat") - PresenceManager avval
             // hech qayerdan chaqirilmagani uchun har doim "OFFLINE" qaytarardi.
             // Endi operatorning nazorat kanali (/ws/telephony) ulanganda ONLINE,
@@ -107,13 +117,21 @@ public class TelephonyWebSocketHandler extends TextWebSocketHandler implements T
         Map<String, Object> data = objectMapper.readValue(payload, Map.class);
         String action = (String) data.get("action");
 
+        // Xabar jo'natishning HAMMASI (bu yerdagi PONG/xato javoblari va
+        // onEvent()dagi broadcastlar) bitta ConcurrentWebSocketSessionDecorator
+        // orqali ketishi shart - xom `session` parametriga to'g'ridan-to'g'ri
+        // yozish parallel jo'natishlarni sinxronlamaydi (yuqoridagi izohga qarang).
+        ConcurrentWebSocketSessionDecorator outbound = userSessions.get(requestingUserId);
+
         if ("PING".equals(action)) {
             // Keepalive: mijoz har ~40 soniyada yuboradi (Cloudflare/nginx bo'sh
             // WebSocket'ni ~100 soniyadan keyin uzadi). PONG bilan javob berib,
             // ikki tomonlama trafik hosil qilamiz - shunda control kanali tirik
             // qoladi va DIAL/HANGUP buyruqlari har doim yetib boradi.
             try {
-                session.sendMessage(new TextMessage("{\"type\":\"PONG\"}"));
+                if (outbound != null) {
+                    outbound.sendMessage(new TextMessage("{\"type\":\"PONG\"}"));
+                }
             } catch (IOException ignored) {
                 // Ulanish yopilgan - mijoz o'zi qayta ulanadi.
             }
@@ -147,8 +165,10 @@ public class TelephonyWebSocketHandler extends TextWebSocketHandler implements T
             // holatida qolib ketardi.
             try {
                 String errorText = e.getMessage() != null ? e.getMessage() : "Amal bajarilmadi";
-                session.sendMessage(new TextMessage(objectMapper.writeValueAsString(
-                        Map.of("type", "FAILED", "payload", Map.of("message", errorText)))));
+                if (outbound != null) {
+                    outbound.sendMessage(new TextMessage(objectMapper.writeValueAsString(
+                            Map.of("type", "FAILED", "payload", Map.of("message", errorText)))));
+                }
             } catch (IOException ignored) {
                 // Ulanish yopilgan bo'lsa - xabar yetkazishning iloji yo'q.
             }
@@ -157,9 +177,14 @@ public class TelephonyWebSocketHandler extends TextWebSocketHandler implements T
 
     @Override
     public void afterConnectionClosed(WebSocketSession session, CloseStatus status) throws Exception {
-        userSessions.values().remove(session);
         UUID userId = userIdOf(session);
         if (userId != null) {
+            // Faqat SHU ulanishga tegishli yozuvni olib tashlaymiz - agar
+            // foydalanuvchi allaqachon YANGI sessiya bilan qayta ulangan bo'lsa
+            // (masalan tez qayta ulanish), eski yopilayotgan sessiya yangisini
+            // xaritadan o'chirib yubormasin.
+            userSessions.computeIfPresent(userId, (id, decorator) ->
+                    decorator.getDelegate() == session ? null : decorator);
             presenceManager.setStatus(userId, "OFFLINE");
             setDeviceStatus(userId, "OFFLINE");
         }
@@ -183,7 +208,7 @@ public class TelephonyWebSocketHandler extends TextWebSocketHandler implements T
         }
 
         TextMessage message = new TextMessage(json);
-        for (WebSocketSession session : userSessions.values()) {
+        for (ConcurrentWebSocketSessionDecorator session : userSessions.values()) {
             if (session.isOpen() && event.getCompanyId().equals(companyIdOf(session))) {
                 try {
                     session.sendMessage(message);

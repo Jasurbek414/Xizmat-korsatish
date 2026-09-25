@@ -74,8 +74,25 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                         // qamalib qolardi - chiqishning yagona yo'li qo'lda logout edi.
                         // Endi aniq 401 qaytaramiz: frontend buni tushunib avtomatik
                         // login sahifasiga qaytaradi.
-                        if (userRepository.findByUsername(username).isEmpty()) {
+                        var userOpt = userRepository.findByUsername(username);
+                        if (userOpt.isEmpty()) {
                             writeInvalidSessionResponse(response);
+                            return;
+                        }
+
+                        // MUHIM (xavfsizlik auditida topilgan, 2026-08-03): AuthController
+                        // login paytida user.getStatus() ni tekshiradi ("Foydalanuvchi hisobi
+                        // faol emas"), lekin bu filtr tekshirmasdi. Natijada admin panelda
+                        // xodim BLOKLANSA ham, uning brauzeridagi/telefonidagi eski token
+                        // imzo jihatidan yaroqli bo'lgani uchun 10 KUN (token muddati)
+                        // davomida ishlayverardi - ya'ni "bloklash" tugmasi amalda darhol
+                        // kuchga kirmasdi. Ishdan bo'shatilgan xodim shu muddat ichida
+                        // buyurtmalarni, mijoz bazasini va moliyani ko'rishda davom etardi.
+                        // Endi kompaniya blokirovkasi bilan bir xil tarzda HAR bir so'rovda
+                        // tekshiriladi.
+                        String userStatus = userOpt.get().getStatus();
+                        if (userStatus != null && !"ACTIVE".equalsIgnoreCase(userStatus)) {
+                            writeInactiveUserResponse(response);
                             return;
                         }
 
@@ -122,6 +139,18 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     // yo'q" degani - bu holatda esa aksincha, tokendagi shaxs endi umuman
     // mavjud emas. 401 semantik jihatdan to'g'ri va frontend'ning avtomatik
     // logout mantig'i (services/api.js) aynan shu kodga tayanadi.
+    // Bloklangan/faol bo'lmagan xodim. 401 (403 emas) - sabab yuqoridagi
+    // writeInvalidSessionResponse izohi bilan bir xil: frontend'ning avtomatik
+    // logout mantig'i shu kodga tayanadi, aks holda xodim tushunarsiz 403 bilan
+    // ekranda qamalib qolardi.
+    private void writeInactiveUserResponse(HttpServletResponse response) throws IOException {
+        response.setStatus(HttpStatus.UNAUTHORIZED.value());
+        response.setContentType(MediaType.APPLICATION_JSON_VALUE);
+        response.getWriter().write(objectMapper.writeValueAsString(
+            Map.of("message", "Foydalanuvchi hisobi faol emas. Administrator bilan bog'laning.")
+        ));
+    }
+
     private void writeInvalidSessionResponse(HttpServletResponse response) throws IOException {
         response.setStatus(HttpStatus.UNAUTHORIZED.value());
         response.setContentType(MediaType.APPLICATION_JSON_VALUE);
