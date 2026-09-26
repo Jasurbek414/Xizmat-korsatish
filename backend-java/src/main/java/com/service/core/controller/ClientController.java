@@ -9,6 +9,8 @@ import com.service.core.repository.ClientRepository;
 import com.service.core.repository.CompanyRepository;
 import com.service.core.repository.UserRepository;
 import com.service.core.tenant.TenantContext;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -52,15 +54,29 @@ public class ClientController {
         return userRepository.findByUsername(username).orElse(null);
     }
 
+    /**
+     * 2026-09-26 audit: ixtiyoriy `limit` va `offset` qo'shildi — avval bu
+     * endpoint hech qanday parametr qabul qilmasdi va butun jadvalni qaytarardi.
+     *
+     * ORQAGA MOSLIK: parametrlar berilmasa xulq AYNAN avvalgidek qoladi.
+     */
     @GetMapping
-    public ResponseEntity<?> getClients() {
+    public ResponseEntity<?> getClients(
+            @RequestParam(required = false) Integer limit,
+            @RequestParam(required = false) Integer offset) {
         String tenantId = TenantContext.getCurrentTenant();
         if (tenantId == null) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of("message", "Tenant ID is missing"));
         }
+        UUID companyId = UUID.fromString(tenantId);
 
-        List<Client> clients = clientRepository.findByCompanyIdOrderByCreatedAtDesc(UUID.fromString(tenantId));
-        return ResponseEntity.ok(clients);
+        if (limit == null) {
+            return ResponseEntity.ok(clientRepository.findByCompanyIdOrderByCreatedAtDesc(companyId));
+        }
+        int size = Math.max(1, Math.min(limit, 500));
+        int from = offset == null ? 0 : Math.max(0, offset);
+        Pageable page = PageRequest.of(from / size, size);
+        return ResponseEntity.ok(clientRepository.findByCompanyIdOrderByCreatedAtDesc(companyId, page));
     }
 
     // 2026-09-09 ishlash tezligi tuzatishi: boshqaruv paneli bosh ekrani

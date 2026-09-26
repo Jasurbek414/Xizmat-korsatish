@@ -1,6 +1,7 @@
 package com.service.core.repository;
 
 import com.service.core.model.Client;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 import java.util.List;
@@ -25,4 +26,12 @@ public interface ClientRepository extends JpaRepository<Client, UUID> {
      */
     List<Client> findByCompanyIdOrderByCreatedAtDesc(UUID companyId);
     Optional<Client> findByCompanyIdAndPhone(UUID companyId, String phone);
+
+    /**
+     * 2026-09-26 audit: sahifalangan ro'yxat. GET /clients avval hech qanday
+     * parametr qabul qilmasdi va butun jadvalni qaytarardi. Bu metod
+     * QO'SHIMCHA — yuqoridagilar o'z holicha qoladi, shuning uchun hozirgi
+     * production APK va veb panel ta'sirlanmaydi.
+     */
+    List<Client> findByCompanyIdOrderByCreatedAtDesc(UUID companyId, Pageable pageable);
 }

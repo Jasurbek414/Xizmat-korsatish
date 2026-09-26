@@ -1,6 +1,7 @@
 package com.service.core.repository;
 
 import com.service.core.model.Order;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -44,4 +45,33 @@ public interface OrderRepository extends JpaRepository<Order, UUID> {
      */
     @Query("SELECT o FROM Order o WHERE o.company.id = :companyId AND o.paymentStatus <> 'PENDING'")
     List<Order> findCompletedByCompanyId(@Param("companyId") UUID companyId);
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // 2026-09-26 audit: sahifalash (pagination).
+    //
+    // Muammo: GET /orders hech qanday parametr qabul qilmasdi va BUTUN jadvalni
+    // qaytarardi. Mobil ilovada bu uch joyda og'ir yuk berardi:
+    //   - live_orders_screen har 15 soniyada butun ro'yxatni qayta yuklaydi
+    //   - client_detail_screen BITTA mijozning buyurtmalarini ko'rsatish uchun
+    //     hammasini yuklab, keyin telefonda filtrlaydi
+    //   - orders_admin_screen / reports_screen ham to'liq ro'yxatni oladi
+    //
+    // Bu metodlar QO'SHIMCHA — mavjudlari o'z holicha qoladi, shuning uchun
+    // hozirgi production APK (2.10.30) va veb panel ta'sirlanmaydi.
+    // ─────────────────────────────────────────────────────────────────────────
+
+    /** Sahifalangan ro'yxat (eng yangisi birinchi). */
+    List<Order> findByCompanyIdOrderByCreatedAtDesc(UUID companyId, Pageable pageable);
+
+    /**
+     * Bitta mijozning buyurtmalari — client_detail_screen uchun. Avval bu ekran
+     * BARCHA buyurtmani yuklab telefonda filtrlardi.
+     */
+    List<Order> findByCompanyIdAndClientIdOrderByCreatedAtDesc(UUID companyId, UUID clientId);
+
+    /** Bitta mijozning buyurtmalari, sahifalangan. */
+    List<Order> findByCompanyIdAndClientIdOrderByCreatedAtDesc(
+            UUID companyId, UUID clientId, Pageable pageable);
+
+    long countByCompanyIdAndClientId(UUID companyId, UUID clientId);
 }

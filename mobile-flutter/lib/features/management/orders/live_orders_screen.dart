@@ -30,6 +30,12 @@ class _LiveOrdersScreenState extends State<LiveOrdersScreen> {
   static const _pollInterval = Duration(seconds: 15);
   static const _newThreshold = Duration(minutes: 10);
 
+  /// 2026-09-26 audit: bu ekran har 15 soniyada BUTUN buyurtmalar jadvalini
+  /// qayta yuklardi. Ekranning o'zi faqat yaqin (`_newThreshold` = 10 daqiqa)
+  /// buyurtmalarni ajratib ko'rsatadi va ro'yxat `createdAt` bo'yicha kamayish
+  /// tartibida keladi — shuning uchun eng yangi 100 ta yetarlidan ortiq.
+  static const _pollLimit = 100;
+
   Timer? _timer;
   List<AdminOrder> _orders = [];
   bool _loading = true;
@@ -57,7 +63,7 @@ class _LiveOrdersScreenState extends State<LiveOrdersScreen> {
       });
     }
     try {
-      final list = await _repo.fetchAll();
+      final list = await _repo.fetchAll(limit: _pollLimit);
       if (!mounted) return;
       setState(() {
         _orders = list;

@@ -4,6 +4,8 @@ import com.service.core.model.*;
 import com.service.core.repository.*;
 import com.service.core.service.PushNotificationService;
 import com.service.core.tenant.TenantContext;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -93,15 +95,64 @@ public class OrderController {
     // BARCHA buyurtmalarini (mijoz telefoni, narxlar bilan) ko'ra olardi.
     // Bu endpoint faqat veb-admin panel uchun - mobil ilova /my, /available
     // va /completed'dan foydalanadi.
+    /**
+     * 2026-09-26 audit: ixtiyoriy `limit`, `offset` va `clientId` qo'shildi.
+     *
+     * Avval bu endpoint hech qanday parametr qabul qilmasdi va BUTUN jadvalni
+     * qaytarardi. Mobil ilovada natija: `live_orders_screen` har 15 soniyada
+     * butun ro'yxatni qayta yuklardi, `client_detail_screen` esa BITTA mijozning
+     * buyurtmalarini ko'rsatish uchun hammasini yuklab telefonda filtrlardi.
+     *
+     * ORQAGA MOSLIK: parametrlar berilmasa xulq AYNAN avvalgidek qoladi —
+     * shuning uchun hozirgi production APK (2.10.30) va veb-admin panel
+     * o'zgartirishsiz ishlashda davom etadi.
+     */
     @GetMapping
     @PreAuthorize("@perm.has('orders')")
-    public ResponseEntity<?> getOrders() {
+    public ResponseEntity<?> getOrders(
+            @RequestParam(required = false) Integer limit,
+            @RequestParam(required = false) Integer offset,
+            @RequestParam(required = false) String clientId) {
         String tenantId = TenantContext.getCurrentTenant();
         if (tenantId == null) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of("message", "Tenant ID is missing"));
         }
+        UUID companyId = UUID.fromString(tenantId);
 
-        List<Order> orders = orderRepository.findByCompanyIdOrderByCreatedAtDesc(UUID.fromString(tenantId));
+        UUID clientUuid = null;
+        if (clientId != null && !clientId.isBlank()) {
+            try {
+                clientUuid = UUID.fromString(clientId);
+            } catch (IllegalArgumentException e) {
+                return ResponseEntity.badRequest().body(Map.of("message", "clientId noto'g'ri formatda"));
+            }
+        }
+
+        // limit berilmasa — cheklovsiz (avvalgi xulq). Berilsa 1..500 oralig'iga
+        // qisiladi: 500 dan katta so'rov sahifalashning ma'nosini yo'qotadi va
+        // xotirani baribir to'ldiradi.
+        final Pageable page;
+        if (limit == null) {
+            page = null;
+        } else {
+            int size = Math.max(1, Math.min(limit, 500));
+            int from = offset == null ? 0 : Math.max(0, offset);
+            // Spring Data sahifa raqami bilan ishlaydi, offset bilan emas —
+            // shuning uchun offset sahifa o'lchamiga bo'linadi. Chaqiruvchi
+            // offset'ni limit'ga karrali berishi kutiladi (0, 50, 100, ...).
+            page = PageRequest.of(from / size, size);
+        }
+
+        List<Order> orders;
+        if (clientUuid != null) {
+            orders = page == null
+                    ? orderRepository.findByCompanyIdAndClientIdOrderByCreatedAtDesc(companyId, clientUuid)
+                    : orderRepository.findByCompanyIdAndClientIdOrderByCreatedAtDesc(companyId, clientUuid, page);
+        } else {
+            orders = page == null
+                    ? orderRepository.findByCompanyIdOrderByCreatedAtDesc(companyId)
+                    : orderRepository.findByCompanyIdOrderByCreatedAtDesc(companyId, page);
+        }
         return ResponseEntity.ok(orders);
     }
 

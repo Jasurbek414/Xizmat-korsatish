@@ -44,10 +44,14 @@ class _ClientDetailScreenState extends State<ClientDetailScreen> {
       _error = null;
     });
     try {
-      final all = await _ordersRepo.fetchAll();
+      // 2026-09-26 audit: avval `fetchAll()` BARCHA buyurtmani yuklab, keyin
+      // telefonda `where(...)` bilan filtrlardi — mingga yaqin buyurtmasi bor
+      // kompaniyada bitta mijoz kartasini ochish uchun butun jadval tortib
+      // olinardi. Endi filtr server tomonida bajariladi.
+      final mine = await _ordersRepo.fetchAll(clientId: widget.client.id);
       if (!mounted) return;
       setState(() {
-        _orders = all.where((o) => o.clientId == widget.client.id).toList();
+        _orders = mine;
         _loading = false;
       });
     } catch (e) {

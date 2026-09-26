@@ -91,8 +91,21 @@ class OrdersAdminRepository {
 
   OrdersAdminRepository({ApiClient? api}) : _api = api ?? ApiClient();
 
-  Future<List<AdminOrder>> fetchAll() async {
-    final data = await _api.get('/orders') as List;
+  /// Buyurtmalar ro'yxati.
+  ///
+  /// 2026-09-26 audit: avval bu metod HAR DOIM butun jadvalni yuklardi —
+  /// `live_orders_screen` har 15 soniyada shuni takrorlar, `client_detail_screen`
+  /// esa bitta mijozning buyurtmalarini ko'rsatish uchun hammasini yuklab
+  /// telefonda filtrlardi. Endi backend ixtiyoriy `limit`/`offset`/`clientId`
+  /// qabul qiladi (parametrsiz chaqiruv avvalgidek to'liq ro'yxatni beradi,
+  /// shuning uchun mavjud chaqiruv joylari buzilmaydi).
+  Future<List<AdminOrder>> fetchAll({int? limit, int? offset, String? clientId}) async {
+    final query = <String, dynamic>{
+      if (limit != null) 'limit': limit,
+      if (offset != null) 'offset': offset,
+      if (clientId != null) 'clientId': clientId,
+    };
+    final data = await _api.get('/orders', query: query.isEmpty ? null : query) as List;
     final list = data.cast<Map<String, dynamic>>().map(AdminOrder.fromJson).toList();
     list.sort((a, b) {
       final ad = a.createdAt, bd = b.createdAt;
