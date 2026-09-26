@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:lucide_icons/lucide_icons.dart';
+import '../../../core/money.dart';
 import '../../../core/theme.dart';
 import '../../../models/service_and_client.dart';
 import '../bloc/orders_cubit.dart';
@@ -86,7 +87,13 @@ class _CreateOrderScreenState extends State<CreateOrderScreen> {
         }
         return _selectedClient != null;
       case 1:
-        return _selectedService != null && _priceController.text.trim().isNotEmpty;
+        // MUHIM (2026-09-26 audit): avval faqat "maydon bo'sh emasmi" tekshirilardi.
+        // Natijada "500 000" (probel bilan — tabiiy yozilish) kiritilsa, keyingi
+        // qadamga o'tib ketilardi va saqlashda `double.tryParse` yiqilib narx
+        // JIMGINA 0 bo'lardi. Endi narx haqiqatan o'qilishi va noldan katta
+        // bo'lishi SHART.
+        final price = parseMoney(_priceController.text);
+        return _selectedService != null && price != null && price > 0;
       case 2:
         return _addressController.text.trim().isNotEmpty;
       default:
@@ -95,6 +102,19 @@ class _CreateOrderScreenState extends State<CreateOrderScreen> {
   }
 
   Future<void> _submitForm() async {
+    // Narx himoyasi: `_canProceed` bunga yo'l qo'ymasligi kerak, lekin narx
+    // o'qilmasa 0 so'mli buyurtma yaratishdan ko'ra umuman yaratmaslik to'g'ri.
+    final priceToSend = parseMoney(_priceController.text);
+    if (priceToSend == null || priceToSend <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Narxni to'g'ri kiriting (faqat raqamlar, 0 dan katta)"),
+          backgroundColor: AppTheme.dangerColor,
+        ),
+      );
+      return;
+    }
+
     setState(() => _loading = true);
     try {
       String clientId = "";
@@ -115,7 +135,10 @@ class _CreateOrderScreenState extends State<CreateOrderScreen> {
             serviceId: _selectedService!.id,
             workerId: widget.currentUserId,
             address: _addressController.text.trim(),
-            price: double.tryParse(_priceController.text) ?? 0.0,
+            // `_canProceed` narxni allaqachon tekshirgan, lekin bu yerda ham
+            // himoya qoldiriladi: agar biror sabab bilan o'qilmasa, 0 yuborish
+            // o'rniga umuman yuborilmaydi (pastdagi guard'ga qarang).
+            price: priceToSend,
             description: _descriptionController.text.trim(),
           );
 

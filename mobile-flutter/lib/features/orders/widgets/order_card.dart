@@ -373,9 +373,27 @@ class OrderCard extends StatelessWidget {
     return ok == true;
   }
 
+  /// Qisqa o'zbekcha oy nomlari — ATAYLAB qo'lda yozilgan.
+  ///
+  /// MUHIM (2026-09-26 audit): avval bu yerda `DateFormat('dd MMM, HH:mm', 'uz')`
+  /// ishlatilardi, lekin `initializeDateFormatting()` ilovada HECH QACHON
+  /// chaqirilmagan. Shu sabab `intl` locale ma'lumotini topa olmay xato
+  /// tashlar, `catch` uni JIMGINA yutar va foydalanuvchi "26 Sen, 19:30"
+  /// o'rniga xom "2026-09-26" ni — ya'ni VAQTSIZ sanani ko'rardi.
+  /// Qo'lda yozilgan nomlar locale ma'lumotiga bog'liq emas, shuning uchun
+  /// xavfsiz (management_home_screen.dart dagi `_monthsUz` bilan bir xil naqsh).
+  static const _monthsShortUz = [
+    'Yan', 'Fev', 'Mar', 'Apr', 'May', 'Iyn',
+    'Iyl', 'Avg', 'Sen', 'Okt', 'Noy', 'Dek'
+  ];
+
   String _formatTime(String iso) {
     try {
-      return DateFormat('dd MMM, HH:mm', 'uz').format(DateTime.parse(iso).toLocal());
+      final d = DateTime.parse(iso).toLocal();
+      final dd = d.day.toString().padLeft(2, '0');
+      final hh = d.hour.toString().padLeft(2, '0');
+      final mm = d.minute.toString().padLeft(2, '0');
+      return '$dd ${_monthsShortUz[d.month - 1]}, $hh:$mm';
     } catch (_) {
       return iso.length > 10 ? iso.substring(0, 10) : iso;
     }

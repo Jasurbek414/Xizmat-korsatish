@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:intl/intl.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../../../core/money.dart';
 import '../../../core/theme.dart';
 import '../../../models/order.dart';
 import '../bloc/orders_cubit.dart';
@@ -125,8 +126,8 @@ class _FactoryOrderDetailScreenState extends State<FactoryOrderDetailScreen> {
   }
 
   double _itemArea(OrderItemInfo item) {
-    final eni = double.tryParse(_eniCtrl[item.id]?.text ?? '') ?? 0;
-    final boyi = double.tryParse(_boyiCtrl[item.id]?.text ?? '') ?? 0;
+    final eni = parseMoney(_eniCtrl[item.id]?.text) ?? 0;
+    final boyi = parseMoney(_boyiCtrl[item.id]?.text) ?? 0;
     return eni * boyi * item.quantity;
   }
 
@@ -158,6 +159,37 @@ class _FactoryOrderDetailScreenState extends State<FactoryOrderDetailScreen> {
     return widget.order.items.every((i) => i.status == lastKey);
   }
 
+  /// Xizmat maydon (m²/kv.m) bo'yicha hisoblanadimi — shundagina eni/bo'yi
+  /// majburiy. "dona" kabi birliklar uchun o'lchov talab qilinmaydi.
+  bool get _isAreaBased {
+    final unit = widget.order.measurementUnit.toLowerCase().replaceAll('.', '');
+    return unit == 'm²' || unit.contains('kv');
+  }
+
+  /// Bitta gilamning eni/bo'yi kiritilganmi: avval maydondagi (hali
+  /// saqlanmagan) qiymat, u bo'sh bo'lsa modeldagi saqlangan qiymat.
+  bool _itemMeasured(OrderItemInfo item) {
+    final eni = parseMoney(_eniCtrl[item.id]?.text) ?? item.width;
+    final boyi = parseMoney(_boyiCtrl[item.id]?.text) ?? item.length;
+    return eni > 0 && boyi > 0;
+  }
+
+  /// MUHIM (2026-09-26 audit): `_allItemsReady` FAQAT gilamning bosqichini
+  /// tekshiradi, o'lchovini tekshirmaydi. Natijada sex xodimi gilamni
+  /// o'lchovsiz "Tayyor" belgilab, buyurtmani haydovchiga 0 SO'M narx bilan
+  /// topshirishi mumkin edi (maydon = 0 -> taklif etilgan narx = 0). Ekrandagi
+  /// ogohlantirish matni esa "o'lchovlarini kiriting" deb yozardi — ya'ni
+  /// va'da qilingan himoya kodda yo'q edi. Endi maydon bo'yicha hisoblanadigan
+  /// xizmatlarda har bir gilamning eni VA bo'yi kiritilgan bo'lishi SHART.
+  bool get _allItemsMeasured {
+    if (!_hasItems) return false;
+    if (!_isAreaBased) return true;
+    return widget.order.items.every(_itemMeasured);
+  }
+
+  /// Haydovchiga topshirish uchun ikkala shart ham bajarilishi kerak.
+  bool get _canHandover => _allItemsReady && _allItemsMeasured;
+
   /// Sex ishi tugagach buyurtma o'tkaziladigan status - haydovchi yana
   /// ko'radigan "yetkazish" zonasining birinchi statusi. Bitta bosishda
   /// (oraliq sex statuslarini sakrab o'tib) shu yerga o'tkaziladi -
@@ -170,8 +202,8 @@ class _FactoryOrderDetailScreenState extends State<FactoryOrderDetailScreen> {
     try {
       // Save measurements
       for (final item in widget.order.items) {
-        final eni = double.tryParse(_eniCtrl[item.id]?.text ?? '') ?? 0;
-        final boyi = double.tryParse(_boyiCtrl[item.id]?.text ?? '') ?? 0;
+        final eni = parseMoney(_eniCtrl[item.id]?.text) ?? 0;
+        final boyi = parseMoney(_boyiCtrl[item.id]?.text) ?? 0;
         if (eni > 0 || boyi > 0) {
           await _repo.updateItemMeasurements(
               widget.order.id, item.id, boyi, eni);
@@ -182,9 +214,7 @@ class _FactoryOrderDetailScreenState extends State<FactoryOrderDetailScreen> {
       // eski/tahrirlanmagan matn qiymati backend hisoblagan narxni ustidan
       // yozib qo'yishining oldi olinadi. Backend ham xuddi shu formula
       // bo'yicha mustaqil qayta hisoblaydi (OrderItemController.recalculatePrice).
-      final typedPrice = double.tryParse(
-              _priceController.text.replaceAll(RegExp(r'[^0-9.]'), '')) ??
-          0;
+      final typedPrice = parseMoney(_priceController.text) ?? 0;
       final priceToSend = (widget.order.items.isNotEmpty && !_priceManuallyEdited)
           ? _suggestedPrice()
           : typedPrice;
@@ -347,8 +377,8 @@ class _FactoryOrderDetailScreenState extends State<FactoryOrderDetailScreen> {
     }
 
     final name = nameCtrl.text.trim();
-    final eni = double.tryParse(eniCtrl.text) ?? 0;
-    final boyi = double.tryParse(boyiCtrl.text) ?? 0;
+    final eni = parseMoney(eniCtrl.text) ?? 0;
+    final boyi = parseMoney(boyiCtrl.text) ?? 0;
     final quantity = int.tryParse(quantityCtrl.text) ?? 1;
 
     nameCtrl.dispose();
@@ -878,37 +908,42 @@ class _FactoryOrderDetailScreenState extends State<FactoryOrderDetailScreen> {
               SizedBox(
                 width: double.infinity,
                 child: FilledButton.icon(
-                  onPressed: (_saving || !_allItemsReady)
+                  onPressed: (_saving || !_canHandover)
                       ? null
                       : () => _save(advance: true),
                   style: FilledButton.styleFrom(
                       backgroundColor:
-                          _allItemsReady ? AppTheme.blue : AppTheme.textMuted,
+                          _canHandover ? AppTheme.blue : AppTheme.textMuted,
                       padding:
                           const EdgeInsets.symmetric(vertical: 15)),
                   icon: Icon(
-                      _allItemsReady
+                      _canHandover
                           ? LucideIcons.arrowRight
                           : LucideIcons.lock,
                       size: 18),
                   label: Text(
-                      _allItemsReady
+                      _canHandover
                           ? 'Tayyor - ${_nextStatus!.nameUz}ga yuborish'
                           : (!_hasItems
                               ? 'Avval gilam qo\'shing'
-                              : 'Avval barcha gilamlarni "Tayyor" belgilang'),
+                              : !_allItemsReady
+                                  ? 'Avval barcha gilamlarni "Tayyor" belgilang'
+                                  : 'Avval har bir gilamning o\'lchovini kiriting'),
                       textAlign: TextAlign.center,
                       style: const TextStyle(
                           fontWeight: FontWeight.w700)),
                 ),
               ),
-              if (!_allItemsReady)
+              if (!_canHandover)
                 Padding(
                   padding: const EdgeInsets.only(top: 8),
                   child: Text(
                     !_hasItems
                         ? "Buyurtmada birorta ham gilam kiritilmagan. Haydovchiga topshirishdan oldin gilamlarni qo'shing va o'lchovlarini kiriting."
-                        : "Haydovchiga topshirishdan oldin har bir gilamning \"Tayyor\" katagini belgilang.",
+                        : !_allItemsReady
+                            ? "Haydovchiga topshirishdan oldin har bir gilamning \"Tayyor\" katagini belgilang."
+                            // O'lchov yo'q bo'lsa maydon 0 bo'lib, narx ham 0 bo'lib ketardi.
+                            : "Har bir gilamning eni va bo'yi kiritilishi shart — aks holda narx 0 so'm bo'lib qoladi.",
                     style: const TextStyle(color: AppTheme.textMuted, fontSize: 11),
                   ),
                 ),

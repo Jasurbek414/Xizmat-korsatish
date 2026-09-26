@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 
+import '../../../core/money.dart';
 import '../../../core/theme.dart';
 import '../../../ui/app_ui.dart';
 import 'orders_admin_repository.dart';
@@ -139,7 +140,9 @@ class _CreateOrderSheetState extends State<CreateOrderSheet> {
         address: _address.text,
       );
 
-      final price = double.tryParse(_price.text.replaceAll(RegExp(r'[^0-9.]'), '')) ?? 0;
+      // Validator (yuqorida) buni allaqachon kafolatlaydi, shuning uchun bu
+      // yerda `!` xavfsiz; ehtiyot uchun 0 ga tushib ketish YO'Q.
+      final price = parseMoney(_price.text)!;
 
       await widget.repo.create(
         clientId: clientId,
@@ -265,6 +268,11 @@ class _CreateOrderSheetState extends State<CreateOrderSheet> {
                         controller: _price,
                         keyboardType: TextInputType.number,
                         decoration: const InputDecoration(border: OutlineInputBorder()),
+                        // MUHIM (2026-09-26 audit): avval bu maydonda validator
+                        // UMUMAN yo'q edi. `_save()` da `_formKey.validate()`
+                        // chaqirilsa ham narx tekshirilmasdan o'tib ketardi va
+                        // `?? 0` tufayli buyurtma 0 so'm bilan yaratilardi.
+                        validator: requiredPositiveMoney,
                       ),
 
                       const FieldLabel('Mas\'ul xodim'),

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 
+import '../../../core/money.dart';
 import '../../../core/theme.dart';
 import '../../../ui/app_ui.dart';
 import 'settings_repository.dart';
@@ -382,12 +383,21 @@ class _ManagementSettingsScreenState extends State<ManagementSettingsScreen>
     );
 
     final nameText = name.text.trim();
-    final priceValue = double.tryParse(price.text.replaceAll(RegExp(r'[^0-9.]'), '')) ?? 0;
+    // MUHIM (2026-09-26 audit): avval `?? 0` turardi va pastda FAQAT nom
+    // tekshirilardi. Natijada xizmat 0 so'm narx bilan saqlanib ketardi — bu
+    // eng tarqaluvchi xato edi, chunki xizmat narxi yangi buyurtmalarga
+    // AVTOMATIK to'ldiriladi (create_order_sheet / create_order_screen), ya'ni
+    // bitta 0-narxli xizmat o'zidan keyin har bir buyurtmaga 0 tarqatardi.
+    final priceValue = parseMoney(price.text);
     final unitText = unit.text.trim();
     for (final c in [name, price, unit]) {
       c.dispose();
     }
     if (ok != true || nameText.isEmpty) return;
+    if (priceValue == null || priceValue <= 0) {
+      _notify("Narxni to'g'ri kiriting (faqat raqamlar, 0 dan katta)");
+      return;
+    }
     try {
       await _repo.saveService(
         id: existing?.id,

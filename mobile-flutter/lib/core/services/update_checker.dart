@@ -43,12 +43,26 @@ class UpdateChecker {
   // ga ko'chirilgan), shuning uchun bu tekshiruv doim muvaffaqiyatsiz bo'lib
   // kelgan edi (check() natijasi null qaytib, foydalanuvchi hech qachon
   // yangilanish haqida bildirishnoma olmagan).
-  static const _versionUrl = 'https://servicecore.ecos.uz/downloads/version.json';
+  ///
+  /// 2026-09-26: manzil endi build vaqtida almashtiriladigan qilindi. Avval u
+  /// QATTIQ kodlangan edi va `API_HOST` dan farqli almashtirib bo'lmasdi —
+  /// natijada TEST qurilishi ham production `version.json`ni tekshirar va
+  /// `forceUpdate` oynasi chiqib, sinovchini production APK'ga yo'naltirib
+  /// yuborishi mumkin edi. Standart qiymat o'zgarmadi, ya'ni production
+  /// xulqi aynan avvalgidek.
+  ///
+  /// Test qurilishi: `--dart-define=UPDATE_URL=` (bo'sh) — tekshiruv o'chadi.
+  static const _versionUrl = String.fromEnvironment(
+    'UPDATE_URL',
+    defaultValue: 'https://servicecore.ecos.uz/downloads/version.json',
+  );
 
   /// Yangi versiya bo'lsa uni qaytaradi, bo'lmasa yoki so'rov muvaffaqiyatsiz
   /// bo'lsa `null` - tarmoq yo'qligi yoki server javob bermasligi ilovani
   /// ishga tushirishga TO'SQINLIK QILMASLIGI kerak.
   static Future<UpdateInfo?> check() async {
+    // Bo'sh manzil — tekshiruv ataylab o'chirilgan (test qurilishi).
+    if (_versionUrl.isEmpty) return null;
     try {
       // ATAYIN alohida, oddiy Dio (ApiClient EMAS): u autentifikatsiya
       // talab qiladigan /api/v1 bazasiga ulangan, login qilinmagan holatda
