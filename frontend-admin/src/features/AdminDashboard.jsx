@@ -61,6 +61,9 @@ const AdminDashboard = ({ tab }) => {
           client_name: o.client ? o.client.fullName : '',
           service_name: o.service ? o.service.nameUz : '',
           worker_name: o.worker ? o.worker.fullName : '',
+          // Top haydovchilar uchun: buyurtmani HAQIQATAN olib kelgan haydovchi
+          // (`driver`, doimiy). Eski yozuvlarda driver yo'q - unda `worker`.
+          driver_id: o.driver ? o.driver.id : (o.worker ? o.worker.id : null),
           price: o.price,
           status_id: o.status ? o.status.id : null,
           created_at: o.createdAt
@@ -73,6 +76,7 @@ const AdminDashboard = ({ tab }) => {
           created_at: tx.createdAt
         }));
         const users = usersData.map(u => ({
+          id: u.id,
           full_name: u.fullName,
           role: u.role,
           status: u.status
@@ -119,8 +123,17 @@ const AdminDashboard = ({ tab }) => {
           drivers: activeDriversCount
         });
 
-        // 3. Set recent orders list (up to 5)
-        setRecentOrders(filteredOrders.slice(-5).reverse());
+        // 3. So'nggi 5 ta buyurtma.
+        // 2026-10-05 audit: avval `slice(-5).reverse()` edi - bu ro'yxat
+        // eskidan yangiga keladi degan farazga asoslangan. Aslida GET /orders
+        // (OrderRepository.findByCompanyIdOrderByCreatedAtDesc) YANGIDAN eskiga
+        // qaytaradi, ya'ni vidjet "So'nggi buyurtmalar" o'rniga eng ESKI 5 ta
+        // buyurtmani ko'rsatardi. Tartibga bog'liq bo'lmaslik uchun aniq saralanadi.
+        setRecentOrders(
+          [...filteredOrders]
+            .sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0))
+            .slice(0, 5)
+        );
 
         // 4. Generate Sparkline paths (mini SVGs)
         setSparklines({
@@ -254,7 +267,13 @@ const AdminDashboard = ({ tab }) => {
 
     const drivers = users.filter(u => u.role === 'WORKER_DRIVER');
     const driverStats = drivers.map(d => {
-      const completedOrders = orders.filter(o => o.worker_name === d.full_name && o.status_id === completedStatusId);
+      // 2026-10-05 audit: avval ISM bo'yicha (`worker_name === full_name`)
+      // solishtirilardi - (1) ikki haydovchining ismi bir xil bo'lsa
+      // buyurtmalari aralashardi; (2) `worker` "hozirgi egasi" bo'lgani uchun
+      // buyurtma sexga/boshqa xodimga o'tgach haydovchi hisobidan tushib
+      // qolardi. Endi ID va doimiy `driver` maydoni bo'yicha (backend
+      // SalaryController komissiyasi bilan bir xil qoida).
+      const completedOrders = orders.filter(o => o.driver_id === d.id && o.status_id === completedStatusId);
       const completedCount = completedOrders.length;
       const kpiEarnings = completedOrders.reduce((sum, item) => sum + (item.price * kpiPercent / 100), 0);
 

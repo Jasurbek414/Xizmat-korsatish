@@ -285,10 +285,14 @@ public class OrderController {
         if (clientIdStr == null || serviceIdStr == null || address == null || priceObj == null) {
             return ResponseEntity.badRequest().body(Map.of("message", "Majburiy maydonlarni kiritish shart"));
         }
+        BigDecimal price = parseNonNegativePrice(priceObj);
+        if (price == null) {
+            return ResponseEntity.badRequest().body(Map.of("message", "Narx manfiy bo'lishi mumkin emas"));
+        }
 
         UUID companyId = UUID.fromString(tenantId);
         Company company = companyRepository.findById(companyId)
-                .orElseThrow(() -> new RuntimeException("Kompaniya topilmadi"));
+                .orElseThrow(() -> new org.springframework.web.server.ResponseStatusException(HttpStatus.NOT_FOUND, "Kompaniya topilmadi"));
 
         // MUHIM (xavfsizlik, audit'da topilgan IDOR): mijoz/xizmat/kuryer
         // ID'lari mijozdan (request body) keladi - avval bular BOSHQA
@@ -299,23 +303,26 @@ public class OrderController {
         // tenant'iga tegishli ekanligi aniq tekshiriladi.
         Client client = clientRepository.findById(UUID.fromString(clientIdStr))
                 .filter(c -> c.getCompany().getId().equals(companyId))
-                .orElseThrow(() -> new RuntimeException("Mijoz topilmadi"));
+                .orElseThrow(() -> new org.springframework.web.server.ResponseStatusException(HttpStatus.NOT_FOUND, "Mijoz topilmadi"));
 
         ServiceEntity service = serviceRepository.findById(UUID.fromString(serviceIdStr))
                 .filter(s -> s.getCompany().getId().equals(companyId))
-                .orElseThrow(() -> new RuntimeException("Xizmat topilmadi"));
+                .orElseThrow(() -> new org.springframework.web.server.ResponseStatusException(HttpStatus.NOT_FOUND, "Xizmat topilmadi"));
 
         User worker = null;
         if (workerIdStr != null && !workerIdStr.trim().isEmpty()) {
             worker = userRepository.findById(UUID.fromString(workerIdStr))
                     .filter(w -> w.getCompany() != null && w.getCompany().getId().equals(companyId))
-                    .orElseThrow(() -> new RuntimeException("Kuryer topilmadi"));
+                    .orElseThrow(() -> new org.springframework.web.server.ResponseStatusException(HttpStatus.NOT_FOUND, "Kuryer topilmadi"));
         }
 
         List<OrderStatus> statuses = orderStatusRepository.findByCompanyIdOrderBySortOrderAsc(companyId);
         if (statuses.isEmpty()) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(Map.of("message", "Statuslar katalogni sozlash shart (OrderStatus)"));
+            // 2026-10-05 audit: avval 500 ("server buzuq") edi - aslida bu
+            // sozlanmagan kompaniya holati (yangi kompaniyada statuslar
+            // avtomatik yaratilmaydi), admin o'zi tuzata oladi.
+            return ResponseEntity.status(HttpStatus.CONFLICT)
+                    .body(Map.of("message", "Avval Sozlamalar > Buyurtma statuslari bo'limida kamida bitta status yarating"));
         }
         OrderStatus firstStatus = statuses.get(0);
 
@@ -325,7 +332,7 @@ public class OrderController {
                 .service(service)
                 .status(firstStatus)
                 .worker(worker)
-                .price(new BigDecimal(priceObj.toString()))
+                .price(price)
                 .address(address)
                 .description(description)
                 // MUHIM (audit'da topilgan, tuzatildi): mijoz uchun avvalgi
@@ -419,7 +426,7 @@ public class OrderController {
 
         OrderStatus status = orderStatusRepository.findById(UUID.fromString(statusIdStr))
                 .filter(s -> s.getCompany().getId().equals(UUID.fromString(tenantId)))
-                .orElseThrow(() -> new RuntimeException("Status topilmadi"));
+                .orElseThrow(() -> new org.springframework.web.server.ResponseStatusException(HttpStatus.NOT_FOUND, "Status topilmadi"));
 
         order.setStatus(status);
         stampWorkshopEntryIfNeeded(order, status);
@@ -474,7 +481,7 @@ public class OrderController {
 
         User worker = userRepository.findById(UUID.fromString(workerIdStr))
                 .filter(w -> w.getCompany() != null && w.getCompany().getId().equals(UUID.fromString(tenantId)))
-                .orElseThrow(() -> new RuntimeException("Kuryer topilmadi"));
+                .orElseThrow(() -> new org.springframework.web.server.ResponseStatusException(HttpStatus.NOT_FOUND, "Kuryer topilmadi"));
 
         assignWorker(order, worker);
         orderRepository.save(order);
@@ -505,12 +512,16 @@ public class OrderController {
         if (serviceIdStr != null) {
             ServiceEntity service = serviceRepository.findById(UUID.fromString(serviceIdStr))
                     .filter(s -> s.getCompany().getId().equals(UUID.fromString(tenantId)))
-                    .orElseThrow(() -> new RuntimeException("Xizmat topilmadi"));
+                    .orElseThrow(() -> new org.springframework.web.server.ResponseStatusException(HttpStatus.NOT_FOUND, "Xizmat topilmadi"));
             order.setService(service);
         }
 
         if (priceObj != null) {
-            order.setPrice(new BigDecimal(priceObj.toString()));
+            BigDecimal price = parseNonNegativePrice(priceObj);
+            if (price == null) {
+                return ResponseEntity.badRequest().body(Map.of("message", "Narx manfiy bo'lishi mumkin emas"));
+            }
+            order.setPrice(price);
         }
 
         if (address != null) {
@@ -524,9 +535,20 @@ public class OrderController {
         if (workerIdStr != null && !workerIdStr.trim().isEmpty()) {
             User worker = userRepository.findById(UUID.fromString(workerIdStr))
                     .filter(w -> w.getCompany() != null && w.getCompany().getId().equals(UUID.fromString(tenantId)))
-                    .orElseThrow(() -> new RuntimeException("Kuryer topilmadi"));
+                    .orElseThrow(() -> new org.springframework.web.server.ResponseStatusException(HttpStatus.NOT_FOUND, "Kuryer topilmadi"));
             assignWorker(order, worker);
         } else if (request.containsKey("worker_id")) {
+            // MUHIM (2026-10-05 audit): rejectOrder() dagi bilan bir xil sabab -
+            // admin buyurtmani haydovchidan "olib qo'ysa" (worker_id bo'sh), faqat
+            // `worker` tozalanib `driver` qolib ketardi va buyurtmani endi hech bir
+            // haydovchi pool'dan qabul qila olmasdi (acceptOrder 409). Agar olib
+            // qo'yilayotgan xodim aynan shu buyurtmaning haydovchisi bo'lsa, u ham
+            // tozalanadi; sex hodimi bosqichida (driver boshqa odam) tegilmaydi.
+            User previous = order.getWorker();
+            if (previous != null && order.getDriver() != null
+                    && order.getDriver().getId().equals(previous.getId())) {
+                order.setDriver(null);
+            }
             order.setWorker(null);
         }
 
@@ -569,7 +591,11 @@ public class OrderController {
             return ResponseEntity.badRequest().body(Map.of("message", "Yangi narx kiritilishi shart"));
         }
 
-        order.setPrice(new BigDecimal(priceObj.toString()));
+        BigDecimal newPrice = parseNonNegativePrice(priceObj);
+        if (newPrice == null) {
+            return ResponseEntity.badRequest().body(Map.of("message", "Narx manfiy bo'lishi mumkin emas"));
+        }
+        order.setPrice(newPrice);
 
         if (request.containsKey("description")) {
             order.setDescription((String) request.get("description"));
@@ -674,8 +700,32 @@ public class OrderController {
         }
 
         order.setWorker(null);
+        // MUHIM (2026-10-05 audit): acceptOrder() faqat `driver` maydoniga qaraydi
+        // ("driver != null" -> 409 "allaqachon boshqa haydovchiga biriktirilgan").
+        // Avval rad etishda faqat `worker` tozalanardi, `driver` esa rad etgan
+        // haydovchining o'zida qolardi - natijada rad etilgan buyurtmani HECH BIR
+        // haydovchi qaytadan qabul qila olmasdi (pool'da ko'rinadi-yu, "Qabul
+        // qilish" doim 409). Rad etgan odam haqiqatan bu buyurtmani olib ketmagan,
+        // demak u "qaysi haydovchi olib ketgan" tarixiga ham kirmasligi kerak.
+        if (order.getDriver() != null && order.getDriver().getId().equals(currentUser.getId())) {
+            order.setDriver(null);
+        }
+        if (order.getSexWorker() != null && order.getSexWorker().getId().equals(currentUser.getId())) {
+            order.setSexWorker(null);
+        }
         Order saved = orderRepository.save(order);
         return ResponseEntity.ok(saved);
+    }
+
+    /**
+     * Narx qiymatini o'qiydi: manfiy bo'lsa null qaytaradi (chaqiruvchi 400 beradi).
+     * Noto'g'ri format NumberFormatException -> GlobalExceptionHandler'da 400.
+     * (2026-10-05 audit: create/update/price endpointlari manfiy narxni
+     * tekshirmasdan qabul qilardi - bu Moliya/oylik komissiyasini buzardi.)
+     */
+    private static BigDecimal parseNonNegativePrice(Object raw) {
+        BigDecimal value = new BigDecimal(raw.toString().trim());
+        return value.compareTo(BigDecimal.ZERO) < 0 ? null : value;
     }
 
     /**
@@ -812,6 +862,33 @@ public class OrderController {
             } catch (Exception e) {
                 return ResponseEntity.badRequest().body(Map.of("message", "Noto'g'ri summa formati"));
             }
+        }
+        if (actualAmount == null || actualAmount.compareTo(BigDecimal.ZERO) < 0) {
+            return ResponseEntity.badRequest().body(Map.of("message", "Summa manfiy bo'lishi mumkin emas"));
+        }
+
+        // MUHIM (2026-10-05 audit): buxgalter haqiqatda boshqa summa qabul qilsa
+        // (actual_amount), avval faqat collectedPrice o'zgarardi - cashAmount/
+        // cardAmount esa eskicha qolib, INCOME tranzaksiyasida "naqd + karta !=
+        // summa" bo'lib yozilardi va naqd/karta hisoboti noto'g'ri chiqardi.
+        // Kassaga topshirishdagi farq faqat NAQD qismda bo'lishi mumkin (karta
+        // to'lovi bankda allaqachon aniq) - shu sabab farq naqd qismga yoziladi;
+        // to'liq karta to'lovida summaning o'zi karta qismi bo'ladi.
+        BigDecimal card = order.getCardAmount() != null ? order.getCardAmount() : BigDecimal.ZERO;
+        String method = order.getPaymentMethod() != null ? order.getPaymentMethod() : "CASH";
+        if ("CARD".equals(method)) {
+            order.setCardAmount(actualAmount);
+            order.setCashAmount(BigDecimal.ZERO);
+        } else if ("MIXED".equals(method)) {
+            BigDecimal cash = actualAmount.subtract(card);
+            if (cash.compareTo(BigDecimal.ZERO) < 0) {
+                return ResponseEntity.badRequest().body(Map.of("message",
+                        "Qabul qilingan summa karta orqali to'langan qismdan kam bo'lishi mumkin emas"));
+            }
+            order.setCashAmount(cash);
+        } else {
+            order.setCashAmount(actualAmount);
+            order.setCardAmount(BigDecimal.ZERO);
         }
 
         order.setCollectedPrice(actualAmount);

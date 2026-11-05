@@ -45,14 +45,31 @@ class OrdersRepository {
     return _api.put('/orders/$orderId/items/$itemId', data: {'length': length, 'width': width});
   }
 
-  /// Gilam yozuvini yangilash - nom, o'lcham, va/yoki soni.
-  Future<void> updateOrderItem(String orderId, String itemId, {String? name, double? length, double? width, int? quantity}) {
+  /// Gilam yozuvini yangilash - nom, o'lcham, soni, narx, va/yoki status.
+  Future<void> updateOrderItem(String orderId, String itemId, {
+    String? name,
+    double? length,
+    double? width,
+    int? quantity,
+    double? price,
+    String? status,
+  }) {
     final data = <String, dynamic>{};
     if (name != null) data['name'] = name;
     if (length != null) data['length'] = length;
     if (width != null) data['width'] = width;
     if (quantity != null) data['quantity'] = quantity;
+    if (price != null) data['price'] = price;
+    if (status != null) data['status'] = status;
     return _api.put('/orders/$orderId/items/$itemId', data: data);
+  }
+
+  /// Haydovchi mijoz oldida GPS koordinatani saqlashi uchun endpoint
+  Future<void> updateOrderLocation(String orderId, double latitude, double longitude) {
+    return _api.put('/orders/$orderId/location', data: {
+      'latitude': latitude,
+      'longitude': longitude,
+    });
   }
 
   /// Narx (va ixtiyoriy izoh)ni yangilash.

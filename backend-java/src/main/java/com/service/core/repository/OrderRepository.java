@@ -40,6 +40,17 @@ public interface OrderRepository extends JpaRepository<Order, UUID> {
     List<Order> findByCompanyIdAndPaymentStatus(UUID companyId, String paymentStatus);
 
     /**
+     * Haydovchi komissiyasi uchun: shu xodim HAYDOVCHI sifatida yozilgan
+     * buyurtmalar (`driver`). Eski yozuvlarda (driver maydoni qo'shilishidan
+     * oldin) driver bo'sh - ular uchun avvalgidek `worker` ishlatiladi.
+     * LEFT JOIN ataylab: `o.driver.id` yozilsa Hibernate INNER JOIN qilib,
+     * driver bo'sh eski buyurtmalarni butunlay tashlab yuborardi.
+     */
+    @Query("SELECT o FROM Order o LEFT JOIN o.driver d LEFT JOIN o.worker w " +
+           "WHERE o.company.id = :companyId AND (d.id = :userId OR (d IS NULL AND w.id = :userId))")
+    List<Order> findDriverOrdersForCommission(@Param("companyId") UUID companyId, @Param("userId") UUID userId);
+
+    /**
      * To'lov qabul qilingan (COLLECTED/HANDED_OVER) buyurtmalarni qaytaradi -
      * mobil ilovadagi "Tarix" bo'limi uchun.
      */

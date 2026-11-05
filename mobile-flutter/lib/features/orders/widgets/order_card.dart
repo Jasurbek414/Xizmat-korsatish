@@ -53,7 +53,7 @@ class OrderCard extends StatelessWidget {
     return p.sorted[p.index + 1];
   }
 
-  void _openDetail(BuildContext context) {
+  void _openDetail(BuildContext context, {bool autoCollectPayment = false}) {
     final isFactory = _isFactory(context);
     final cubit = context.read<OrdersCubit>();
     Navigator.push(
@@ -63,7 +63,12 @@ class OrderCard extends StatelessWidget {
           value: cubit,
           child: isFactory
               ? FactoryOrderDetailScreen(order: order, statuses: statuses)
-              : DriverOrderDetailScreen(order: order, statuses: statuses, currentUserId: currentUserId),
+              : DriverOrderDetailScreen(
+                  order: order,
+                  statuses: statuses,
+                  currentUserId: currentUserId,
+                  autoCollectPayment: autoCollectPayment,
+                ),
         ),
       ),
     );
@@ -224,6 +229,20 @@ class OrderCard extends StatelessWidget {
       final c = isFirstStep ? AppTheme.primary : AppTheme.hex(next.colorCode);
       return _coloredAction(label, LucideIcons.arrowRight, c, () => _confirmAdvance(context, next));
     }
+
+    // Keyingi status yo'q (oxirgi bosqichda):
+    // Agar to'lov hali qabul qilinmagan bo'lsa (PENDING), "Tugadi" deb chiqmaydi!
+    // Buning o'rniga to'lov qabul qilish tugmasi turadi.
+    final isUnpaid = order.paymentStatus.isEmpty || order.paymentStatus == 'PENDING';
+    if (isUnpaid) {
+      return _coloredAction(
+        "To'lov qabul qilish",
+        LucideIcons.wallet,
+        AppTheme.green,
+        () => _openDetail(context, autoCollectPayment: true),
+      );
+    }
+
     return Container(
       height: 40,
       alignment: Alignment.center,

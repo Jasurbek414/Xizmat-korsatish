@@ -39,19 +39,18 @@ class _FactoryOrderDetailScreenState extends State<FactoryOrderDetailScreen> {
   final _noteController = TextEditingController();
   final Map<String, TextEditingController> _eniCtrl = {};
   final Map<String, TextEditingController> _boyiCtrl = {};
+  final Map<String, TextEditingController> _unitPriceCtrl = {};
+  final _globalUnitPriceCtrl = TextEditingController();
   bool _saving = false;
   bool _addingItem = false;
+  final Set<String> _selectedItemIds = {};
+  bool _isBulkUpdating = false;
 
   /// Gilam bosqichlari (Sozlamalar -> Gilam bosqichlari) - OrdersCubit'ning
   /// so'nggi holatidan BlocBuilder ichida yangilanadi (qarang build() pastda).
-  /// Avval bu yerda 4 ta qattiq kodlangan (ACCEPTED/WASHED/DRIED/READY)
-  /// qiymat bor edi - endi har bir kompaniya o'zi sozlaydi.
   List<OrderItemStageInfo> _itemStages = [];
 
-  /// Narx maydoniga foydalanuvchi o'zi qo'lda yozganmi (aks holda avtomatik
-  /// hisoblangan taklif ko'rsatiladi va _save() da alohida yuborilmaydi -
-  /// backend OrderItemController.recalculatePrice orqali o'lchovlardan
-  /// narxni o'zi hisoblab qo'yadi).
+  /// Narx maydoniga foydalanuvchi o'zi qo'lda yozganmi
   bool _priceManuallyEdited = false;
   bool _suppressPriceListener = false;
 
@@ -61,23 +60,78 @@ class _FactoryOrderDetailScreenState extends State<FactoryOrderDetailScreen> {
     _suppressPriceListener = false;
   }
 
-  /// Backend'dagi OrderItemController.recalculatePrice bilan BIR XIL qoida:
-  /// xizmat o'lchov birligi "m²"/"kv..." bo'lsa maydon (eni×bo'yi×soni)
-  /// bo'yicha, aks holda faqat soni bo'yicha hisoblanadi.
-  double _suggestedPrice() {
-    if (widget.order.items.isEmpty) return 0;
-    final unit = widget.order.measurementUnit.toLowerCase().replaceAll('.', '');
-    final isAreaBased = unit == 'm²' || unit.contains('kv');
-    final basis = isAreaBased
-        ? _calcTotalArea(widget.order.items)
-        : _calcTotalQuantity(widget.order.items).toDouble();
-    return basis * widget.order.servicePrice;
+  /// 1 m² narxini olish (so'm)
+  double _getItemUnitPrice(OrderItemInfo item) {
+    final text = _unitPriceCtrl[item.id]?.text;
+    final parsed = parseMoney(text);
+    if (parsed != null && parsed > 0) {
+      return parsed;
+    }
+    final area = _itemArea(item);
+    if (item.price != null && item.price! > 0 && area > 0) {
+      return (item.price! / area).roundToDouble();
+    }
+    final globalParsed = parseMoney(_globalUnitPriceCtrl.text);
+    if (globalParsed != null && globalParsed > 0) {
+      return globalParsed;
+    }
+    if (widget.order.servicePrice > 0) {
+      return widget.order.servicePrice;
+    }
+    return 12000.0;
   }
 
-  /// O'lcham/gilam ro'yxati o'zgarganda - agar inson narxni qo'lda
-  /// tahrirlamagan bo'lsa - taklif etilgan narxni maydonga yozib qo'yadi.
+  /// Har bir gilam narxi = Maydon (kv.m) * 1 m² narxi (yoki soni * xizmat narxi)
+  double _getItemPrice(OrderItemInfo item) {
+    final area = _itemArea(item);
+    final unitPrice = _getItemUnitPrice(item);
+    if (area > 0 && unitPrice > 0) {
+      return (area * unitPrice).roundToDouble();
+    }
+    if (item.price != null && item.price! > 0) {
+      return item.price!;
+    }
+    if (widget.order.servicePrice > 0) {
+      return (area > 0 ? area : item.quantity.toDouble()) * widget.order.servicePrice;
+    }
+    return 0.0;
+  }
+
+  Order get _currentOrder {
+    try {
+      final state = context.read<OrdersCubit>().state;
+      if (state is OrdersLoaded) {
+        for (final o in state.orders) {
+          if (o.id == widget.order.id) return o;
+        }
+      }
+    } catch (_) {}
+    return widget.order;
+  }
+
+  /// Barcha gilamlarga bir xil 1 m² narxi belgilash
+  void _applyGlobalUnitPrice(double unitPrice) {
+    for (final item in _currentOrder.items) {
+      _unitPriceCtrl[item.id]?.text = unitPrice.toStringAsFixed(0);
+    }
+    setState(() {});
+    _refreshSuggestedPriceIfNotEdited();
+  }
+
+  /// Backend OrderItemController.recalculatePrice bilan mos formula
+  double _suggestedPrice({List<OrderItemInfo>? items}) {
+    final list = items ?? _currentOrder.items;
+    if (list.isEmpty) return 0;
+    double total = 0;
+    for (final item in list) {
+      total += _getItemPrice(item);
+    }
+    return total;
+  }
+
+  /// O'lcham/gilam ro'yxati o'zgarganda taklif etilgan narxni yangilash
   void _refreshSuggestedPriceIfNotEdited() {
-    if (_priceManuallyEdited || widget.order.items.isEmpty) return;
+    if (_priceManuallyEdited || _currentOrder.items.isEmpty) return;
     _setPriceText(_suggestedPrice().toStringAsFixed(0));
   }
 
@@ -99,9 +153,19 @@ class _FactoryOrderDetailScreenState extends State<FactoryOrderDetailScreen> {
   }
 
   void _initControllers() {
+    final defaultUnitP = widget.order.servicePrice > 0 ? widget.order.servicePrice : 12000.0;
+    _globalUnitPriceCtrl.text = defaultUnitP.toStringAsFixed(0);
+
     for (final item in widget.order.items) {
       _eniCtrl[item.id] = TextEditingController(text: item.width > 0 ? item.width.toString() : '');
       _boyiCtrl[item.id] = TextEditingController(text: item.length > 0 ? item.length.toString() : '');
+
+      final area = item.width * item.length * item.quantity;
+      double itemUnit = defaultUnitP;
+      if (item.price != null && item.price! > 0 && area > 0) {
+        itemUnit = (item.price! / area).roundToDouble();
+      }
+      _unitPriceCtrl[item.id] = TextEditingController(text: itemUnit.toStringAsFixed(0));
     }
     final suggested = _suggestedPrice();
     if (suggested > 0) {
@@ -116,18 +180,22 @@ class _FactoryOrderDetailScreenState extends State<FactoryOrderDetailScreen> {
   void dispose() {
     _priceController.dispose();
     _noteController.dispose();
+    _globalUnitPriceCtrl.dispose();
     for (final c in _eniCtrl.values) {
       c.dispose();
     }
     for (final c in _boyiCtrl.values) {
       c.dispose();
     }
+    for (final c in _unitPriceCtrl.values) {
+      c.dispose();
+    }
     super.dispose();
   }
 
   double _itemArea(OrderItemInfo item) {
-    final eni = parseMoney(_eniCtrl[item.id]?.text) ?? 0;
-    final boyi = parseMoney(_boyiCtrl[item.id]?.text) ?? 0;
+    final eni = parseMoney(_eniCtrl[item.id]?.text) ?? item.width;
+    final boyi = parseMoney(_boyiCtrl[item.id]?.text) ?? item.length;
     return eni * boyi * item.quantity;
   }
 
@@ -144,86 +212,102 @@ class _FactoryOrderDetailScreenState extends State<FactoryOrderDetailScreen> {
   /// Barcha gilamlar "Tayyor" bosqichiga yetganmi - shu bo'lmasa buyurtmani
   /// haydovchiga topshirish (keyingi bosqichga o'tkazish) taqiqlanadi.
   ///
-  /// MUHIM (audit'da topilgan xato, tuzatildi): avval `items.isEmpty ||` sharti
-  /// bor edi - ya'ni gilamlar ro'yxati BO'SH bo'lsa ham "hammasi tayyor"
-  /// hisoblanardi. Natijada sex xodimi bitta ham gilam kiritmasdan, o'lchov
-  /// olmasdan va narx belgilamasdan buyurtmani haydovchiga qaytarib yuborishi
-  /// mumkin edi - "Avval barcha gilamlarni Tayyor belgilang" himoyasi aynan
-  /// eng muhim holatda (hech narsa kiritilmaganda) ishlamasdi. Endi kamida
-  /// bitta gilam kiritilgan bo'lishi SHART.
-  bool get _hasItems => widget.order.items.isNotEmpty;
-
-  bool get _allItemsReady {
-    if (!_hasItems) return false;
-    final lastKey = _itemStages.isNotEmpty ? _itemStages.last.key : 'READY';
-    return widget.order.items.every((i) => i.status == lastKey);
+  bool _isItemReady(OrderItemInfo item) {
+    final s = item.status.trim().toUpperCase();
+    if (s == 'READY' || s == 'TAYYOR' || s == 'COMPLETED' || s == 'FINISHED') {
+      return true;
+    }
+    final stages = _itemStages.isNotEmpty ? _itemStages : kDefaultItemStages;
+    final sorted = [...stages]..sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
+    if (sorted.isNotEmpty) {
+      final last = sorted.last;
+      if (s == last.key.trim().toUpperCase() ||
+          s == last.nameUz.trim().toUpperCase() ||
+          s == last.nameRu.trim().toUpperCase() ||
+          s == last.nameEn.trim().toUpperCase()) {
+        return true;
+      }
+    }
+    return false;
   }
 
-  /// Xizmat maydon (m²/kv.m) bo'yicha hisoblanadimi — shundagina eni/bo'yi
-  /// majburiy. "dona" kabi birliklar uchun o'lchov talab qilinmaydi.
-  bool get _isAreaBased {
-    final unit = widget.order.measurementUnit.toLowerCase().replaceAll('.', '');
+  bool _checkHasItems(Order o) => o.items.isNotEmpty;
+
+  bool _checkAllItemsReady(Order o) {
+    if (o.items.isEmpty) return false;
+    return o.items.every(_isItemReady);
+  }
+
+  bool _checkIsAreaBased(Order o) {
+    final unit = o.measurementUnit.toLowerCase().replaceAll('.', '');
     return unit == 'm²' || unit.contains('kv');
   }
 
-  /// Bitta gilamning eni/bo'yi kiritilganmi: avval maydondagi (hali
-  /// saqlanmagan) qiymat, u bo'sh bo'lsa modeldagi saqlangan qiymat.
-  bool _itemMeasured(OrderItemInfo item) {
+  bool _checkItemMeasured(OrderItemInfo item) {
     final eni = parseMoney(_eniCtrl[item.id]?.text) ?? item.width;
     final boyi = parseMoney(_boyiCtrl[item.id]?.text) ?? item.length;
     return eni > 0 && boyi > 0;
   }
 
-  /// MUHIM (2026-09-26 audit): `_allItemsReady` FAQAT gilamning bosqichini
-  /// tekshiradi, o'lchovini tekshirmaydi. Natijada sex xodimi gilamni
-  /// o'lchovsiz "Tayyor" belgilab, buyurtmani haydovchiga 0 SO'M narx bilan
-  /// topshirishi mumkin edi (maydon = 0 -> taklif etilgan narx = 0). Ekrandagi
-  /// ogohlantirish matni esa "o'lchovlarini kiriting" deb yozardi — ya'ni
-  /// va'da qilingan himoya kodda yo'q edi. Endi maydon bo'yicha hisoblanadigan
-  /// xizmatlarda har bir gilamning eni VA bo'yi kiritilgan bo'lishi SHART.
-  bool get _allItemsMeasured {
-    if (!_hasItems) return false;
-    if (!_isAreaBased) return true;
-    return widget.order.items.every(_itemMeasured);
+  bool _checkAllItemsMeasured(Order o) {
+    if (o.items.isEmpty) return false;
+    if (!_checkIsAreaBased(o)) return true;
+    return o.items.every(_checkItemMeasured);
   }
 
-  /// Haydovchiga topshirish uchun ikkala shart ham bajarilishi kerak.
-  bool get _canHandover => _allItemsReady && _allItemsMeasured;
+  bool _checkCanHandover(Order o) => _checkAllItemsReady(o) && _checkAllItemsMeasured(o);
+
+  bool get _hasItems => _checkHasItems(_currentOrder);
+  bool get _allItemsReady => _checkAllItemsReady(_currentOrder);
+  bool get _isAreaBased => _checkIsAreaBased(_currentOrder);
+  bool _itemMeasured(OrderItemInfo item) => _checkItemMeasured(item);
+  bool get _allItemsMeasured => _checkAllItemsMeasured(_currentOrder);
+  bool get _canHandover => _checkCanHandover(_currentOrder);
 
   /// Sex ishi tugagach buyurtma o'tkaziladigan status - haydovchi yana
   /// ko'radigan "yetkazish" zonasining birinchi statusi. Bitta bosishda
   /// (oraliq sex statuslarini sakrab o'tib) shu yerga o'tkaziladi -
   /// batafsil izoh uchun OrderZoneBoundary.handoverStatus'ga qarang.
-  OrderStatusInfo? get _nextStatus =>
-      OrderZoneBoundary.fromStatuses(widget.statuses).handoverStatus(widget.statuses);
+  OrderStatusInfo? get _nextStatus {
+    final handover = OrderZoneBoundary.fromStatuses(widget.statuses).handoverStatus(widget.statuses);
+    if (handover != null) return handover;
+    if (widget.statuses.isNotEmpty) {
+      final sorted = [...widget.statuses]..sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
+      return sorted.last;
+    }
+    return null;
+  }
 
   Future<void> _save({bool advance = false}) async {
     setState(() => _saving = true);
     try {
-      // Save measurements
-      for (final item in widget.order.items) {
-        final eni = parseMoney(_eniCtrl[item.id]?.text) ?? 0;
-        final boyi = parseMoney(_boyiCtrl[item.id]?.text) ?? 0;
-        if (eni > 0 || boyi > 0) {
-          await _repo.updateItemMeasurements(
-              widget.order.id, item.id, boyi, eni);
+      // Har bir gilamning o'lchami va hisoblangan narxini saqlash
+      final currentOrder = _currentOrder;
+      for (final item in currentOrder.items) {
+        final eni = parseMoney(_eniCtrl[item.id]?.text) ?? item.width;
+        final boyi = parseMoney(_boyiCtrl[item.id]?.text) ?? item.length;
+        final calculatedPrice = _getItemPrice(item);
+        if (eni > 0 || boyi > 0 || calculatedPrice > 0) {
+          await _repo.updateOrderItem(
+            currentOrder.id,
+            item.id,
+            length: boyi,
+            width: eni,
+            price: calculatedPrice > 0 ? calculatedPrice : null,
+          );
         }
       }
-      // Save price + note. Agar inson narxni qo'lda o'zgartirmagan bo'lsa,
-      // taklif etilgan (avtomatik hisoblangan) narx yuboriladi - shu bilan
-      // eski/tahrirlanmagan matn qiymati backend hisoblagan narxni ustidan
-      // yozib qo'yishining oldi olinadi. Backend ham xuddi shu formula
-      // bo'yicha mustaqil qayta hisoblaydi (OrderItemController.recalculatePrice).
+      // Buyurtmaning umumiy narxi va izohini saqlash
       final typedPrice = parseMoney(_priceController.text) ?? 0;
-      final priceToSend = (widget.order.items.isNotEmpty && !_priceManuallyEdited)
-          ? _suggestedPrice()
+      final priceToSend = (currentOrder.items.isNotEmpty && !_priceManuallyEdited)
+          ? _suggestedPrice(items: currentOrder.items)
           : typedPrice;
-      await _repo.updateOrderPrice(widget.order.id, priceToSend,
+      await _repo.updateOrderPrice(currentOrder.id, priceToSend,
           description: _noteController.text.trim());
 
       // Advance to next status
       if (advance && _nextStatus != null) {
-        await _repo.updateStatus(widget.order.id, _nextStatus!.id);
+        await _repo.updateStatus(currentOrder.id, _nextStatus!.id);
       }
 
       if (!mounted) return;
@@ -400,7 +484,7 @@ class _FactoryOrderDetailScreenState extends State<FactoryOrderDetailScreen> {
     try {
       await context
           .read<OrdersCubit>()
-          .createOrderItem(widget.order, name, boyi, eni, quantity);
+          .createOrderItem(_currentOrder, name, boyi, eni, quantity);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
           content: Text('"$name" qo\'shildi'),
@@ -428,18 +512,33 @@ class _FactoryOrderDetailScreenState extends State<FactoryOrderDetailScreen> {
     if (await canLaunchUrl(uri)) await launchUrl(uri);
   }
 
-  /// Status nomi va rangi - endi `_itemStages`dan (Sozlamalar -> Gilam
-  /// bosqichlari), avvalgi qattiq kodlangan xarita o'rniga.
+  /// Status nomi va rangi - `_itemStages` yoki standart kDefaultItemStages'dan
   _ItemStatusInfo _itemStatusInfo(String status) {
-    for (final s in _itemStages) {
-      if (s.key == status) return _ItemStatusInfo(s.nameUz, AppTheme.hex(s.colorCode));
+    final stages = _itemStages.isNotEmpty ? _itemStages : kDefaultItemStages;
+    for (final s in stages) {
+      if (s.key.toUpperCase() == status.toUpperCase() || s.nameUz.toLowerCase() == status.toLowerCase()) {
+        return _ItemStatusInfo(s.nameUz, AppTheme.hex(s.colorCode));
+      }
     }
-    return _ItemStatusInfo(status, AppTheme.textMuted);
+    switch (status.toUpperCase()) {
+      case 'ACCEPTED':
+        return const _ItemStatusInfo('Qabul qilindi', Color(0xFF3B82F6));
+      case 'WASHED':
+        return const _ItemStatusInfo('Yuvildi', Color(0xFF0284C7));
+      case 'DRIED':
+        return const _ItemStatusInfo('Quritildi', Color(0xFFF59E0B));
+      case 'READY':
+        return const _ItemStatusInfo('Tayyor', Color(0xFF10B981));
+      default:
+        return _ItemStatusInfo(status.isNotEmpty ? status : 'Qabul qilindi', const Color(0xFF3B82F6));
+    }
   }
 
-  /// Gilam bosqichlari ketma-ketligi - `_itemStages` allaqachon backend'dan
-  /// sortOrder bo'yicha tartiblangan holda keladi (ItemStageController).
-  List<String> get _itemStatusOrder => _itemStages.map((s) => s.key).toList();
+  /// Gilam bosqichlari ketma-ketligi
+  List<String> get _itemStatusOrder {
+    final stages = _itemStages.isNotEmpty ? _itemStages : kDefaultItemStages;
+    return stages.map((s) => s.key).toList();
+  }
 
   /// Gilamni `from` bosqichidan `to` bosqichiga o'tkazish mumkinmi.
   ///
@@ -485,7 +584,7 @@ class _FactoryOrderDetailScreenState extends State<FactoryOrderDetailScreen> {
 
     setState(() => _saving = true);
     try {
-      await context.read<OrdersCubit>().deleteOrderItem(widget.order, item);
+      await context.read<OrdersCubit>().deleteOrderItem(_currentOrder, item);
       _eniCtrl[item.id]?.dispose();
       _boyiCtrl[item.id]?.dispose();
       _eniCtrl.remove(item.id);
@@ -508,6 +607,124 @@ class _FactoryOrderDetailScreenState extends State<FactoryOrderDetailScreen> {
     } finally {
       if (mounted) setState(() => _saving = false);
     }
+  }
+
+  /// Tanlangan gilamlarni bitta bosqich oldinga surish
+  Future<void> _advanceSelectedItems(Order order) async {
+    final selectedItems = order.items.where((i) => _selectedItemIds.contains(i.id)).toList();
+    if (selectedItems.isEmpty) return;
+
+    setState(() => _isBulkUpdating = true);
+    int advancedCount = 0;
+    try {
+      final orderKeys = _itemStatusOrder;
+      for (final item in selectedItems) {
+        final curIdx = orderKeys.indexOf(item.status);
+        if (curIdx != -1 && curIdx < orderKeys.length - 1) {
+          final nextStageKey = orderKeys[curIdx + 1];
+          await context.read<OrdersCubit>().changeOrderItemStatus(order, item, nextStageKey);
+          advancedCount++;
+        }
+      }
+      _selectedItemIds.clear();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('$advancedCount ta gilam keyingi bosqichga o\'tkazildi'),
+          backgroundColor: AppTheme.primary,
+          behavior: SnackBarBehavior.floating,
+        ));
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('Xatolik: $e'),
+          backgroundColor: AppTheme.dangerColor,
+          behavior: SnackBarBehavior.floating,
+        ));
+      }
+    } finally {
+      if (mounted) setState(() => _isBulkUpdating = false);
+    }
+  }
+
+  /// Tanlangan gilamlarni bitta aniq bosqichga o'tkazish
+  Future<void> _moveSelectedItemsToStage(Order order, String targetStageKey, String stageName, Color stageColor) async {
+    final selectedItems = order.items.where((i) => _selectedItemIds.contains(i.id)).toList();
+    if (selectedItems.isEmpty) return;
+
+    setState(() => _isBulkUpdating = true);
+    try {
+      await context.read<OrdersCubit>().bulkChangeOrderItemStatus(order, selectedItems, targetStageKey);
+      final count = selectedItems.length;
+      _selectedItemIds.clear();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('$count ta gilam "$stageName" bosqichiga o\'tkazildi'),
+          backgroundColor: stageColor,
+          behavior: SnackBarBehavior.floating,
+        ));
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('Xatolik: $e'),
+          backgroundColor: AppTheme.dangerColor,
+          behavior: SnackBarBehavior.floating,
+        ));
+      }
+    } finally {
+      if (mounted) setState(() => _isBulkUpdating = false);
+    }
+  }
+
+  /// Bir nechta gilam uchun bosqich tanlash dialogi
+  void _showBulkStagePicker(Order o) {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (bctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 36, height: 4,
+                  decoration: BoxDecoration(color: AppTheme.borderColor, borderRadius: BorderRadius.circular(2)),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                'Tanlangan ${_selectedItemIds.length} ta gilamni qaysi bosqichga o\'tkazasiz?',
+                style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
+              ),
+              const SizedBox(height: 16),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: (_itemStages.isNotEmpty ? _itemStages : kDefaultItemStages).map((stage) {
+                  final color = AppTheme.hex(stage.colorCode);
+                  return ActionChip(
+                    backgroundColor: color.withOpacity(0.12),
+                    side: BorderSide(color: color.withOpacity(0.4)),
+                    avatar: Icon(LucideIcons.checkCircle2, size: 16, color: color),
+                    label: Text(stage.nameUz, style: TextStyle(color: color, fontWeight: FontWeight.w700)),
+                    onPressed: () {
+                      Navigator.pop(bctx);
+                      _moveSelectedItemsToStage(o, stage.key, stage.nameUz, color);
+                    },
+                  );
+                }).toList(),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   @override
@@ -548,17 +765,27 @@ class _FactoryOrderDetailScreenState extends State<FactoryOrderDetailScreen> {
             for (final o in cubitState.orders) {
               if (o.id == widget.order.id) { liveOrder = o; break; }
             }
-            _itemStages = cubitState.itemStages;
+            _itemStages = cubitState.itemStages.isNotEmpty ? cubitState.itemStages : kDefaultItemStages;
           }
           // Ensure controllers exist for all items (faqat aktiv buyurtma uchun)
           if (!_isCompleted) {
+            final defaultUnitP = liveOrder.servicePrice > 0 ? liveOrder.servicePrice : 12000.0;
             for (final item in liveOrder.items) {
               _eniCtrl.putIfAbsent(item.id, () => TextEditingController(text: item.width > 0 ? item.width.toString() : ''));
               _boyiCtrl.putIfAbsent(item.id, () => TextEditingController(text: item.length > 0 ? item.length.toString() : ''));
+              _unitPriceCtrl.putIfAbsent(item.id, () {
+                final area = item.width * item.length * item.quantity;
+                double itemUnit = defaultUnitP;
+                if (item.price != null && item.price! > 0 && area > 0) {
+                  itemUnit = (item.price! / area).roundToDouble();
+                }
+                return TextEditingController(text: itemUnit.toStringAsFixed(0));
+              });
             }
             // Remove controllers for deleted items
             _eniCtrl.removeWhere((k, _) => !liveOrder.items.any((i) => i.id == k));
             _boyiCtrl.removeWhere((k, _) => !liveOrder.items.any((i) => i.id == k));
+            _unitPriceCtrl.removeWhere((k, _) => !liveOrder.items.any((i) => i.id == k));
           }
           final o = liveOrder;
           final statusColor = AppTheme.hex(o.status?.colorCode ?? '#16A34A');
@@ -672,51 +899,110 @@ class _FactoryOrderDetailScreenState extends State<FactoryOrderDetailScreen> {
               ),
               const SizedBox(height: 14),
 
-              // Table header
-              Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
-                decoration: BoxDecoration(
-                  color: isDark
-                      ? AppTheme.darkSurfaceAltColor
-                      : AppTheme.bg,
-                  borderRadius: BorderRadius.circular(8),
+              // Multi-select toolbar (aktiv buyurtmada)
+              if (!_isCompleted && o.items.isNotEmpty) ...[
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                  margin: const EdgeInsets.only(bottom: 10),
+                  decoration: BoxDecoration(
+                    color: _selectedItemIds.isNotEmpty
+                        ? AppTheme.primary.withOpacity(0.08)
+                        : (isDark ? AppTheme.darkSurfaceAltColor : AppTheme.bg),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: _selectedItemIds.isNotEmpty ? AppTheme.primary.withOpacity(0.35) : AppTheme.borderColor,
+                    ),
+                  ),
+                  child: Column(
+                    children: [
+                      Row(
+                        children: [
+                          SizedBox(
+                            width: 22,
+                            height: 22,
+                            child: Checkbox(
+                              value: _selectedItemIds.isNotEmpty && _selectedItemIds.length == o.items.length,
+                              tristate: _selectedItemIds.isNotEmpty && _selectedItemIds.length < o.items.length,
+                              activeColor: AppTheme.primary,
+                              onChanged: (val) {
+                                setState(() {
+                                  if (_selectedItemIds.length == o.items.length) {
+                                    _selectedItemIds.clear();
+                                  } else {
+                                    _selectedItemIds.clear();
+                                    _selectedItemIds.addAll(o.items.map((i) => i.id));
+                                  }
+                                });
+                              },
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              _selectedItemIds.isEmpty
+                                  ? 'Barcha gilamlarni tanlash'
+                                  : '${_selectedItemIds.length} ta gilam tanlandi',
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w700,
+                                color: _selectedItemIds.isNotEmpty ? AppTheme.primary : AppTheme.textSecondary,
+                              ),
+                            ),
+                          ),
+                          if (_selectedItemIds.isNotEmpty)
+                            InkWell(
+                              onTap: () => setState(() => _selectedItemIds.clear()),
+                              borderRadius: BorderRadius.circular(6),
+                              child: const Padding(
+                                padding: EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                                child: Text('Bekor qilish', style: TextStyle(fontSize: 11, color: AppTheme.textMuted, fontWeight: FontWeight.w600)),
+                              ),
+                            ),
+                        ],
+                      ),
+                      if (_selectedItemIds.isNotEmpty) ...[
+                        const SizedBox(height: 8),
+                        Row(
+                          children: [
+                            Expanded(
+                              flex: 3,
+                              child: FilledButton.icon(
+                                onPressed: _isBulkUpdating ? null : () => _advanceSelectedItems(o),
+                                icon: _isBulkUpdating
+                                    ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                                    : const Icon(LucideIcons.arrowRight, size: 14),
+                                label: const Text('Keyingi bosqich', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
+                                style: FilledButton.styleFrom(
+                                  backgroundColor: AppTheme.primary,
+                                  padding: const EdgeInsets.symmetric(vertical: 8),
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                  visualDensity: VisualDensity.compact,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              flex: 2,
+                              child: OutlinedButton.icon(
+                                onPressed: _isBulkUpdating ? null : () => _showBulkStagePicker(o),
+                                icon: const Icon(LucideIcons.slidersHorizontal, size: 13),
+                                label: const Text('Bosqich...', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                                style: OutlinedButton.styleFrom(
+                                  foregroundColor: AppTheme.primary,
+                                  side: const BorderSide(color: AppTheme.primary),
+                                  padding: const EdgeInsets.symmetric(vertical: 8),
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                  visualDensity: VisualDensity.compact,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ],
+                  ),
                 ),
-                child: const Row(children: [
-                  Expanded(
-                      flex: 3,
-                      child: Text('Gilam',
-                          style: TextStyle(
-                              color: AppTheme.textMuted,
-                              fontSize: 10,
-                              fontWeight: FontWeight.w600))),
-                  Expanded(
-                      flex: 2,
-                      child: Text('Eni',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                              color: AppTheme.textMuted,
-                              fontSize: 10,
-                              fontWeight: FontWeight.w600))),
-                  Expanded(
-                      flex: 2,
-                      child: Text("Bo'yi",
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                              color: AppTheme.textMuted,
-                              fontSize: 10,
-                              fontWeight: FontWeight.w600))),
-                  Expanded(
-                      flex: 2,
-                      child: Text('Kv.m',
-                          textAlign: TextAlign.right,
-                          style: TextStyle(
-                              color: AppTheme.textMuted,
-                              fontSize: 10,
-                              fontWeight: FontWeight.w600))),
-                ]),
-              ),
-              const SizedBox(height: 4),
+              ],
 
               // Items - live order items (cubit dan)
               if (o.items.isEmpty)
@@ -726,49 +1012,189 @@ class _FactoryOrderDetailScreenState extends State<FactoryOrderDetailScreen> {
                     child: Column(children: [
                       Icon(LucideIcons.packageOpen,
                           size: 32,
-                          color: isDark
-                              ? AppTheme.darkTextMutedColor
-                              : AppTheme.textMuted),
+                          color: isDark ? AppTheme.darkTextMutedColor : AppTheme.textMuted),
                       const SizedBox(height: 8),
                       Text("Gilamlar kiritilmagan",
                           style: TextStyle(
-                              color: isDark
-                                  ? AppTheme.darkTextSecondaryColor
-                                  : AppTheme.textSecondary,
+                              color: isDark ? AppTheme.darkTextSecondaryColor : AppTheme.textSecondary,
                               fontSize: 12)),
                     ]),
                   ),
                 )
               else
                 ...o.items.asMap().entries.map(
-                    (e) => _measureRow(e.key, e.value)),
+                    (e) => _measureRow(e.key, e.value, o)),
 
-              const Divider(
-                  color: AppTheme.borderColor, height: 24),
-
-              // Total row
-              Row(children: [
-                const Expanded(
-                    child: Text('Jami',
-                        style: TextStyle(
-                            color: AppTheme.textPrimary,
-                            fontWeight: FontWeight.w700,
-                            fontSize: 13))),
+              // ===== BARCHA GILAMLAR UCHUN 1 M² NARXI =====
+              if (!_isCompleted && o.items.isNotEmpty) ...[
+                const SizedBox(height: 10),
                 Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: AppTheme.primary.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(20),
+                    color: AppTheme.primary.withOpacity(0.06),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: AppTheme.primary.withOpacity(0.2)),
                   ),
-                  child: Text(
-                      '${_calcTotalQuantity(o.items)} ta / ${_calcTotalArea(o.items).toStringAsFixed(2)} m²',
-                      style: const TextStyle(
-                          color: AppTheme.primary,
-                          fontWeight: FontWeight.w800,
-                          fontSize: 13)),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Row(
+                        children: [
+                          Icon(LucideIcons.calculator, size: 16, color: AppTheme.primary),
+                          SizedBox(width: 8),
+                          Text(
+                            'Barcha gilamlar uchun 1 m² narxi:',
+                            style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: AppTheme.primary),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: SizedBox(
+                              height: 42,
+                              child: TextField(
+                                controller: _globalUnitPriceCtrl,
+                                keyboardType: TextInputType.number,
+                                style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14),
+                                decoration: InputDecoration(
+                                  hintText: '12000',
+                                  suffixText: "so'm / m²",
+                                  suffixStyle: const TextStyle(fontSize: 12, color: AppTheme.textSecondary),
+                                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                                  isDense: true,
+                                  filled: true,
+                                  fillColor: isDark ? AppTheme.darkSurfaceColor : Colors.white,
+                                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: AppTheme.borderColor)),
+                                  enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: AppTheme.borderColor)),
+                                  focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: AppTheme.primary, width: 1.5)),
+                                ),
+                                onChanged: (val) {
+                                  final p = parseMoney(val);
+                                  if (p != null && p > 0) {
+                                    _applyGlobalUnitPrice(p);
+                                  }
+                                },
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          SizedBox(
+                            height: 42,
+                            child: FilledButton.icon(
+                              onPressed: () {
+                                final p = parseMoney(_globalUnitPriceCtrl.text);
+                                if (p != null && p > 0) {
+                                  _applyGlobalUnitPrice(p);
+                                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                                    content: Text('Barcha gilamlarga 1 m² = ${NumberFormat.decimalPattern('uz').format(p)} so\'mdan qo\'yildi'),
+                                    backgroundColor: AppTheme.primary,
+                                    behavior: SnackBarBehavior.floating,
+                                    duration: const Duration(seconds: 2),
+                                  ));
+                                }
+                              },
+                              icon: const Icon(LucideIcons.check, size: 16),
+                              label: const Text('Qo\'llash', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+                              style: FilledButton.styleFrom(
+                                backgroundColor: AppTheme.primary,
+                                padding: const EdgeInsets.symmetric(horizontal: 14),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
                 ),
-              ]),
+              ],
+
+              const Divider(color: AppTheme.borderColor, height: 20),
+
+              // Jami hisob kartasi (Umumiy soni, Umumiy kv metr, Umumiy narx)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
+                decoration: BoxDecoration(
+                  color: isDark ? AppTheme.darkSurfaceAltColor : AppTheme.bg,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: AppTheme.borderColor),
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      flex: 3,
+                      child: Column(
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              const Icon(LucideIcons.layers, size: 13, color: AppTheme.amber),
+                              const SizedBox(width: 4),
+                              FittedBox(
+                                fit: BoxFit.scaleDown,
+                                child: Text('${_calcTotalQuantity(o.items)} ta',
+                                    style: const TextStyle(color: AppTheme.amber, fontWeight: FontWeight.w800, fontSize: 13)),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 2),
+                          const Text('Umumiy soni', style: TextStyle(color: AppTheme.textMuted, fontSize: 10, fontWeight: FontWeight.w600)),
+                        ],
+                      ),
+                    ),
+                    Container(width: 1, height: 28, color: AppTheme.borderColor),
+                    Expanded(
+                      flex: 3,
+                      child: Column(
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              const Icon(LucideIcons.ruler, size: 13, color: AppTheme.blue),
+                              const SizedBox(width: 4),
+                              FittedBox(
+                                fit: BoxFit.scaleDown,
+                                child: Text('${_calcTotalArea(o.items).toStringAsFixed(2)} m²',
+                                    style: const TextStyle(color: AppTheme.blue, fontWeight: FontWeight.w800, fontSize: 13)),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 2),
+                          const Text('Jami maydon', style: TextStyle(color: AppTheme.textMuted, fontSize: 10, fontWeight: FontWeight.w600)),
+                        ],
+                      ),
+                    ),
+                    Container(width: 1, height: 28, color: AppTheme.borderColor),
+                    Expanded(
+                      flex: 4,
+                      child: Column(
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              const Icon(LucideIcons.wallet, size: 13, color: AppTheme.green),
+                              const SizedBox(width: 4),
+                              Flexible(
+                                child: FittedBox(
+                                  fit: BoxFit.scaleDown,
+                                  child: Text(
+                                    '${NumberFormat.decimalPattern('uz').format(_suggestedPrice(items: o.items))} so\'m',
+                                    style: const TextStyle(color: AppTheme.green, fontWeight: FontWeight.w800, fontSize: 13),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 2),
+                          const Text('Jami summa', style: TextStyle(color: AppTheme.textMuted, fontSize: 10, fontWeight: FontWeight.w600)),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
 
               const SizedBox(height: 14),
 
@@ -871,12 +1297,28 @@ class _FactoryOrderDetailScreenState extends State<FactoryOrderDetailScreen> {
                   fontSize: 14,
                   fontWeight: FontWeight.w600),
             ),
-            if (_hasItems && !_priceManuallyEdited)
+            if (_hasItems)
               Padding(
                 padding: const EdgeInsets.only(top: 6),
-                child: Text(
-                  'Avtomatik hisoblangan: ${NumberFormat.decimalPattern('uz').format(_suggestedPrice())} so\'m (o\'lchov asosida)',
-                  style: const TextStyle(color: AppTheme.textMuted, fontSize: 11),
+                child: InkWell(
+                  onTap: () {
+                    setState(() {
+                      _priceManuallyEdited = false;
+                      _setPriceText(_suggestedPrice().toStringAsFixed(0));
+                    });
+                  },
+                  child: Row(
+                    children: [
+                      const Icon(LucideIcons.sparkles, size: 13, color: AppTheme.primary),
+                      const SizedBox(width: 4),
+                      Text(
+                        'Avtomatik hisob: ${NumberFormat.decimalPattern('uz').format(_suggestedPrice())} so\'m',
+                        style: const TextStyle(color: AppTheme.primary, fontSize: 12, fontWeight: FontWeight.w600),
+                      ),
+                      const SizedBox(width: 6),
+                      const Text('(qo\'llash)', style: TextStyle(color: AppTheme.textMuted, fontSize: 11, fontWeight: FontWeight.w600)),
+                    ],
+                  ),
                 ),
               ),
           ],
@@ -905,48 +1347,59 @@ class _FactoryOrderDetailScreenState extends State<FactoryOrderDetailScreen> {
             ),
             const SizedBox(height: 10),
             if (_nextStatus != null) ...[
-              SizedBox(
-                width: double.infinity,
-                child: FilledButton.icon(
-                  onPressed: (_saving || !_canHandover)
-                      ? null
-                      : () => _save(advance: true),
-                  style: FilledButton.styleFrom(
-                      backgroundColor:
-                          _canHandover ? AppTheme.blue : AppTheme.textMuted,
-                      padding:
-                          const EdgeInsets.symmetric(vertical: 15)),
-                  icon: Icon(
-                      _canHandover
-                          ? LucideIcons.arrowRight
-                          : LucideIcons.lock,
-                      size: 18),
-                  label: Text(
-                      _canHandover
-                          ? 'Tayyor - ${_nextStatus!.nameUz}ga yuborish'
-                          : (!_hasItems
-                              ? 'Avval gilam qo\'shing'
-                              : !_allItemsReady
-                                  ? 'Avval barcha gilamlarni "Tayyor" belgilang'
-                                  : 'Avval har bir gilamning o\'lchovini kiriting'),
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(
-                          fontWeight: FontWeight.w700)),
-                ),
-              ),
-              if (!_canHandover)
-                Padding(
-                  padding: const EdgeInsets.only(top: 8),
-                  child: Text(
-                    !_hasItems
-                        ? "Buyurtmada birorta ham gilam kiritilmagan. Haydovchiga topshirishdan oldin gilamlarni qo'shing va o'lchovlarini kiriting."
-                        : !_allItemsReady
-                            ? "Haydovchiga topshirishdan oldin har bir gilamning \"Tayyor\" katagini belgilang."
-                            // O'lchov yo'q bo'lsa maydon 0 bo'lib, narx ham 0 bo'lib ketardi.
-                            : "Har bir gilamning eni va bo'yi kiritilishi shart — aks holda narx 0 so'm bo'lib qoladi.",
-                    style: const TextStyle(color: AppTheme.textMuted, fontSize: 11),
-                  ),
-                ),
+              Builder(builder: (ctx) {
+                final hasItems = _checkHasItems(o);
+                final allItemsReady = _checkAllItemsReady(o);
+                final allItemsMeasured = _checkAllItemsMeasured(o);
+                final canHandover = allItemsReady && allItemsMeasured;
+
+                return Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    SizedBox(
+                      width: double.infinity,
+                      child: FilledButton.icon(
+                        onPressed: (_saving || !canHandover)
+                            ? null
+                            : () => _save(advance: true),
+                        style: FilledButton.styleFrom(
+                            backgroundColor:
+                                canHandover ? AppTheme.blue : AppTheme.textMuted,
+                            padding:
+                                const EdgeInsets.symmetric(vertical: 15)),
+                        icon: Icon(
+                            canHandover
+                                ? LucideIcons.arrowRight
+                                : LucideIcons.lock,
+                            size: 18),
+                        label: Text(
+                            canHandover
+                                ? 'Tayyor - ${_nextStatus!.nameUz}ga yuborish'
+                                : (!hasItems
+                                    ? 'Avval gilam qo\'shing'
+                                    : !allItemsReady
+                                        ? 'Avval barcha gilamlarni "Tayyor" belgilang'
+                                        : 'Avval har bir gilamning o\'lchovini kiriting'),
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(
+                                fontWeight: FontWeight.w700)),
+                      ),
+                    ),
+                    if (!canHandover)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 8),
+                        child: Text(
+                          !hasItems
+                              ? "Buyurtmada birorta ham gilam kiritilmagan. Haydovchiga topshirishdan oldin gilamlarni qo'shing va o'lchovlarini kiriting."
+                              : !allItemsReady
+                                  ? "Haydovchiga topshirishdan oldin har bir gilamning \"Tayyor\" katagini belgilang."
+                                  : "Har bir gilamning eni va bo'yi kiritilishi shart — aks holda narx 0 so'm bo'lib qoladi.",
+                          style: const TextStyle(color: AppTheme.textMuted, fontSize: 11),
+                        ),
+                      ),
+                  ],
+                );
+              }),
             ],
           ] else
             // Tarix — yakunlangan belgisi
@@ -974,13 +1427,32 @@ class _FactoryOrderDetailScreenState extends State<FactoryOrderDetailScreen> {
       );
   }
 
-  /// Gilam ustiga bosganda o'lcham va narx kiritish paneli
+  /// Gilam ustiga bosganda o'lcham, soni, kv metr va narx kiritish paneli
   void _showCarpetOptions(OrderItemInfo item) {
-    final eniCtrl = TextEditingController(text: _eniCtrl[item.id]?.text ?? '');
-    final boyiCtrl = TextEditingController(text: _boyiCtrl[item.id]?.text ?? '');
-    final priceCtrl = TextEditingController(
-      text: widget.order.price > 0 ? widget.order.price.toStringAsFixed(0) : '',
+    final nameCtrl = TextEditingController(text: item.name.isEmpty ? 'Gilam' : item.name);
+    final eniCtrl = TextEditingController(
+      text: (_eniCtrl[item.id]?.text.isNotEmpty ?? false)
+          ? _eniCtrl[item.id]!.text
+          : (item.width > 0 ? item.width.toString() : ''),
     );
+    final boyiCtrl = TextEditingController(
+      text: (_boyiCtrl[item.id]?.text.isNotEmpty ?? false)
+          ? _boyiCtrl[item.id]!.text
+          : (item.length > 0 ? item.length.toString() : ''),
+    );
+    final quantityCtrl = TextEditingController(text: item.quantity.toString());
+
+    final initialUnitP = _getItemUnitPrice(item);
+    final unitPriceCtrl = TextEditingController(text: initialUnitP > 0 ? initialUnitP.toStringAsFixed(0) : '12000');
+
+    final currentArea = _itemArea(item);
+    final areaCtrl = TextEditingController(text: currentArea > 0 ? currentArea.toStringAsFixed(2) : '');
+
+    final currentPrice = _getItemPrice(item);
+    final priceCtrl = TextEditingController(text: currentPrice > 0 ? currentPrice.toStringAsFixed(0) : '');
+
+    String selectedStage = item.status;
+    final stages = _itemStages.isNotEmpty ? _itemStages : kDefaultItemStages;
 
     showModalBottomSheet(
       context: context,
@@ -988,367 +1460,805 @@ class _FactoryOrderDetailScreenState extends State<FactoryOrderDetailScreen> {
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      builder: (bctx) => Padding(
-        padding: EdgeInsets.only(
-          bottom: MediaQuery.of(bctx).viewInsets.bottom,
-        ),
-        child: SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Handle
-                Center(child: Container(
-                  width: 36, height: 4,
-                  decoration: BoxDecoration(color: AppTheme.borderColor, borderRadius: BorderRadius.circular(2)),
-                )),
-                const SizedBox(height: 16),
-                // Gilam nomi
-                Row(children: [
-                  Container(
-                    width: 36, height: 36,
-                    decoration: BoxDecoration(color: AppTheme.primary.withOpacity(0.1), borderRadius: BorderRadius.circular(9)),
-                    child: const Icon(LucideIcons.layers, size: 18, color: AppTheme.primary),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      Text(item.name.isEmpty ? 'Gilam' : item.name,
-                          style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 17)),
-                      Text('${item.quantity} ta',
-                          style: const TextStyle(color: AppTheme.textSecondary, fontSize: 12)),
-                    ]),
-                  ),
-                ]),
-                const SizedBox(height: 20),
-                // O'lchamlar
-                const Text("O'lchamlar",
-                    style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: AppTheme.textPrimary)),
-                const SizedBox(height: 8),
-                Row(children: [
-                  Expanded(
-                    child: TextField(
-                      controller: eniCtrl,
-                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                      decoration: const InputDecoration(
-                        labelText: 'Eni (m)',
-                        prefixIcon: Icon(LucideIcons.moveHorizontal, size: 18),
-                      ),
-                      style: const TextStyle(fontSize: 14),
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: TextField(
-                      controller: boyiCtrl,
-                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                      decoration: const InputDecoration(
-                        labelText: "Bo'yi (m)",
-                        prefixIcon: Icon(LucideIcons.moveVertical, size: 18),
-                      ),
-                      style: const TextStyle(fontSize: 14),
-                    ),
-                  ),
-                ]),
-                const SizedBox(height: 16),
-                // Narx
-                const Text('Narx (so\'m)',
-                    style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: AppTheme.textPrimary)),
-                const SizedBox(height: 8),
-                TextField(
-                  controller: priceCtrl,
-                  keyboardType: TextInputType.number,
-                  decoration: const InputDecoration(
-                    hintText: 'Narxni kiriting',
-                    prefixIcon: Icon(LucideIcons.wallet, size: 18),
-                    suffixText: "so'm",
-                  ),
-                  style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
-                ),
-                const SizedBox(height: 16),
-                // Status tanlash
-                const Text("Holati",
-                    style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: AppTheme.textPrimary)),
-                const SizedBox(height: 8),
-                Wrap(
-                  spacing: 6,
-                  runSpacing: 4,
-                  children: _itemStages.map((stage) {
-                    final key = stage.key;
-                    final selected = item.status == key;
-                    final info = _ItemStatusInfo(stage.nameUz, AppTheme.hex(stage.colorCode));
-                    // Bosqichni sakrab o'tish taqiqlanadi - faqat qo'shni
-                    // bosqichlar tanlanadi (izoh uchun _canMoveItemTo'ga qarang).
-                    final allowed = selected || _canMoveItemTo(item.status, key);
-                    return ChoiceChip(
-                      label: Text(info.label,
-                          style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                              color: allowed ? null : AppTheme.textMuted)),
-                      selected: selected,
-                      selectedColor: info.color.withOpacity(0.2),
-                      backgroundColor: info.color.withOpacity(allowed ? 0.05 : 0.02),
-                      side: BorderSide(
-                        color: selected ? info.color : Colors.transparent,
-                        width: 1.5,
-                      ),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                      onSelected: !allowed
-                          ? null
-                          : (val) async {
-                        if (!val || selected) return;
-                        Navigator.pop(bctx);
-                        try {
-                          await context.read<OrdersCubit>().changeOrderItemStatus(widget.order, item, key);
-                          if (mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                              content: Text('"${item.name.isEmpty ? "Gilam" : item.name}" → ${info.label}'),
-                              backgroundColor: info.color,
-                              behavior: SnackBarBehavior.floating,
-                            ));
-                          }
-                        } catch (err) {
-                          if (mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                              content: Text('Xatolik: $err'),
-                              backgroundColor: AppTheme.dangerColor,
-                              behavior: SnackBarBehavior.floating,
-                            ));
-                          }
-                        }
-                      },
-                    );
-                  }).toList(),
-                ),
-                const SizedBox(height: 20),
-                // Tugmalar
-                Row(children: [
-                  Expanded(
-                    child: OutlinedButton.icon(
-                      onPressed: () {
-                        Navigator.pop(bctx);
-                        _deleteItem(item);
-                      },
-                      icon: const Icon(LucideIcons.trash2, size: 18),
-                      label: const Text('O\'chirish', style: TextStyle(fontWeight: FontWeight.w600)),
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: AppTheme.dangerColor,
-                        side: const BorderSide(color: AppTheme.dangerColor),
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    flex: 2,
-                    child: FilledButton.icon(
-                      onPressed: () async {
-                        // Save measurements to controller maps
-                        _eniCtrl[item.id]?.text = eniCtrl.text;
-                        _boyiCtrl[item.id]?.text = boyiCtrl.text;
-                        _refreshSuggestedPriceIfNotEdited();
-                        // Agar inson shu oynada narxni qo'lda yozgan bo'lsa -
-                        // avtomatik taklifni ustidan yozadi (qo'lda tahrirlash).
-                        final priceText = priceCtrl.text.trim();
-                        if (priceText.isNotEmpty) {
-                          _priceManuallyEdited = true;
-                          _setPriceText(priceText);
-                        }
-                        setState(() {});
-                        Navigator.pop(bctx);
-                        if (mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                            content: const Text('O\'lcham va narx saqlandi'),
-                            backgroundColor: AppTheme.primary,
-                            behavior: SnackBarBehavior.floating,
-                          ));
-                        }
-                      },
-                      icon: const Icon(LucideIcons.check, size: 18),
-                      label: const Text('Saqlash', style: TextStyle(fontWeight: FontWeight.w700)),
-                      style: FilledButton.styleFrom(
-                        backgroundColor: AppTheme.primary,
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                      ),
-                    ),
-                  ),
-                ]),
-              ],
+      builder: (bctx) => StatefulBuilder(
+        builder: (context, setModalState) {
+          void updateCalculations({bool fromArea = false}) {
+            final eni = parseMoney(eniCtrl.text) ?? 0;
+            final boyi = parseMoney(boyiCtrl.text) ?? 0;
+            final qty = int.tryParse(quantityCtrl.text) ?? 1;
+            final unitP = parseMoney(unitPriceCtrl.text) ?? 12000;
+
+            if (fromArea) {
+              final directArea = parseMoney(areaCtrl.text) ?? 0;
+              if (unitP > 0 && directArea > 0) {
+                final calcPrice = directArea * unitP;
+                priceCtrl.text = calcPrice > 0 ? calcPrice.toStringAsFixed(0) : '';
+              }
+            } else {
+              final calcArea = eni * boyi * qty;
+              areaCtrl.text = calcArea > 0 ? calcArea.toStringAsFixed(2) : '';
+              if (unitP > 0 && calcArea > 0) {
+                final calcPrice = calcArea * unitP;
+                priceCtrl.text = calcPrice > 0 ? calcPrice.toStringAsFixed(0) : '';
+              }
+            }
+            setModalState(() {});
+          }
+
+          return Padding(
+            padding: EdgeInsets.only(
+              bottom: MediaQuery.of(bctx).viewInsets.bottom,
             ),
-          ),
-        ),
+            child: SafeArea(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Handle
+                    Center(
+                      child: Container(
+                        width: 36,
+                        height: 4,
+                        decoration: BoxDecoration(color: AppTheme.borderColor, borderRadius: BorderRadius.circular(2)),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    // Gilam nomi
+                    TextField(
+                      controller: nameCtrl,
+                      decoration: const InputDecoration(
+                        labelText: 'Gilam nomi',
+                        prefixIcon: Icon(LucideIcons.tag, size: 18),
+                      ),
+                      style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
+                    ),
+                    const SizedBox(height: 14),
+
+                    // Eni, Bo'yi, Soni
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextField(
+                            controller: eniCtrl,
+                            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                            decoration: const InputDecoration(
+                              labelText: 'Eni (m)',
+                              prefixIcon: Icon(LucideIcons.moveHorizontal, size: 16),
+                            ),
+                            style: const TextStyle(fontSize: 14),
+                            onChanged: (_) => updateCalculations(),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: TextField(
+                            controller: boyiCtrl,
+                            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                            decoration: const InputDecoration(
+                              labelText: "Bo'yi (m)",
+                              prefixIcon: Icon(LucideIcons.moveVertical, size: 16),
+                            ),
+                            style: const TextStyle(fontSize: 14),
+                            onChanged: (_) => updateCalculations(),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: TextField(
+                            controller: quantityCtrl,
+                            keyboardType: TextInputType.number,
+                            decoration: const InputDecoration(
+                              labelText: 'Soni',
+                              prefixIcon: Icon(LucideIcons.hash, size: 16),
+                            ),
+                            style: const TextStyle(fontSize: 14),
+                            onChanged: (_) => updateCalculations(),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 14),
+
+                    // 1 m² narxi va Maydoni (2 ta ustun - bemalol sig'adi)
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextField(
+                            controller: areaCtrl,
+                            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                            decoration: const InputDecoration(
+                              labelText: 'Maydoni (m²)',
+                              prefixIcon: Icon(LucideIcons.ruler, size: 16),
+                              hintText: '0.00',
+                            ),
+                            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: AppTheme.blue),
+                            onChanged: (_) => updateCalculations(fromArea: true),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: TextField(
+                            controller: unitPriceCtrl,
+                            keyboardType: TextInputType.number,
+                            decoration: const InputDecoration(
+                              labelText: '1 m² narxi',
+                              prefixIcon: Icon(LucideIcons.tag, size: 16),
+                              suffixText: "so'm",
+                            ),
+                            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
+                            onChanged: (_) {
+                              final u = parseMoney(unitPriceCtrl.text) ?? 0;
+                              final a = parseMoney(areaCtrl.text) ?? 0;
+                              if (u > 0 && a > 0) {
+                                priceCtrl.text = (a * u).round().toString();
+                              }
+                              setModalState(() {});
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+
+                    // Jami narx (keng qatorda, bemalol sig'adigan qilib)
+                    TextField(
+                      controller: priceCtrl,
+                      keyboardType: TextInputType.number,
+                      decoration: const InputDecoration(
+                        labelText: 'Jami hisoblangan narx',
+                        prefixIcon: Icon(LucideIcons.wallet, size: 18, color: AppTheme.green),
+                        suffixText: "so'm",
+                        suffixStyle: TextStyle(fontWeight: FontWeight.w700, color: AppTheme.green),
+                      ),
+                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: AppTheme.green),
+                      onChanged: (_) {
+                        final p = parseMoney(priceCtrl.text) ?? 0;
+                        final a = parseMoney(areaCtrl.text) ?? 0;
+                        if (p > 0 && a > 0) {
+                          unitPriceCtrl.text = (p / a).round().toString();
+                        }
+                        setModalState(() {});
+                      },
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Gilam statusi / jarayoni
+                    const Text('Gilam holati (jarayoni):',
+                        style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: AppTheme.textPrimary)),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 6,
+                      children: stages.map((stage) {
+                        final isSel = selectedStage == stage.key;
+                        final color = AppTheme.hex(stage.colorCode);
+                        return ChoiceChip(
+                          label: Text(stage.nameUz),
+                          selected: isSel,
+                          selectedColor: color.withOpacity(0.2),
+                          backgroundColor: color.withOpacity(0.06),
+                          labelStyle: TextStyle(
+                            color: isSel ? color : AppTheme.textPrimary,
+                            fontWeight: isSel ? FontWeight.w700 : FontWeight.w500,
+                            fontSize: 12,
+                          ),
+                          side: BorderSide(
+                            color: isSel ? color : color.withOpacity(0.25),
+                            width: isSel ? 1.5 : 1,
+                          ),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                          onSelected: (val) {
+                            if (val) {
+                              setModalState(() => selectedStage = stage.key);
+                            }
+                          },
+                        );
+                      }).toList(),
+                    ),
+                    const SizedBox(height: 20),
+
+                    // Tugmalar
+                    Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            onPressed: () {
+                              Navigator.pop(bctx);
+                              _deleteItem(item);
+                            },
+                            icon: const Icon(LucideIcons.trash2, size: 16),
+                            label: const Text('O\'chirish', style: TextStyle(fontWeight: FontWeight.w600)),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: AppTheme.dangerColor,
+                              side: const BorderSide(color: AppTheme.dangerColor),
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          flex: 2,
+                          child: FilledButton.icon(
+                            onPressed: () async {
+                              final name = nameCtrl.text.trim();
+                              final eni = parseMoney(eniCtrl.text) ?? 0;
+                              final boyi = parseMoney(boyiCtrl.text) ?? 0;
+                              final qty = int.tryParse(quantityCtrl.text) ?? 1;
+                              final price = parseMoney(priceCtrl.text);
+
+                              _eniCtrl[item.id]?.text = eniCtrl.text;
+                              _boyiCtrl[item.id]?.text = boyiCtrl.text;
+                              _unitPriceCtrl[item.id]?.text = unitPriceCtrl.text;
+
+                              Navigator.pop(bctx);
+
+                              setState(() => _saving = true);
+                              try {
+                                await context.read<OrdersCubit>().updateOrderItem(
+                                  _currentOrder,
+                                  item,
+                                  name: name.isNotEmpty ? name : item.name,
+                                  length: boyi,
+                                  width: eni,
+                                  quantity: qty,
+                                  price: price,
+                                  status: selectedStage,
+                                );
+                                _refreshSuggestedPriceIfNotEdited();
+                                if (mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                                    content: Text('Gilam ma\'lumotlari va narxi saqlandi'),
+                                    backgroundColor: AppTheme.primary,
+                                    behavior: SnackBarBehavior.floating,
+                                  ));
+                                }
+                              } catch (e) {
+                                if (mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                                    content: Text('Xatolik: $e'),
+                                    backgroundColor: AppTheme.dangerColor,
+                                    behavior: SnackBarBehavior.floating,
+                                  ));
+                                }
+                              } finally {
+                                if (mounted) setState(() => _saving = false);
+                              }
+                            },
+                            icon: const Icon(LucideIcons.check, size: 18),
+                            label: const Text('Saqlash', style: TextStyle(fontWeight: FontWeight.w700)),
+                            style: FilledButton.styleFrom(
+                              backgroundColor: AppTheme.primary,
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        },
       ),
     ).whenComplete(() {
       try {
+        nameCtrl.dispose();
         eniCtrl.dispose();
         boyiCtrl.dispose();
+        quantityCtrl.dispose();
+        unitPriceCtrl.dispose();
+        areaCtrl.dispose();
         priceCtrl.dispose();
       } catch (_) {}
     });
   }
 
+  /// Tezkor status almashtirish modali
+  /// Tezkor status almashtirish modali
+  void _showQuickStatusPicker(OrderItemInfo item, Order order) {
+    final stages = _itemStages.isNotEmpty ? _itemStages : kDefaultItemStages;
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Theme.of(context).cardColor,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (bctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 38,
+                  height: 4,
+                  decoration: BoxDecoration(color: AppTheme.borderColor, borderRadius: BorderRadius.circular(2)),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Container(
+                    width: 34,
+                    height: 34,
+                    decoration: BoxDecoration(
+                      color: AppTheme.primary.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Icon(LucideIcons.layers, size: 18, color: AppTheme.primary),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          item.name.isEmpty ? "Gilam" : item.name,
+                          style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
+                        ),
+                        Text(
+                          'Hozirgi holati: ${_itemStatusInfo(item.status).label}',
+                          style: const TextStyle(fontSize: 12, color: AppTheme.textSecondary),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 18),
+              const Text(
+                'Gilam holatini o\'zgartirish:',
+                style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: AppTheme.textSecondary),
+              ),
+              const SizedBox(height: 10),
+              ...stages.map((stage) {
+                final isCurrent = item.status == stage.key;
+                final color = AppTheme.hex(stage.colorCode);
+                IconData stageIcon = LucideIcons.circleDot;
+                if (stage.key == 'ACCEPTED') stageIcon = LucideIcons.inbox;
+                if (stage.key == 'WASHED') stageIcon = LucideIcons.droplets;
+                if (stage.key == 'DRIED') stageIcon = LucideIcons.sun;
+                if (stage.key == 'READY') stageIcon = LucideIcons.checkCircle2;
+
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: InkWell(
+                    onTap: () async {
+                      Navigator.pop(bctx);
+                      if (isCurrent) return;
+                      setState(() => _saving = true);
+                      try {
+                        await context.read<OrdersCubit>().changeOrderItemStatus(order, item, stage.key);
+                        if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                            content: Row(
+                              children: [
+                                Icon(stageIcon, color: Colors.white, size: 16),
+                                const SizedBox(width: 8),
+                                Text('"${item.name.isEmpty ? "Gilam" : item.name}" -> ${stage.nameUz}'),
+                              ],
+                            ),
+                            backgroundColor: color,
+                            behavior: SnackBarBehavior.floating,
+                            duration: const Duration(seconds: 2),
+                          ));
+                        }
+                      } catch (e) {
+                        if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                            content: Text('Xatolik: $e'),
+                            backgroundColor: AppTheme.dangerColor,
+                            behavior: SnackBarBehavior.floating,
+                          ));
+                        }
+                      } finally {
+                        if (mounted) setState(() => _saving = false);
+                      }
+                    },
+                    borderRadius: BorderRadius.circular(12),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                      decoration: BoxDecoration(
+                        color: isCurrent ? color.withOpacity(0.15) : (Theme.of(context).brightness == Brightness.dark ? AppTheme.darkSurfaceAltColor : AppTheme.bg),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: isCurrent ? color : AppTheme.borderColor, width: isCurrent ? 2 : 1),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(stageIcon, size: 18, color: color),
+                          const SizedBox(width: 12),
+                          Text(
+                            stage.nameUz,
+                            style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14, color: isCurrent ? color : AppTheme.textPrimary),
+                          ),
+                          const Spacer(),
+                          if (isCurrent)
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                              decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(10)),
+                              child: const Text('Hozirgi', style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w700)),
+                            ),
+                        ],
+                      ),
+                    ),
+                  ),
+                );
+              }),
+              const SizedBox(height: 6),
+              SizedBox(
+                width: double.infinity,
+                child: TextButton.icon(
+                  onPressed: () {
+                    Navigator.pop(bctx);
+                    _showCarpetOptions(item);
+                  },
+                  icon: const Icon(LucideIcons.pencil, size: 15),
+                  label: const Text('O\'lchov va narxni to\'liq tahrirlash'),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   /// Gilam qatori — aktiv buyurtmada o'lcham maydonlari bilan,
   /// tarixda faqat ma'lumot (read-only).
-  Widget _measureRow(int i, OrderItemInfo item) {
-    final eni = item.width;
-    final boyi = item.length;
-    final area = eni * boyi;
+  Widget _measureRow(int i, OrderItemInfo item, Order order) {
+    final eni = parseMoney(_eniCtrl[item.id]?.text) ?? item.width;
+    final boyi = parseMoney(_boyiCtrl[item.id]?.text) ?? item.length;
+    final currentArea = _itemArea(item);
+    final unitPrice = _getItemUnitPrice(item);
+    final itemPrice = _getItemPrice(item);
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final bgColor = isDark
-        ? AppTheme.darkSurfaceAltColor.withOpacity(0.3)
-        : AppTheme.bg.withOpacity(0.5);
+    final isSelected = _selectedItemIds.contains(item.id);
+    final statusInfo = _itemStatusInfo(item.status);
+    final moneyFmt = NumberFormat.decimalPattern('uz');
 
     return Container(
-      margin: const EdgeInsets.only(bottom: 4),
-      padding: const EdgeInsets.all(6),
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
-        color: bgColor,
-        borderRadius: BorderRadius.circular(10),
+        color: isSelected
+            ? AppTheme.primary.withOpacity(0.06)
+            : (isDark ? AppTheme.darkSurfaceColor : Colors.white),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: isSelected ? AppTheme.primary : AppTheme.borderColor,
+          width: isSelected ? 1.5 : 1,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.02),
+            blurRadius: 4,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Gilam nomi + status badge (tarixda tahrirlash tugmalari yo'q)
-          Row(children: [
-            Expanded(
-              child: Row(children: [
-                Icon(LucideIcons.layers, size: 14,
-                    color: _isCompleted ? AppTheme.green : AppTheme.textMuted),
-                const SizedBox(width: 6),
-                Text(
-                  item.name.isEmpty ? 'Gilam ${i + 1}' : item.name,
-                  style: const TextStyle(
-                      color: AppTheme.textPrimary,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700),
-                ),
-              ]),
-            ),
-            // Status badge
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-              decoration: BoxDecoration(
-                color: _itemStatusInfo(item.status).color.withOpacity(0.15),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Text(
-                _itemStatusInfo(item.status).label,
-                style: TextStyle(
-                  color: _itemStatusInfo(item.status).color,
-                  fontSize: 9,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ),
-            if (!_isCompleted) ...[
-              const SizedBox(width: 4),
-              // Tahrirlash tugmasi
-              InkWell(
-                onTap: () => _showCarpetOptions(item),
-                borderRadius: BorderRadius.circular(6),
-                child: Container(
-                  width: 28, height: 28,
-                  decoration: BoxDecoration(
-                    color: AppTheme.primary.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(6),
+          // 1-qator: [Checkbox] + [Gilam nomi] + [Status chip ▼] + [⋮ (menu)]
+          Row(
+            children: [
+              if (!_isCompleted)
+                SizedBox(
+                  width: 24,
+                  height: 24,
+                  child: Checkbox(
+                    value: isSelected,
+                    activeColor: AppTheme.primary,
+                    onChanged: (val) {
+                      setState(() {
+                        if (val == true) {
+                          _selectedItemIds.add(item.id);
+                        } else {
+                          _selectedItemIds.remove(item.id);
+                        }
+                      });
+                    },
                   ),
-                  child: const Icon(LucideIcons.pencil, size: 14, color: AppTheme.primary),
+                ),
+              if (!_isCompleted) const SizedBox(width: 6),
+              // Gilam raqami va nomi
+              Expanded(
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: AppTheme.primary.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text(
+                        '#${i + 1}',
+                        style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: AppTheme.primary),
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    Flexible(
+                      child: Text(
+                        (item.name.trim().isNotEmpty && item.name != 'Gilam')
+                            ? item.name
+                            : '${i + 1}-gilam',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontWeight: FontWeight.w700,
+                          fontSize: 13.5,
+                          color: isDark ? AppTheme.darkTextPrimaryColor : AppTheme.textPrimary,
+                        ),
+                      ),
+                    ),
+                    if (item.quantity > 1) ...[
+                      const SizedBox(width: 4),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+                        decoration: BoxDecoration(
+                          color: AppTheme.amber.withOpacity(0.12),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(
+                          '${item.quantity} dona',
+                          style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: AppTheme.amber),
+                        ),
+                      ),
+                    ],
+                  ],
                 ),
               ),
-              const SizedBox(width: 4),
-              // O'chirish tugmasi
+              const SizedBox(width: 6),
+              // Status Badge (bosganda status tanlash)
               InkWell(
-                onTap: () => _deleteItem(item),
-                borderRadius: BorderRadius.circular(6),
+                onTap: _isCompleted ? null : () => _showQuickStatusPicker(item, order),
+                borderRadius: BorderRadius.circular(16),
                 child: Container(
-                  width: 28, height: 28,
+                  padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
                   decoration: BoxDecoration(
-                    color: AppTheme.dangerColor.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(6),
+                    color: statusInfo.color.withOpacity(0.12),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: statusInfo.color.withOpacity(0.6), width: 1.2),
                   ),
-                  child: const Icon(LucideIcons.trash2, size: 14, color: AppTheme.dangerColor),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        width: 7,
+                        height: 7,
+                        decoration: BoxDecoration(color: statusInfo.color, shape: BoxShape.circle),
+                      ),
+                      const SizedBox(width: 5),
+                      Text(
+                        statusInfo.label,
+                        style: TextStyle(
+                          color: statusInfo.color,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      if (!_isCompleted) ...[
+                        const SizedBox(width: 4),
+                        Icon(LucideIcons.chevronDown, size: 12, color: statusInfo.color),
+                      ],
+                    ],
+                  ),
                 ),
               ),
+              if (!_isCompleted) ...[
+                const SizedBox(width: 2),
+                PopupMenuButton<String>(
+                  icon: const Icon(LucideIcons.moreVertical, size: 18, color: AppTheme.textMuted),
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+                  tooltip: 'Amallar',
+                  onSelected: (val) {
+                    if (val == 'edit') _showCarpetOptions(item);
+                    if (val == 'delete') _deleteItem(item);
+                  },
+                  itemBuilder: (ctx) => [
+                    const PopupMenuItem(
+                      value: 'edit',
+                      child: Row(
+                        children: [
+                          Icon(LucideIcons.pencil, size: 15, color: AppTheme.primary),
+                          SizedBox(width: 8),
+                          Text('Tahrirlash', style: TextStyle(fontSize: 13)),
+                        ],
+                      ),
+                    ),
+                    const PopupMenuItem(
+                      value: 'delete',
+                      child: Row(
+                        children: [
+                          Icon(LucideIcons.trash2, size: 15, color: AppTheme.dangerColor),
+                          SizedBox(width: 8),
+                          Text('O\'chirish', style: TextStyle(fontSize: 13, color: AppTheme.dangerColor)),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ],
             ],
-          ]),
-          const SizedBox(height: 6),
-          // O'lcham ma'lumotlari — tarixda oddiy matn, aktivda maydon
-          Row(children: [
-            Expanded(
+          ),
+          const SizedBox(height: 8),
+          const Divider(height: 1, color: AppTheme.borderColor),
+          const SizedBox(height: 8),
+
+          // 2-qator: Eni x Bo'yi = Maydon
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Expanded(
                 flex: 3,
-                child: Text('${item.quantity} ta',
-                    style: const TextStyle(color: AppTheme.textSecondary, fontSize: 10))),
-            if (_isCompleted) ...[
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('Eni (m)', style: TextStyle(fontSize: 10, color: AppTheme.textMuted, fontWeight: FontWeight.w600)),
+                    const SizedBox(height: 3),
+                    if (_isCompleted)
+                      Text(eni > 0 ? eni.toStringAsFixed(1) : '—', style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13))
+                    else
+                      _numField(_eniCtrl[item.id]!, hint: 'Eni'),
+                  ],
+                ),
+              ),
+              const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+                child: Text('×', style: TextStyle(fontWeight: FontWeight.w700, color: AppTheme.textMuted, fontSize: 16)),
+              ),
               Expanded(
-                  flex: 2,
-                  child: Text(eni > 0 ? eni.toStringAsFixed(1) : '—',
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(color: AppTheme.textSecondary, fontSize: 11, fontWeight: FontWeight.w600))),
-              const SizedBox(width: 4),
+                flex: 3,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text("Bo'yi (m)", style: TextStyle(fontSize: 10, color: AppTheme.textMuted, fontWeight: FontWeight.w600)),
+                    const SizedBox(height: 3),
+                    if (_isCompleted)
+                      Text(boyi > 0 ? boyi.toStringAsFixed(1) : '—', style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13))
+                    else
+                      _numField(_boyiCtrl[item.id]!, hint: "Bo'yi"),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
               Expanded(
-                  flex: 2,
-                  child: Text(boyi > 0 ? boyi.toStringAsFixed(1) : '—',
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(color: AppTheme.textSecondary, fontSize: 11, fontWeight: FontWeight.w600))),
-            ] else ...[
-              Expanded(
-                  flex: 2,
-                  child: _numField(_eniCtrl[item.id]!)),
-              const SizedBox(width: 4),
-              Expanded(
-                  flex: 2,
-                  child: _numField(_boyiCtrl[item.id]!)),
+                flex: 3,
+                child: Container(
+                  height: 36,
+                  padding: const EdgeInsets.symmetric(horizontal: 6),
+                  decoration: BoxDecoration(
+                    color: AppTheme.blue.withOpacity(0.08),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: AppTheme.blue.withOpacity(0.25)),
+                  ),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      const Text('Maydoni', style: TextStyle(fontSize: 9, color: AppTheme.blue, fontWeight: FontWeight.w600)),
+                      FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Text(
+                          currentArea > 0 ? '${currentArea.toStringAsFixed(2)} m²' : '0.00 m²',
+                          style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 12, color: AppTheme.blue),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
             ],
-            const SizedBox(width: 4),
-            Expanded(
-                flex: 2,
-                child: Text(
-                  area > 0 ? '${area.toStringAsFixed(1)}' : (_isCompleted ? '—' : '0.0'),
-                  textAlign: TextAlign.right,
-                  style: const TextStyle(
-                      color: AppTheme.primary,
-                      fontSize: 11,
-                      fontWeight: FontWeight.w700),
-                )),
-          ]),
+          ),
+          const SizedBox(height: 8),
+
+          // 3-qator: 1 m² narxi va Hisoblangan Jami Narx
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(
+              color: isDark ? AppTheme.darkSurfaceAltColor : AppTheme.bg,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: AppTheme.borderColor.withOpacity(0.6)),
+            ),
+            child: Row(
+              children: [
+                const Icon(LucideIcons.tag, size: 13, color: AppTheme.primary),
+                const SizedBox(width: 6),
+                const Text('1 m² narxi:', style: TextStyle(fontSize: 11.5, color: AppTheme.textSecondary, fontWeight: FontWeight.w600)),
+                const SizedBox(width: 6),
+                if (_isCompleted)
+                  Text('${moneyFmt.format(unitPrice)} so\'m', style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12))
+                else
+                  SizedBox(
+                    width: 85,
+                    height: 32,
+                    child: TextField(
+                      controller: _unitPriceCtrl[item.id],
+                      keyboardType: TextInputType.number,
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                        color: isDark ? AppTheme.darkTextPrimaryColor : AppTheme.textPrimary,
+                      ),
+                      decoration: InputDecoration(
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                        hintText: '12000',
+                        isDense: true,
+                        filled: true,
+                        fillColor: isDark ? AppTheme.darkSurfaceColor : Colors.white,
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(6), borderSide: const BorderSide(color: AppTheme.borderColor)),
+                        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(6), borderSide: const BorderSide(color: AppTheme.borderColor)),
+                        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(6), borderSide: const BorderSide(color: AppTheme.primary, width: 1.5)),
+                      ),
+                      onChanged: (_) {
+                        setState(() {});
+                        _refreshSuggestedPriceIfNotEdited();
+                      },
+                    ),
+                  ),
+                const Spacer(),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Text('Jami summa', style: TextStyle(fontSize: 9, color: AppTheme.textMuted, fontWeight: FontWeight.w600)),
+                    FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Text(
+                        itemPrice > 0 ? '${moneyFmt.format(itemPrice)} so\'m' : '0 so\'m',
+                        style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13.5, color: AppTheme.green),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
         ],
       ),
     );
   }
 
-  Widget _numField(TextEditingController c) {
+  Widget _numField(TextEditingController c, {String? hint}) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return SizedBox(
-      height: 34,
+      height: 36,
       child: TextField(
         controller: c,
-        keyboardType:
-            const TextInputType.numberWithOptions(decimal: true),
+        keyboardType: const TextInputType.numberWithOptions(decimal: true),
         textAlign: TextAlign.center,
         onChanged: (_) => setState(() => _refreshSuggestedPriceIfNotEdited()),
-        style: const TextStyle(
-            fontSize: 12,
-            color: AppTheme.textPrimary,
-            fontWeight: FontWeight.w600),
+        style: TextStyle(
+            fontSize: 13.5,
+            color: isDark ? AppTheme.darkTextPrimaryColor : AppTheme.textPrimary,
+            fontWeight: FontWeight.w700),
         decoration: InputDecoration(
-          hintText: '0.0',
+          hintText: hint ?? '0.0',
           contentPadding:
-              const EdgeInsets.symmetric(vertical: 2, horizontal: 4),
-          fillColor: AppTheme.bg,
+              const EdgeInsets.symmetric(vertical: 4, horizontal: 4),
+          fillColor: isDark ? AppTheme.darkSurfaceColor : Colors.white,
           filled: true,
           border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(8),
-            borderSide:
-                const BorderSide(color: AppTheme.borderColor),
+            borderSide: const BorderSide(color: AppTheme.borderColor),
           ),
           enabledBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(8),
-            borderSide:
-                const BorderSide(color: AppTheme.borderColor),
+            borderSide: const BorderSide(color: AppTheme.borderColor),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(8),
+            borderSide: const BorderSide(color: AppTheme.primary, width: 1.5),
           ),
         ),
       ),

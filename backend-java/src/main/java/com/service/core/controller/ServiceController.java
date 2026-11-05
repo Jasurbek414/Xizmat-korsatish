@@ -64,7 +64,7 @@ public class ServiceController {
 
         BigDecimal price = new BigDecimal(priceObj.toString());
         Company company = companyRepository.findById(UUID.fromString(tenantId))
-                .orElseThrow(() -> new RuntimeException("Kompaniya topilmadi"));
+                .orElseThrow(() -> new org.springframework.web.server.ResponseStatusException(HttpStatus.NOT_FOUND, "Kompaniya topilmadi"));
 
         ServiceEntity service = ServiceEntity.builder()
                 .company(company)

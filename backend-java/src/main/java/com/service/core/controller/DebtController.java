@@ -84,7 +84,7 @@ public class DebtController {
         }
 
         Company company = companyRepository.findById(UUID.fromString(tenantId))
-                .orElseThrow(() -> new RuntimeException("Kompaniya topilmadi"));
+                .orElseThrow(() -> new org.springframework.web.server.ResponseStatusException(HttpStatus.NOT_FOUND, "Kompaniya topilmadi"));
 
         Debt debt = Debt.builder()
                 .company(company)

@@ -172,7 +172,11 @@ public class EmployeeController {
         String phone = request.get("phone");
         String role = request.get("role");
 
-        if (username == null || password == null || fullName == null || role == null) {
+        // 2026-10-05 audit: avval faqat null tekshirilardi - bo'sh ("") username
+        // yoki BO'SH PAROL bilan xodim yaratish mumkin edi (bo'sh parol bilan
+        // tizimga kirish ham ishlardi).
+        if (username == null || password == null || fullName == null || role == null
+                || username.isBlank() || password.isBlank() || fullName.isBlank()) {
             return ResponseEntity.badRequest().body(Map.of("message", "Barcha majburiy maydonlarni to'ldiring"));
         }
 
@@ -188,7 +192,7 @@ public class EmployeeController {
         }
 
         Company company = companyRepository.findById(UUID.fromString(tenantId))
-                .orElseThrow(() -> new RuntimeException("Kompaniya topilmadi"));
+                .orElseThrow(() -> new org.springframework.web.server.ResponseStatusException(HttpStatus.NOT_FOUND, "Kompaniya topilmadi"));
 
         String salaryStr = request.get("salary");
         String salaryType = request.get("salary_type");
@@ -256,7 +260,27 @@ public class EmployeeController {
                 return ResponseEntity.badRequest().body(Map.of("message", e.getMessage()));
             }
         }
-        if (request.containsKey("status")) employee.setStatus(request.get("status").toUpperCase());
+        // 2026-10-05 audit: status avval hech tekshirilmasdi. (1) "DELETED"
+        // yuborilsa xodim ro'yxatdan yo'qolardi, lekin deleteEmployee()dagi
+        // username bo'shatish va sessiyalarni bekor qilish bajarilmasdi;
+        // (2) istalgan boshqa matn ("XYZ") ham saqlanardi. Ikkala mijoz (veb
+        // va mobil) faqat ACTIVE/BLOCKED yuboradi.
+        // (3) Bloklashda refresh token'lar bekor qilinmasdi - access token
+        // JwtAuthenticationFilter'da darhol rad etiladi, lekin bloklash
+        // olib tashlansa eski qurilma 30 kunlik refresh bilan so'roqsiz qaytib
+        // kirardi. Endi bloklash = barcha qurilmalardan chiqarish.
+        boolean blockedNow = false;
+        if (request.containsKey("status")) {
+            String newStatus = request.get("status") == null ? "" : request.get("status").trim().toUpperCase();
+            if (!"ACTIVE".equals(newStatus) && !"BLOCKED".equals(newStatus)) {
+                return ResponseEntity.badRequest().body(Map.of("message", "Status ACTIVE yoki BLOCKED bo'lishi kerak"));
+            }
+            if (currentUser != null && currentUser.getId().equals(employee.getId()) && "BLOCKED".equals(newStatus)) {
+                return ResponseEntity.badRequest().body(Map.of("message", "O'zingizni bloklay olmaysiz"));
+            }
+            blockedNow = "BLOCKED".equals(newStatus) && !"BLOCKED".equalsIgnoreCase(employee.getStatus());
+            employee.setStatus(newStatus);
+        }
         if (request.containsKey("salary")) {
             String s = request.get("salary");
             employee.setSalary(s != null && !s.trim().isEmpty() ? Double.parseDouble(s.trim()) : null);
@@ -275,6 +299,9 @@ public class EmployeeController {
         }
 
         User saved = userRepository.save(employee);
+        if (blockedNow) {
+            refreshTokenService.revokeAllForUser(saved.getId());
+        }
         return ResponseEntity.ok(saved);
     }
 

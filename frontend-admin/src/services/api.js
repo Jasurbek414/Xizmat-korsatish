@@ -1017,13 +1017,14 @@ export const api = {
     return handleResponse(res);
   },
 
-  // JsSIP registratsiyasi uchun haqiqiy hisob ma'lumotlarini (parol bilan)
-  // olish - umumiy /sip-accounts ro'yxati endi parolni qaytarmaydi.
-  async getSipAccountCredentials(id) {
+  // Trunk sozlamalari formasi uchun haqiqiy parol (faqat ADMIN/MANAGER) -
+  // umumiy /sip-accounts ro'yxati parolni qaytarmaydi. Brauzer telefoni
+  // (JsSIP) buni ISHLATMAYDI - u /telephony/my-extension bilan ishlaydi.
+  async getSipAccountCredentials(id, { silent403 = false } = {}) {
     const res = await authFetch(`${API_BASE_URL}/sip-accounts/${id}/credentials`, {
       headers: getHeaders()
     });
-    return handleResponse(res);
+    return handleResponse(res, { silent403 });
   },
 
   // Backend endi qo'ng'iroqlarni ESL hodisalari orqali o'zi avtoritativ

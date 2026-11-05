@@ -49,6 +49,26 @@ public class AsteriskTrunkConfigWriter {
         }
     }
 
+    /**
+     * Faylni FAQAT mazmuni haqiqatan farq qilsa (yoki fayl yo'q bo'lsa) yozadi.
+     *
+     * @return true - fayl yangilandi (Asterisk'ni qayta yuklash kerak);
+     *         false - diskdagi fayl allaqachon aynan shu mazmunda.
+     */
+    public boolean writeConfigIfChanged(SipAccount account) {
+        Path path = configPath(account);
+        String conf = buildConf(account);
+        try {
+            if (Files.exists(path) && conf.equals(Files.readString(path, StandardCharsets.UTF_8))) {
+                return false;
+            }
+        } catch (IOException e) {
+            log.warn("Asterisk trunk konfiguratsiya faylini o'qib bo'lmadi ({}): {} - qayta yoziladi", path, e.getMessage());
+        }
+        writeConfig(account);
+        return true;
+    }
+
     public void deleteConfig(SipAccount account) {
         Path path = configPath(account);
         try {

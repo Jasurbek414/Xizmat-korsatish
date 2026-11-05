@@ -68,7 +68,7 @@ public class OrderStatusController {
 
         UUID companyId = UUID.fromString(tenantId);
         Company company = companyRepository.findById(companyId)
-                .orElseThrow(() -> new RuntimeException("Kompaniya topilmadi"));
+                .orElseThrow(() -> new org.springframework.web.server.ResponseStatusException(HttpStatus.NOT_FOUND, "Kompaniya topilmadi"));
 
         String ownerRoleKey = str(request, "owner_role_key");
         if (ownerRoleKey != null && !roleExists(companyId, ownerRoleKey)) {
@@ -76,7 +76,15 @@ public class OrderStatusController {
         }
 
         List<OrderStatus> current = orderStatusRepository.findByCompanyIdOrderBySortOrderAsc(company.getId());
-        int nextOrder = current.size() + 1;
+        // MUHIM (2026-10-05 audit): avval `current.size() + 1` edi. Status
+        // o'chirilganda sort_order'da "teshik" qoladi (masalan 1,2,3 -> 2 o'chirildi
+        // -> 1,3) - shunda size()+1 = 3 mavjud status bilan to'qnashib, UNIQUE
+        // (company_id, sort_order) cheklovi sabab yangi status qo'shib bo'lmasdi.
+        int nextOrder = current.stream()
+                .map(OrderStatus::getSortOrder)
+                .filter(java.util.Objects::nonNull)
+                .max(Integer::compare)
+                .orElse(0) + 1;
 
         OrderStatus status = OrderStatus.builder()
                 .company(company)
@@ -119,6 +127,7 @@ public class OrderStatusController {
 
     @PutMapping("/reorder")
     @PreAuthorize("@perm.has('orders')")
+    @org.springframework.transaction.annotation.Transactional
     public ResponseEntity<?> reorderStatuses(@RequestBody List<String> orderedIds) {
         String tenantId = TenantContext.getCurrentTenant();
         if (tenantId == null) {
@@ -126,14 +135,44 @@ public class OrderStatusController {
         }
 
         UUID companyId = UUID.fromString(tenantId);
-        for (int i = 0; i < orderedIds.size(); i++) {
-            UUID statusId = UUID.fromString(orderedIds.get(i));
-            OrderStatus status = orderStatusRepository.findById(statusId).orElse(null);
-            if (status != null && status.getCompany().getId().equals(companyId)) {
-                status.setSortOrder(i + 1);
-                orderStatusRepository.save(status);
+
+        // MUHIM (2026-10-05 audit, JONLI bazada tasdiqlangan): order_statuses
+        // jadvalida (company_id, sort_order) UNIQUE cheklovi bor. Avvalgi kod har
+        // bir statusni birma-bir to'g'ridan-to'g'ri yangi o'ringa yozardi va
+        // @Transactional ham yo'q edi - ya'ni har save() darhol commit bo'lardi.
+        // Natijada istalgan almashtirish (admin panelidagi "yuqoriga/pastga")
+        // birinchi save()dayoq hali eski o'rinni ushlab turgan boshqa status bilan
+        // to'qnashib 409 berardi - funksiya amalda HECH QACHON ishlamasdi.
+        // (Bu tuzatish 2026-09-12 da qilingan edi, lekin keyingi "server holatini
+        // sinxronlash" commit'ida yo'qolib ketgan.)
+        //
+        // Yechim: (1) kompaniyaning BARCHA statuslari olinadi - so'rovda
+        // kelmaganlari o'z nisbiy tartibida oxiriga qo'yiladi (aks holda ular
+        // yangi 1..N qiymatlar bilan to'qnashardi); (2) avval hammasi vaqtincha
+        // MANFIY qiymatlarga yozilib flush() qilinadi, so'ng haqiqiy 1..N ga.
+        // flush() SHART: usiz Hibernate dirty-checking ikkala o'zgarishni bitta
+        // UPDATE ga birlashtirib, oraliq manfiy bosqich bazaga hech yetmaydi.
+        List<OrderStatus> all = orderStatusRepository.findByCompanyIdOrderBySortOrderAsc(companyId);
+        Map<UUID, OrderStatus> byId = new java.util.LinkedHashMap<>();
+        all.forEach(s -> byId.put(s.getId(), s));
+
+        List<OrderStatus> ordered = new java.util.ArrayList<>();
+        for (String rawId : orderedIds) {
+            OrderStatus s = byId.remove(UUID.fromString(rawId));
+            if (s != null) {
+                ordered.add(s);
             }
         }
+        ordered.addAll(byId.values());
+
+        for (int i = 0; i < ordered.size(); i++) {
+            ordered.get(i).setSortOrder(-(i + 1));
+        }
+        orderStatusRepository.saveAllAndFlush(ordered);
+        for (int i = 0; i < ordered.size(); i++) {
+            ordered.get(i).setSortOrder(i + 1);
+        }
+        orderStatusRepository.saveAll(ordered);
 
         return ResponseEntity.ok(Map.of("message", "Statuslar ketma-ketligi muvaffaqiyatli saqlandi"));
     }

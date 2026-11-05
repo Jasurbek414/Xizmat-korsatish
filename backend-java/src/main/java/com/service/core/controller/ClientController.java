@@ -37,13 +37,16 @@ public class ClientController {
     private final CompanyRepository companyRepository;
     private final ClientNoteRepository clientNoteRepository;
     private final UserRepository userRepository;
+    private final com.service.core.repository.OrderRepository orderRepository;
 
     public ClientController(ClientRepository clientRepository, CompanyRepository companyRepository,
-                             ClientNoteRepository clientNoteRepository, UserRepository userRepository) {
+                             ClientNoteRepository clientNoteRepository, UserRepository userRepository,
+                             com.service.core.repository.OrderRepository orderRepository) {
         this.clientRepository = clientRepository;
         this.companyRepository = companyRepository;
         this.clientNoteRepository = clientNoteRepository;
         this.userRepository = userRepository;
+        this.orderRepository = orderRepository;
     }
 
     private User getCurrentUser() {
@@ -102,12 +105,12 @@ public class ClientController {
         String phone = request.get("phone");
         String address = request.get("address");
 
-        if (fullName == null || phone == null) {
+        if (fullName == null || phone == null || fullName.isBlank() || phone.isBlank()) {
             return ResponseEntity.badRequest().body(Map.of("message", "Ism va telefon raqami kiritilishi shart"));
         }
 
         Company company = companyRepository.findById(UUID.fromString(tenantId))
-                .orElseThrow(() -> new RuntimeException("Kompaniya topilmadi"));
+                .orElseThrow(() -> new org.springframework.web.server.ResponseStatusException(HttpStatus.NOT_FOUND, "Kompaniya topilmadi"));
 
         // Check duplicate phone
         Optional<Client> existing = clientRepository.findByCompanyIdAndPhone(company.getId(), phone.trim());
@@ -161,8 +164,29 @@ public class ClientController {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("message", "Mijoz topilmadi"));
         }
 
-        if (request.containsKey("full_name")) client.setFullName(formatFullName(request.get("full_name")));
-        if (request.containsKey("phone")) client.setPhone(request.get("phone").trim());
+        if (request.containsKey("full_name")) {
+            String name = request.get("full_name");
+            if (name == null || name.isBlank()) {
+                return ResponseEntity.badRequest().body(Map.of("message", "Ism bo'sh bo'lishi mumkin emas"));
+            }
+            client.setFullName(formatFullName(name));
+        }
+        if (request.containsKey("phone")) {
+            String newPhone = request.get("phone") == null ? "" : request.get("phone").trim();
+            if (newPhone.isEmpty()) {
+                return ResponseEntity.badRequest().body(Map.of("message", "Telefon raqami bo'sh bo'lishi mumkin emas"));
+            }
+            // 2026-10-05 audit: (company_id, phone) UNIQUE. Avval tekshiruv
+            // yo'q edi - boshqa mijozning raqami kiritilsa DataIntegrityViolation
+            // GlobalExceptionHandler'da "Bu yozuvni O'CHIRIB bo'lmaydi..." degan
+            // butunlay noto'g'ri xabar bilan 409 qaytarardi.
+            Optional<Client> sameFone = clientRepository.findByCompanyIdAndPhone(client.getCompany().getId(), newPhone);
+            if (sameFone.isPresent() && !sameFone.get().getId().equals(client.getId())) {
+                return ResponseEntity.status(HttpStatus.CONFLICT)
+                        .body(Map.of("message", "Ushbu telefon raqamli boshqa mijoz allaqachon mavjud"));
+            }
+            client.setPhone(newPhone);
+        }
         if (request.containsKey("address")) client.setAddress(request.get("address"));
 
         Client saved = clientRepository.save(client);
@@ -171,6 +195,7 @@ public class ClientController {
 
     @DeleteMapping("/{id}")
     @PreAuthorize("@perm.has('clients')")
+    @org.springframework.transaction.annotation.Transactional
     public ResponseEntity<?> deleteClient(@PathVariable UUID id) {
         String tenantId = TenantContext.getCurrentTenant();
         if (tenantId == null) {
@@ -182,6 +207,18 @@ public class ClientController {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("message", "Mijoz topilmadi"));
         }
 
+        // 2026-10-05 audit: avval to'g'ridan-to'g'ri delete() edi. Mijozning
+        // buyurtmalari bo'lsa - FK xatosi; faqat CRM ESLATMALARI bo'lsa ham
+        // xuddi shunday FK xatosi berib, mijozni umuman o'chirib bo'lmasdi
+        // (eslatmalarni alohida o'chirish yo'li ham yo'q). Endi: buyurtmasi bor
+        // mijoz aniq sabab bilan rad etiladi (tarix buzilmasin), buyurtmasiz
+        // mijozning eslatmalari u bilan birga o'chiriladi.
+        long orderCount = orderRepository.countByCompanyIdAndClientId(client.getCompany().getId(), client.getId());
+        if (orderCount > 0) {
+            return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of("message",
+                    "Bu mijozning " + orderCount + " ta buyurtmasi bor - uni o'chirib bo'lmaydi (buyurtmalar tarixi buziladi)."));
+        }
+        clientNoteRepository.deleteAll(clientNoteRepository.findByClientIdOrderByCreatedAtDesc(client.getId()));
         clientRepository.delete(client);
         return ResponseEntity.ok(Map.of("message", "Mijoz muvaffaqiyatli o'chirildi"));
     }

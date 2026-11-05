@@ -27,10 +27,9 @@ class _OrderHistoryScreenState extends State<OrderHistoryScreen> {
   }
 
   bool _isDone(Order o, List<OrderStatusInfo> sorted) {
-    final lastId = sorted.isNotEmpty ? sorted.last.id : null;
-    final atLast = lastId != null && o.status?.id == lastId;
     final paid = o.paymentStatus.isNotEmpty && o.paymentStatus != 'PENDING';
-    return atLast || paid;
+    final isCancelled = o.status?.nameUz.toLowerCase().contains('bekor') == true;
+    return paid || isCancelled;
   }
 
   @override

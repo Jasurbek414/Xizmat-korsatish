@@ -65,11 +65,23 @@ public class CompanyController {
             company.setLongitude(v == null ? null : Double.parseDouble(v.toString()));
         }
 
+        // 2026-10-05 audit: diapazonlar tekshirilmasdi. Masalan KPI foizi -10
+        // yoki 500 qilib saqlansa, SalaryController.generatePayroll() haydovchiga
+        // manfiy yoki 5 barobar komissiya yozardi va u to'g'ridan-to'g'ri
+        // Moliyaga xarajat bo'lib tushardi.
         if (request.containsKey("minOrderPrice")) {
-            company.setMinOrderPrice(Integer.parseInt(request.get("minOrderPrice").toString()));
+            int minOrderPrice = Integer.parseInt(request.get("minOrderPrice").toString());
+            if (minOrderPrice < 0) {
+                return ResponseEntity.badRequest().body(Map.of("message", "Minimal buyurtma narxi manfiy bo'lishi mumkin emas"));
+            }
+            company.setMinOrderPrice(minOrderPrice);
         }
         if (request.containsKey("driverKpiPercent")) {
-            company.setDriverKpiPercent(Integer.parseInt(request.get("driverKpiPercent").toString()));
+            int kpi = Integer.parseInt(request.get("driverKpiPercent").toString());
+            if (kpi < 0 || kpi > 100) {
+                return ResponseEntity.badRequest().body(Map.of("message", "Haydovchi KPI foizi 0 dan 100 gacha bo'lishi kerak"));
+            }
+            company.setDriverKpiPercent(kpi);
         }
         if (request.containsKey("workStartTime")) company.setWorkStartTime((String) request.get("workStartTime"));
         if (request.containsKey("workEndTime")) company.setWorkEndTime((String) request.get("workEndTime"));
@@ -132,7 +144,13 @@ public class CompanyController {
         if (request.containsKey("receiptShowPaymentMethod")) company.setReceiptShowPaymentMethod((Boolean) request.get("receiptShowPaymentMethod"));
         if (request.containsKey("receiptShowOrderNumber")) company.setReceiptShowOrderNumber((Boolean) request.get("receiptShowOrderNumber"));
         if (request.containsKey("receiptShowEmployeeName")) company.setReceiptShowEmployeeName((Boolean) request.get("receiptShowEmployeeName"));
-        if (request.containsKey("receiptCopies")) company.setReceiptCopies(Integer.parseInt(request.get("receiptCopies").toString()));
+        if (request.containsKey("receiptCopies")) {
+            int copies = Integer.parseInt(request.get("receiptCopies").toString());
+            if (copies < 1 || copies > 5) {
+                return ResponseEntity.badRequest().body(Map.of("message", "Chek nusxalari soni 1 dan 5 gacha bo'lishi kerak"));
+            }
+            company.setReceiptCopies(copies);
+        }
         if (request.containsKey("receiptFontSize")) company.setReceiptFontSize((String) request.get("receiptFontSize"));
         if (request.containsKey("receiptLogoBase64")) company.setReceiptLogoBase64((String) request.get("receiptLogoBase64"));
 

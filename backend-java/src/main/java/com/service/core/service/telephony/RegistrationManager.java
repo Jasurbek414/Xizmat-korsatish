@@ -24,6 +24,14 @@ public class RegistrationManager {
 
     private final Map<UUID, String> statusCache = new ConcurrentHashMap<>();
 
+    /**
+     * Trunk ro'yxatdan o'tmagan holatda konfiguratsiya o'zgarmagan bo'lsa ham
+     * res_pjsip'ni majburan qayta yuklash oralig'i (zaxira "o'z-o'zini tuzatish"
+     * uchun) - har 30 s emas, 10 daqiqada bir marta.
+     */
+    private static final long FORCED_RELOAD_INTERVAL_MS = 10 * 60 * 1000L;
+    private final Map<UUID, Long> lastForcedReload = new ConcurrentHashMap<>();
+
     public RegistrationManager(SipAccountRepository sipAccountRepository,
                                RegistrationRepository registrationRepository,
                                SIPAdapter sipAdapter,
@@ -100,14 +108,31 @@ public class RegistrationManager {
             // urinAMIZ - REGED/REGISTERING holatidagi ishlaydigan ulanishga
             // tegmaymiz.
             if ("UNREGISTERED".equals(effectiveStatus) || "FAILED".equals(effectiveStatus)) {
+                // MUHIM (2026-10-05 audit, JONLI loglarda tasdiqlangan): avval trunk
+                // ro'yxatdan o'tmagan har 30 soniyada fayl QAYTA YOZILIB, butun
+                // res_pjsip moduli qayta yuklanardi (10 kunda ~29 500 marta). Bu:
+                //  - ishlab turgan barcha brauzer extension'lari va faol qo'ng'iroqlar
+                //    turgan PJSIP stekini har 30 s da "silkitardi";
+                //  - Asterisk'ning o'z qayta urinish taymerini (retry_interval /
+                //    fatal_retry_interval, [id-reg] bo'limida) har safar nolga qaytarib,
+                //    uni amalda ishlatmay qo'yardi;
+                //  - holat FAILED -> REGISTERING -> FAILED bo'lib aylanib, har 30 s da
+                //    2 ta DB yozuvi va UI'ga 2 ta TRUNK_STATUS hodisasi yuborardi;
+                //  - asterisk.log'ni ~35 daqiqada 50 MB ga to'ldirardi.
+                // Endi: fayl faqat mazmuni o'zgargan/yo'qolgan bo'lsa yoziladi va
+                // modul faqat shunda (yoki zaxira sifatida FORCED_RELOAD_INTERVAL'da
+                // bir marta) qayta yuklanadi. Qolgan paytda qayta urinishni
+                // Asterisk o'zi bajaradi.
                 try {
-                    // Konfiguratsiya faylini har safar qayta yozamiz (o'z-o'zini
-                    // tuzatuvchi - masalan volume tiklanganda yoki fayl boshqa yo'l
-                    // bilan yaratilgan hisob uchun hech qachon yozilmagan bo'lsa ham,
-                    // shu yerda albatta mavjud bo'lishini ta'minlaydi).
-                    trunkConfigWriter.writeConfig(account);
-                    sipAdapter.register(account);
-                    updateStatus(account.getId(), "REGISTERING", null);
+                    boolean configChanged = trunkConfigWriter.writeConfigIfChanged(account);
+                    Long lastReload = lastForcedReload.get(account.getId());
+                    long now = System.currentTimeMillis();
+                    boolean reloadDue = lastReload == null || now - lastReload >= FORCED_RELOAD_INTERVAL_MS;
+                    if (configChanged || reloadDue) {
+                        lastForcedReload.put(account.getId(), now);
+                        sipAdapter.register(account);
+                        updateStatus(account.getId(), "REGISTERING", null);
+                    }
                 } catch (Exception e) {
                     updateStatus(account.getId(), "FAILED", e.getMessage());
                 }

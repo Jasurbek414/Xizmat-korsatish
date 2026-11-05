@@ -29,6 +29,8 @@ import java.util.UUID;
 @PreAuthorize("@perm.has('orders','mobile_orders')")
 public class OrderItemController {
 
+    private static final int MAX_DISCRETE_ROWS = 200;
+
     private final OrderRepository orderRepository;
     private final OrderItemRepository orderItemRepository;
     private final OrderStatusRepository orderStatusRepository;
@@ -202,6 +204,9 @@ public class OrderItemController {
         if (quantity.compareTo(BigDecimal.ZERO) <= 0) {
             return ResponseEntity.badRequest().body(Map.of("message", "Miqdor musbat bo'lishi shart"));
         }
+        if (length.signum() < 0 || width.signum() < 0) {
+            return ResponseEntity.badRequest().body(Map.of("message", "O'lcham manfiy bo'lishi mumkin emas"));
+        }
         String status = request.getOrDefault("status", "ACCEPTED").toString();
 
         String unit = order.getService() != null ? order.getService().getMeasurementUnit() : null;
@@ -216,6 +221,13 @@ public class OrderItemController {
             // biri quantity=1) - har biri mustaqil o'lchanadi va narxlanadi.
             // Faqat "dona"/maydon asosli (m², kv. metr) birliklarda mantiqiy -
             // bular jismoniy sanaladigan/alohida kuzatiladigan buyumlar.
+            // 2026-10-05 audit: yuqori chegara - "soni" maydoniga tasodifan katta son
+            // (masalan 10000) yozilsa, shuncha qator yaratilib bir so'rovda bazani
+            // to'ldirib, sex ekranini osib qo'yardi.
+            if (quantity.compareTo(BigDecimal.valueOf(MAX_DISCRETE_ROWS)) > 0) {
+                return ResponseEntity.badRequest().body(Map.of("message",
+                        "Bir martada ko'pi bilan " + MAX_DISCRETE_ROWS + " ta mahsulot qo'shish mumkin"));
+            }
             int rowCount = Math.max(1, quantity.intValue());
             for (int i = 1; i <= rowCount; i++) {
                 String itemName = rowCount > 1 ? name + " " + i : name;
@@ -270,22 +282,41 @@ public class OrderItemController {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("message", "Mahsulot topilmadi"));
         }
 
+        // 2026-10-05 audit: manfiy o'lcham/miqdor/narx tekshirilmasdi -
+        // recalculatePrice() ularni to'g'ridan-to'g'ri buyurtma narxiga qo'shib,
+        // buyurtma summasini (va Moliyani) noto'g'ri, hatto manfiy qilib qo'yardi.
+        // Avval HAMMASI tekshiriladi, keyin yoziladi - aks holda yarim qo'llangan
+        // o'zgarish qolardi.
+        BigDecimal newLength = request.containsKey("length") ? new BigDecimal(request.get("length").toString()) : null;
+        BigDecimal newWidth = request.containsKey("width") ? new BigDecimal(request.get("width").toString()) : null;
+        BigDecimal newQuantity = request.containsKey("quantity") ? new BigDecimal(request.get("quantity").toString()) : null;
+        BigDecimal newPrice = request.containsKey("price") && request.get("price") != null
+                ? new BigDecimal(request.get("price").toString()) : null;
+        if ((newLength != null && newLength.signum() < 0) || (newWidth != null && newWidth.signum() < 0)
+                || (newPrice != null && newPrice.signum() < 0)) {
+            return ResponseEntity.badRequest().body(Map.of("message", "O'lcham va narx manfiy bo'lishi mumkin emas"));
+        }
+        if (newQuantity != null && newQuantity.signum() <= 0) {
+            return ResponseEntity.badRequest().body(Map.of("message", "Miqdor musbat bo'lishi shart"));
+        }
+
         autoClaimForSexWorker(order);
 
         if (request.containsKey("name")) {
             item.setName(request.get("name").toString());
         }
-        if (request.containsKey("length")) {
-            item.setLength(new BigDecimal(request.get("length").toString()));
+        if (newLength != null) {
+            item.setLength(newLength);
         }
-        if (request.containsKey("width")) {
-            item.setWidth(new BigDecimal(request.get("width").toString()));
+        if (newWidth != null) {
+            item.setWidth(newWidth);
         }
-        if (request.containsKey("quantity")) {
-            item.setQuantity(new BigDecimal(request.get("quantity").toString()));
+        if (newQuantity != null) {
+            item.setQuantity(newQuantity);
         }
         if (request.containsKey("price")) {
-            item.setPrice(new BigDecimal(request.get("price").toString()));
+            // null yuborilsa - qo'lda narx olib tashlanadi va avtomatik hisobga qaytadi.
+            item.setPrice(newPrice);
         }
         if (request.containsKey("status")) {
             item.setStatus(request.get("status").toString());

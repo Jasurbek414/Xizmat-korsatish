@@ -10,4 +10,5 @@ import java.util.UUID;
 public interface SalaryRepository extends JpaRepository<Salary, UUID> {
     List<Salary> findByCompanyId(UUID companyId);
     boolean existsByUserId(UUID userId);
+    java.util.Optional<Salary> findByPaymentTransactionId(UUID paymentTransactionId);
 }

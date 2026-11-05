@@ -96,8 +96,17 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                             return;
                         }
 
+                        // MUHIM (2026-10-05 audit): rol avval TOKENDAGI "role" claim'idan
+                        // olinardi. Token 10 kun yaroqli - shu sabab admin panelda xodimning
+                        // roli ADMIN'dan pasaytirilsa ham, uning eski tokeni hamon
+                        // "ROLE_ADMIN" berib, hasRole('ADMIN') bilan himoyalangan
+                        // endpointlarga (moliyani /reset qilish, rollarni tahrirlash, SIP
+                        // trunk sozlamalari) 10 kungacha kirib turardi. Foydalanuvchi qatori
+                        // shu yerda baribir bazadan o'qiladi - joriy (haqiqiy) rol ishlatiladi.
+                        String dbRole = userOpt.get().getRole();
+                        String effectiveRole = dbRole != null ? dbRole : role;
                         UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(
-                            username, null, List.of(new SimpleGrantedAuthority("ROLE_" + role))
+                            username, null, List.of(new SimpleGrantedAuthority("ROLE_" + effectiveRole))
                         );
                         authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
                         SecurityContextHolder.getContext().setAuthentication(authToken);

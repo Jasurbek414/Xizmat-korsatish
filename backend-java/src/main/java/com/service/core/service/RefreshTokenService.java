@@ -91,7 +91,17 @@ public class RefreshTokenService {
                     && existing.getLastUsedAt().isAfter(LocalDateTime.now().minusSeconds(ROTATION_GRACE_SECONDS));
             boolean notExpired = existing.getExpiresAt() != null
                     && existing.getExpiresAt().isAfter(LocalDateTime.now());
-            if (sameDevice && withinGrace && notExpired) {
+            // MUHIM (2026-10-05 audit, lokal sinovda tasdiqlangan): grace avval
+            // "revoked" sababidan qat'i nazar qo'llanardi. Chiqish (logout),
+            // xodimni bloklash yoki parol almashtirish (revokeAllForUser/
+            // revokeFamily) ham tokenni shunchaki revoked=true qiladi - va agar bu
+            // oxirgi foydalanishdan 30 s ichida bo'lsa, bekor qilingan token
+            // YANGI sessiya olib berardi (bekor qilish amalda ishlamasdi).
+            // Haqiqiy "parallel tab" holatida esa rotatsiya oilada amal
+            // qiluvchi VORIS sessiya qoldiradi - grace faqat shunda qo'llanadi.
+            boolean rotatedWithLiveSuccessor = sessionRepository
+                    .existsByFamilyIdAndRevokedFalseAndExpiresAtAfter(existing.getFamilyId(), LocalDateTime.now());
+            if (sameDevice && withinGrace && notExpired && rotatedWithLiveSuccessor) {
                 log.info("Parallel refresh dublikati (grace oynasida) - oila saqlanadi. Foydalanuvchi={}, oila={}",
                         existing.getUser() != null ? existing.getUser().getUsername() : "?", existing.getFamilyId());
                 return create(existing.getUser(), existing.getFamilyId(), request,

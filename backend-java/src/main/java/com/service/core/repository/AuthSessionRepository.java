@@ -17,6 +17,9 @@ public interface AuthSessionRepository extends JpaRepository<AuthSession, UUID> 
 
     List<AuthSession> findByUserIdAndRevokedFalseOrderByLastUsedAtDesc(UUID userId);
 
+    /** Oilada hali amal qiluvchi (rotatsiyadan keyingi voris) sessiya bormi. */
+    boolean existsByFamilyIdAndRevokedFalseAndExpiresAtAfter(UUID familyId, LocalDateTime now);
+
     /** O'g'irlik aniqlanganda butun oilani bir so'rovda bekor qilish. */
     @Modifying
     @Query("UPDATE AuthSession s SET s.revoked = true WHERE s.familyId = :familyId")

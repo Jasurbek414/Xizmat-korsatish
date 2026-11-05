@@ -3,9 +3,13 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:geolocator/geolocator.dart';
+import '../../../core/services/printer_service.dart';
+import '../../profile/screens/printer_settings_screen.dart';
 import '../../../core/theme.dart';
 import '../../../models/order.dart';
 import '../bloc/orders_cubit.dart';
+import '../order_zone.dart';
 import 'detail_common.dart';
 
 /// HAYDOVCHI zakaz tafsiloti - to'liq ishlovchi tugmalar bilan:
@@ -17,12 +21,14 @@ class DriverOrderDetailScreen extends StatefulWidget {
   final Order order;
   final List<OrderStatusInfo> statuses;
   final String currentUserId;
+  final bool autoCollectPayment;
 
   const DriverOrderDetailScreen({
     super.key,
     required this.order,
     required this.statuses,
     this.currentUserId = '',
+    this.autoCollectPayment = false,
   });
 
   @override
@@ -33,21 +39,42 @@ class DriverOrderDetailScreen extends StatefulWidget {
 class _DriverOrderDetailScreenState extends State<DriverOrderDetailScreen> {
   bool _isProcessing = false;
 
+  @override
+  void initState() {
+    super.initState();
+    if (widget.autoCollectPayment) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && order.paymentStatus == 'PENDING') {
+          _collectPayment();
+        }
+      });
+    }
+  }
+
+  Order get order {
+    try {
+      final state = context.read<OrdersCubit>().state;
+      if (state is OrdersLoaded) {
+        for (final o in state.orders) {
+          if (o.id == widget.order.id) return o;
+        }
+      }
+    } catch (_) {}
+    return widget.order;
+  }
+
   bool get _isMine =>
       widget.currentUserId.isNotEmpty &&
-      widget.order.workerId == widget.currentUserId;
+      order.workerId == widget.currentUserId;
 
-  Order get order => widget.order;
   List<OrderStatusInfo> get statuses => widget.statuses;
 
-  /// Tarix (o'tgan) buyurtma ekanligini tekshiradi — yakunlangan
-  /// yoki to'lov qilingan buyurtmalar tahrirlanmasligi kerak.
+  /// Tarix (o'tgan) buyurtma ekanligini tekshiradi — faqat to'lov qilingan
+  /// yoki bekor qilingan buyurtmalar yakunlangan hisoblanadi.
   bool get _isCompleted {
-    final sorted = [...statuses]..sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
-    final lastId = sorted.isNotEmpty ? sorted.last.id : null;
-    final atLast = lastId != null && order.status?.id == lastId;
     final paid = order.paymentStatus.isNotEmpty && order.paymentStatus != 'PENDING';
-    return atLast || paid;
+    final isCancelled = order.status?.nameUz.toLowerCase().contains('bekor') == true;
+    return paid || isCancelled;
   }
 
   Future<void> _call(String phone) async {
@@ -70,6 +97,110 @@ class _DriverOrderDetailScreenState extends State<DriverOrderDetailScreen> {
     }
     if (await canLaunchUrl(uri)) {
       await launchUrl(uri, mode: LaunchMode.externalApplication);
+    }
+  }
+
+  bool _savingLocation = false;
+
+  Future<void> _saveCurrentLocation() async {
+    setState(() => _savingLocation = true);
+    try {
+      bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content: Text('GPS o\'chiq. Iltimos, joylashuv xizmatini yoqing'),
+            backgroundColor: AppTheme.amber,
+            behavior: SnackBarBehavior.floating,
+          ));
+        }
+        await Geolocator.openLocationSettings();
+        return;
+      }
+
+      LocationPermission permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+        if (permission == LocationPermission.denied) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+              content: Text('Joylashuvga ruxsat berilmadi'),
+              backgroundColor: AppTheme.dangerColor,
+              behavior: SnackBarBehavior.floating,
+            ));
+          }
+          return;
+        }
+      }
+
+      if (permission == LocationPermission.deniedForever) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content: Text('Joylashuv ruxsati butunlay bloklangan, sozlamalardan ruxsat bering'),
+            backgroundColor: AppTheme.dangerColor,
+            behavior: SnackBarBehavior.floating,
+          ));
+        }
+        await Geolocator.openAppSettings();
+        return;
+      }
+
+      final position = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.high,
+        timeLimit: const Duration(seconds: 15),
+      );
+
+      await context.read<OrdersCubit>().updateOrderLocation(
+        order,
+        position.latitude,
+        position.longitude,
+      );
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Row(children: [
+            Icon(LucideIcons.mapPin, color: Colors.white, size: 18),
+            SizedBox(width: 8),
+            Text('Mijoz lokatsiyasi saqlandi va platformaga yuborildi!',
+                style: TextStyle(fontWeight: FontWeight.w600)),
+          ]),
+          backgroundColor: AppTheme.green,
+          behavior: SnackBarBehavior.floating,
+        ));
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('Lokatsiyani olishda xatolik: $e'),
+          backgroundColor: AppTheme.dangerColor,
+          behavior: SnackBarBehavior.floating,
+        ));
+      }
+    } finally {
+      if (mounted) setState(() => _savingLocation = false);
+    }
+  }
+
+  Future<void> _printReceipt() async {
+    final printed = await BluetoothPrinterService().printOrderReceipt(
+      order,
+      paidAmount: order.collectedPrice > 0 ? order.collectedPrice : order.price,
+      driverName: widget.order.workerName,
+    ).timeout(const Duration(seconds: 4), onTimeout: () => false);
+    if (!printed && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: const Text('Printer ulanmagan. Sozlamalardan printerni ulang'),
+        backgroundColor: AppTheme.amber,
+        action: SnackBarAction(
+          label: 'Sozlash',
+          textColor: Colors.white,
+          onPressed: () => Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const PrinterSettingsScreen()),
+          ),
+        ),
+        behavior: SnackBarBehavior.floating,
+      ));
     }
   }
 
@@ -423,10 +554,40 @@ class _DriverOrderDetailScreenState extends State<DriverOrderDetailScreen> {
     }
   }
 
+  double _getItemArea(OrderItemInfo item) {
+    return item.width * item.length * (item.quantity > 0 ? item.quantity : 1);
+  }
+
+  double _getItemPrice(OrderItemInfo item) {
+    if (item.price != null && item.price! > 0) {
+      return item.price!;
+    }
+    final area = _getItemArea(item);
+    if (order.servicePrice > 0 && area > 0) {
+      return area * order.servicePrice;
+    }
+    return 0;
+  }
+
   Future<void> _collectPayment() async {
-    final amountCtrl = TextEditingController(
-        text: order.price.toStringAsFixed(0));
     final formatter = NumberFormat.decimalPattern('uz');
+
+    // Jami miqdor va maydonlarni hisoblash
+    int totalCount = 0;
+    double totalArea = 0;
+    double calculatedTotal = 0;
+    for (final item in order.items) {
+      totalCount += item.quantity;
+      final area = _getItemArea(item);
+      totalArea += area;
+      calculatedTotal += _getItemPrice(item);
+    }
+    final effectivePrice = order.price > 0 ? order.price : calculatedTotal;
+    final amountCtrl = TextEditingController(
+        text: effectivePrice > 0 ? effectivePrice.toStringAsFixed(0) : '');
+
+    final printerService = BluetoothPrinterService();
+    final isPrinterConnected = printerService.isConnected;
 
     final confirmed = await showDialog<bool>(
       context: context,
@@ -434,31 +595,213 @@ class _DriverOrderDetailScreenState extends State<DriverOrderDetailScreen> {
         backgroundColor: Theme.of(context).cardColor,
         shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(18)),
-        title: const Text("To'lovni qabul qilish",
-            style: TextStyle(
-                fontWeight: FontWeight.w700, fontSize: 16)),
-        content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-          Text(
-              'Buyurtma summasi: ${formatter.format(order.price)} so\'m',
-              style: const TextStyle(
-                  color: AppTheme.textSecondary, fontSize: 13)),
-          const SizedBox(height: 12),
-          TextField(
-            controller: amountCtrl,
-            keyboardType: TextInputType.number,
-            decoration: const InputDecoration(
-              labelText: "Olingan summa (so'm)",
-              prefixIcon:
-                  Icon(LucideIcons.wallet, size: 18),
-              suffixText: "so'm",
+        title: Row(
+          children: [
+            Container(
+              width: 32,
+              height: 32,
+              decoration: BoxDecoration(
+                color: AppTheme.greenSoft,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Icon(LucideIcons.wallet, size: 18, color: AppTheme.green),
             ),
-            style: const TextStyle(
-                fontSize: 14, fontWeight: FontWeight.w600),
+            const SizedBox(width: 10),
+            const Expanded(
+              child: Text(
+                "To'lovni qabul qilish",
+                style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
+              ),
+            ),
+          ],
+        ),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              maxHeight: MediaQuery.of(context).size.height * 0.65,
+            ),
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Gilamlar ro'yxati
+                  if (order.items.isNotEmpty) ...[
+                    const Text(
+                      'BUYURTMA GILAMLARI',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        color: AppTheme.textSecondary,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Container(
+                      decoration: BoxDecoration(
+                        color: AppTheme.bg.withOpacity(0.5),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: AppTheme.borderColor),
+                      ),
+                      child: ListView.separated(
+                        shrinkWrap: true,
+                        physics: const NeverScrollableScrollPhysics(),
+                        itemCount: order.items.length,
+                        separatorBuilder: (_, __) => Divider(height: 1, color: AppTheme.borderColor.withOpacity(0.5)),
+                        itemBuilder: (ctx, i) {
+                          final item = order.items[i];
+                          final area = _getItemArea(item);
+                          final price = _getItemPrice(item);
+
+                          return Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  '${i + 1}.',
+                                  style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12, color: AppTheme.textMuted),
+                                ),
+                                const SizedBox(width: 6),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        item.name.isEmpty ? 'Gilam' : item.name,
+                                        style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+                                      ),
+                                      const SizedBox(height: 2),
+                                      Wrap(
+                                        spacing: 4,
+                                        children: [
+                                          if (item.width > 0 && item.length > 0) ...[
+                                            Text(
+                                              '${item.width.toStringAsFixed(1)}×${item.length.toStringAsFixed(1)}m',
+                                              style: const TextStyle(fontSize: 11, color: AppTheme.textSecondary),
+                                            ),
+                                            const Text('•', style: TextStyle(fontSize: 11, color: AppTheme.textMuted)),
+                                            Text(
+                                              '${area.toStringAsFixed(2)} m²',
+                                              style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppTheme.primary),
+                                            ),
+                                            const Text('•', style: TextStyle(fontSize: 11, color: AppTheme.textMuted)),
+                                          ],
+                                          Text(
+                                            '${item.quantity} ta',
+                                            style: const TextStyle(fontSize: 11, color: AppTheme.textSecondary),
+                                          ),
+                                        ],
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                if (price > 0)
+                                  Text(
+                                    '${formatter.format(price)} so\'m',
+                                    style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12, color: AppTheme.green),
+                                  ),
+                              ],
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                  ],
+
+                  // Jami hisob-kitob kartasi (3 ta metrika)
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: AppTheme.primary.withOpacity(0.08),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: AppTheme.primary.withOpacity(0.2)),
+                    ),
+                    child: Column(
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            const Text('Jami gilamlar soni:', style: TextStyle(fontSize: 12, color: AppTheme.textSecondary)),
+                            Text('$totalCount ta', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
+                          ],
+                        ),
+                        if (totalArea > 0) ...[
+                          const SizedBox(height: 4),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              const Text('Jami maydon:', style: TextStyle(fontSize: 12, color: AppTheme.textSecondary)),
+                              Text('${totalArea.toStringAsFixed(2)} m²', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: AppTheme.primary)),
+                            ],
+                          ),
+                        ],
+                        const SizedBox(height: 4),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            const Text('Buyurtma summasi:', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700)),
+                            Text('${formatter.format(effectivePrice)} so\'m', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: AppTheme.green)),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  const SizedBox(height: 14),
+
+                  // Olingan summa kiritish
+                  TextField(
+                    controller: amountCtrl,
+                    keyboardType: TextInputType.number,
+                    decoration: const InputDecoration(
+                      labelText: "Olingan summa (so'm)",
+                      hintText: "0",
+                      prefixIcon: Icon(LucideIcons.banknote, size: 18),
+                      suffixText: "so'm",
+                    ),
+                    style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+                  ),
+
+                  const SizedBox(height: 10),
+
+                  // Printer holati belgisi
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: isPrinterConnected ? AppTheme.greenSoft : AppTheme.bg,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          LucideIcons.printer,
+                          size: 14,
+                          color: isPrinterConnected ? AppTheme.green : AppTheme.textMuted,
+                        ),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Text(
+                            isPrinterConnected
+                                ? 'Printer ulangan (${printerService.connectedName ?? "Bluetooth"}). Avtomatik chek chiqadi.'
+                                : 'Printer ulanmagan (Chek chiqarish uchun sozlang)',
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: isPrinterConnected ? AppTheme.green : AppTheme.textMuted,
+                              fontWeight: isPrinterConnected ? FontWeight.w600 : FontWeight.normal,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ),
-        ]),
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(dctx, false),
@@ -468,11 +811,11 @@ class _DriverOrderDetailScreenState extends State<DriverOrderDetailScreen> {
                         ? AppTheme.darkTextSecondaryColor
                         : AppTheme.textSecondary)),
           ),
-          FilledButton(
-            style: FilledButton.styleFrom(
-                backgroundColor: AppTheme.green),
+          FilledButton.icon(
+            style: FilledButton.styleFrom(backgroundColor: AppTheme.green),
             onPressed: () => Navigator.pop(dctx, true),
-            child: const Text('Tasdiqlash'),
+            icon: const Icon(LucideIcons.check, size: 16),
+            label: const Text('To\'lovni tasdiqlash'),
           ),
         ],
       ),
@@ -493,6 +836,7 @@ class _DriverOrderDetailScreenState extends State<DriverOrderDetailScreen> {
       await context
           .read<OrdersCubit>()
           .collectOrderPayment(order, amount);
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
           content: Row(children: [
@@ -506,6 +850,15 @@ class _DriverOrderDetailScreenState extends State<DriverOrderDetailScreen> {
           behavior: SnackBarBehavior.floating,
         ));
         Navigator.pop(context);
+      }
+
+      // Agar avtomatik chek yoqilgan bo'lsa, printerga fonda yuboramiz (UI'ni kutdirmaydi)
+      if (BluetoothPrinterService().autoPrintEnabled) {
+        BluetoothPrinterService().printOrderReceipt(
+          order,
+          paidAmount: amount,
+          driverName: widget.order.workerName,
+        ).timeout(const Duration(seconds: 3), onTimeout: () => false).catchError((_) => false);
       }
     } catch (e) {
       if (mounted) {
@@ -594,32 +947,69 @@ class _DriverOrderDetailScreenState extends State<DriverOrderDetailScreen> {
 
   /// Har bir gilam qatori - tarixda faqat ma'lumot, aktiv buyurtmada bosiladigan
   Widget _carpetRow(int i, OrderItemInfo item) {
+    final area = _getItemArea(item);
+    final price = _getItemPrice(item);
+    final formatter = NumberFormat.decimalPattern('uz');
+
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         decoration: BoxDecoration(
-          color: AppTheme.bg.withOpacity(0.3),
+          color: Theme.of(context).cardColor,
           borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: AppTheme.borderColor.withOpacity(0.6)),
         ),
         child: InkWell(
           onTap: _isCompleted ? null : () => _showCarpetOptions(item),
           borderRadius: BorderRadius.circular(12),
           child: Row(children: [
             Container(
-              width: 40, height: 40,
-              decoration: BoxDecoration(color: AppTheme.bg, borderRadius: BorderRadius.circular(9)),
-              child: Icon(_isCompleted ? LucideIcons.checkCircle : LucideIcons.layers, size: 18, color: _isCompleted ? AppTheme.green : AppTheme.textMuted),
+              width: 36, height: 36,
+              decoration: BoxDecoration(
+                color: AppTheme.primary.withOpacity(0.08),
+                borderRadius: BorderRadius.circular(9),
+              ),
+              child: Center(
+                child: Text(
+                  '${i + 1}',
+                  style: const TextStyle(fontWeight: FontWeight.w700, color: AppTheme.primary, fontSize: 13),
+                ),
+              ),
             ),
             const SizedBox(width: 10),
             Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text(item.name.isEmpty ? 'Gilam ${i + 1}' : item.name,
-                  style: const TextStyle(color: AppTheme.textPrimary, fontWeight: FontWeight.w700, fontSize: 13)),
-              Text('${item.quantity} ta - ${_sizeLabel(item)}',
-                  style: const TextStyle(color: AppTheme.textSecondary, fontSize: 11)),
+                  style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+              const SizedBox(height: 2),
+              Wrap(spacing: 4, children: [
+                if (item.width > 0 && item.length > 0) ...[
+                  Text(
+                    '${item.width.toStringAsFixed(1)}×${item.length.toStringAsFixed(1)}m',
+                    style: const TextStyle(fontSize: 11, color: AppTheme.textSecondary),
+                  ),
+                  const Text('•', style: TextStyle(fontSize: 11, color: AppTheme.textMuted)),
+                  Text(
+                    '${area.toStringAsFixed(2)} m²',
+                    style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppTheme.primary),
+                  ),
+                  const Text('•', style: TextStyle(fontSize: 11, color: AppTheme.textMuted)),
+                ],
+                Text(
+                  '${item.quantity} ta',
+                  style: const TextStyle(fontSize: 11, color: AppTheme.textSecondary),
+                ),
+              ]),
             ])),
-            if (!_isCompleted)
+            if (price > 0)
+              Text(
+                '${formatter.format(price)} so\'m',
+                style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12, color: AppTheme.green),
+              ),
+            if (!_isCompleted) ...[
+              const SizedBox(width: 6),
               const Icon(LucideIcons.chevronRight, size: 16, color: AppTheme.textMuted),
+            ],
           ]),
         ),
       ),
@@ -643,6 +1033,14 @@ class _DriverOrderDetailScreenState extends State<DriverOrderDetailScreen> {
                 fontWeight: FontWeight.w700,
                 color: Colors.white)),
         actions: [
+          IconButton(
+            tooltip: 'Chek printeri',
+            icon: const Icon(LucideIcons.printer),
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const PrinterSettingsScreen()),
+            ),
+          ),
           IconButton(
             onPressed: () => _call(widget.order.client.phone),
             icon: const Icon(LucideIcons.phone),
@@ -686,6 +1084,123 @@ class _DriverOrderDetailScreenState extends State<DriverOrderDetailScreen> {
               ),
               const SizedBox(height: 12),
 
+              // Mijoz Lokatsiyasi (GPS)
+              DetailPanel(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          width: 28,
+                          height: 28,
+                          decoration: BoxDecoration(
+                            color: (o.latitude != null && o.longitude != null)
+                                ? AppTheme.greenSoft
+                                : AppTheme.primary.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(7),
+                          ),
+                          child: Icon(
+                            LucideIcons.mapPin,
+                            size: 15,
+                            color: (o.latitude != null && o.longitude != null)
+                                ? AppTheme.green
+                                : AppTheme.primary,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          (o.latitude != null && o.longitude != null)
+                              ? 'Mijoz lokatsiyasi saqlangan'
+                              : 'Mijoz lokatsiyasi',
+                          style: TextStyle(
+                            color: (o.latitude != null && o.longitude != null)
+                                ? AppTheme.green
+                                : AppTheme.textPrimary,
+                            fontWeight: FontWeight.w700,
+                            fontSize: 14,
+                          ),
+                        ),
+                        const Spacer(),
+                        if (o.latitude != null && o.longitude != null)
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: AppTheme.greenSoft,
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: const Text('✓ Saqlangan', style: TextStyle(fontSize: 10, color: AppTheme.green, fontWeight: FontWeight.w700)),
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    if (o.latitude != null && o.longitude != null) ...[
+                      Text(
+                        'Koordinatalar: ${o.latitude!.toStringAsFixed(5)}, ${o.longitude!.toStringAsFixed(5)}',
+                        style: const TextStyle(fontSize: 12, color: AppTheme.textSecondary),
+                      ),
+                      const SizedBox(height: 10),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: OutlinedButton.icon(
+                              onPressed: _openMap,
+                              icon: const Icon(LucideIcons.navigation, size: 16),
+                              label: const Text('Xaritada ochish', style: TextStyle(fontSize: 12)),
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: AppTheme.primary,
+                                padding: const EdgeInsets.symmetric(vertical: 8),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: OutlinedButton.icon(
+                              onPressed: _savingLocation ? null : _saveCurrentLocation,
+                              icon: _savingLocation
+                                  ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2))
+                                  : const Icon(LucideIcons.refreshCw, size: 16),
+                              label: const Text('Yangilash', style: TextStyle(fontSize: 12)),
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: AppTheme.textSecondary,
+                                padding: const EdgeInsets.symmetric(vertical: 8),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ] else ...[
+                      const Text(
+                        'Mijoz oldiga borganda "Lokatsiyani saqlash"ni bosing. Bu platformada saqlanadi va qayta yetkazish yoki yangi buyurtmalarda ishlatiladi.',
+                        style: TextStyle(fontSize: 12, color: AppTheme.textMuted),
+                      ),
+                      const SizedBox(height: 10),
+                      SizedBox(
+                        width: double.infinity,
+                        child: FilledButton.icon(
+                          onPressed: _savingLocation ? null : _saveCurrentLocation,
+                          icon: _savingLocation
+                              ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                              : const Icon(LucideIcons.crosshair, size: 18),
+                          label: Text(
+                            _savingLocation ? 'GPS aniqlanmoqda...' : 'Mijoz lokatsiyasini saqlash (GPS)',
+                            style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+                          ),
+                          style: FilledButton.styleFrom(
+                            backgroundColor: AppTheme.primary,
+                            padding: const EdgeInsets.symmetric(vertical: 10),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              const SizedBox(height: 12),
+
               // Description
               if (o.description.isNotEmpty) ...[
                 DetailPanel(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -711,6 +1226,56 @@ class _DriverOrderDetailScreenState extends State<DriverOrderDetailScreen> {
                     ]),
                     const SizedBox(height: 8),
                     ...o.items.asMap().entries.map((e) => _carpetRow(e.key, e.value)),
+                    const SizedBox(height: 10),
+                    Builder(builder: (ctx) {
+                      int totalCount = 0;
+                      double totalArea = 0;
+                      double calculatedTotal = 0;
+                      for (final it in o.items) {
+                        totalCount += it.quantity;
+                        final a = _getItemArea(it);
+                        totalArea += a;
+                        calculatedTotal += _getItemPrice(it);
+                      }
+                      final effPrice = o.price > 0 ? o.price : calculatedTotal;
+                      return Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                        decoration: BoxDecoration(
+                          color: AppTheme.primary.withOpacity(0.06),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: AppTheme.primary.withOpacity(0.15)),
+                        ),
+                        child: Row(
+                          children: [
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text('Jami soni', style: TextStyle(fontSize: 10, color: AppTheme.textSecondary)),
+                                Text('$totalCount ta', style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+                              ],
+                            ),
+                            if (totalArea > 0) ...[
+                              Container(margin: const EdgeInsets.symmetric(horizontal: 12), width: 1, height: 24, color: AppTheme.borderColor),
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text('Jami maydon', style: TextStyle(fontSize: 10, color: AppTheme.textSecondary)),
+                                  Text('${totalArea.toStringAsFixed(2)} m²', style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: AppTheme.primary)),
+                                ],
+                              ),
+                            ],
+                            const Spacer(),
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.end,
+                              children: [
+                                const Text('Umumiy summa', style: TextStyle(fontSize: 10, color: AppTheme.textSecondary)),
+                                Text('${formatter.format(effPrice)} so\'m', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13, color: AppTheme.green)),
+                              ],
+                            ),
+                          ],
+                        ),
+                      );
+                    }),
                   ]),
                 ),
                 const SizedBox(height: 8),
@@ -787,6 +1352,21 @@ class _DriverOrderDetailScreenState extends State<DriverOrderDetailScreen> {
                 style: AppTheme.text(14, weight: FontWeight.w700, color: AppTheme.green)),
           ]),
         ),
+        const SizedBox(height: 10),
+        SizedBox(
+          width: double.infinity,
+          child: OutlinedButton.icon(
+            onPressed: _printReceipt,
+            icon: const Icon(LucideIcons.printer, size: 18),
+            label: const Text('Chek chiqarish'),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: AppTheme.primary,
+              side: const BorderSide(color: AppTheme.primary),
+              padding: const EdgeInsets.symmetric(vertical: 14),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+            ),
+          ),
+        ),
       ];
     }
 
@@ -845,7 +1425,7 @@ class _DriverOrderDetailScreenState extends State<DriverOrderDetailScreen> {
       ];
     }
 
-    // Case 2: My order - show remaining status steps
+    // Case 2: My order
     final sorted = [...statuses]
       ..sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
     final idx =
@@ -854,18 +1434,64 @@ class _DriverOrderDetailScreenState extends State<DriverOrderDetailScreen> {
         ? <OrderStatusInfo>[]
         : sorted.sublist(idx + 1);
 
+    final zoneBoundary = OrderZoneBoundary.fromStatuses(sorted);
+    final isInDeliveryZone = zoneBoundary.isDelivery(order);
+
+    // Agar delivery (yetkazish) zonasida bo'lsa yoki oxirgi statusda bo'lsa va to'lanmagan bo'lsa:
+    // TO'LOVNI QABUL QILISH TUGMASI birinchi o'rinda chiqadi!
+    if (order.paymentStatus == 'PENDING' && (isInDeliveryZone || remaining.isEmpty)) {
+      final widgets = <Widget>[
+        SizedBox(
+          width: double.infinity,
+          child: FilledButton.icon(
+            onPressed: _collectPayment,
+            style: FilledButton.styleFrom(
+              backgroundColor: AppTheme.green,
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14)),
+            ),
+            icon: const Icon(LucideIcons.wallet, size: 20),
+            label: const Text("To'lovni qabul qilish",
+                style: TextStyle(
+                    fontWeight: FontWeight.w700, fontSize: 16)),
+          ),
+        ),
+      ];
+
+      // Agar yetkazish ichida keyingi oraliq status qolgan bo'lsa:
+      if (remaining.isNotEmpty) {
+        widgets.add(const SizedBox(height: 10));
+        widgets.add(
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: () => _advanceToStatus(
+                  remaining[0].id, remaining[0].nameUz),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppTheme.blue,
+                side: const BorderSide(color: AppTheme.blue),
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14)),
+              ),
+              icon: const Icon(LucideIcons.arrowRight, size: 18),
+              label: Text('${remaining[0].nameUz} bosqichiga o\'tkazish',
+                  style: const TextStyle(
+                      fontWeight: FontWeight.w600, fontSize: 14)),
+            ),
+          ),
+        );
+      }
+
+      return widgets;
+    }
+
     if (remaining.isNotEmpty) {
-      // Birinchi bosqichdan chiqish = gilamni JISMONAN sexga topshirish
-      // (buyurtma shu daqiqadan boshlab haydovchi ro'yxatidan sex hodimiga
-      // o'tadi). Avval bu tugma "Qabul qilish" deb nomlangan edi - bu
-      // chalkash edi, chunki haydovchi buyurtmani allaqachon qabul qilgan
-      // (biriktirgan) bo'ladi; bu tugma esa butunlay boshqa hodisani -
-      // sexga topshirishni bildiradi.
       final isFirstStep = sorted.isNotEmpty && sorted.first.id == order.status?.id;
       final primaryLabel = isFirstStep ? "Sexga topshirish" : remaining[0].nameUz;
-      final widgets = <Widget>[
-        // Primary action - next step
-        Container(
+      return [
+        SizedBox(
           width: double.infinity,
           child: FilledButton.icon(
             onPressed: () => _advanceToStatus(
@@ -898,20 +1524,9 @@ class _DriverOrderDetailScreenState extends State<DriverOrderDetailScreen> {
           ],
         ),
       ];
-
-      // MUHIM (xavfsizlik/mantiq xatosi, audit'da topilgan): avval shu yerda
-      // IKKINCHI ("remaining[1]") tugma ham ko'rsatilardi - bu haydovchiga
-      // BIR TEGISHDA IKKI bosqichni birdan o'tkazib yuborish imkonini
-      // berardi (masalan "Yuvilmoqda"dan to'g'ridan-to'g'ri "Tugallandi"ga,
-      // "Bajarilmoqda" bosqichini butunlay chetlab o'tib). Aynan shu sabab
-      // haydovchi sex hodimi hech qanday ishlov bermasdan turib buyurtmani
-      // o'zi yakunlab qo'ya olardi. Endi haydovchi HAR DOIM faqat BITTA
-      // KEYINGI bosqichga o'ta oladi - sakrab o'tish yo'q.
-
-      return widgets;
     }
 
-    // Case 3: Final status - collect payment or completed
+    // Case 3: To'lov kutilmoqda
     if (order.paymentStatus == 'PENDING') {
       return [
         SizedBox(
@@ -927,7 +1542,7 @@ class _DriverOrderDetailScreenState extends State<DriverOrderDetailScreen> {
             icon: const Icon(LucideIcons.wallet, size: 20),
             label: const Text("To'lovni qabul qilish",
                 style: TextStyle(
-                    fontWeight: FontWeight.w700, fontSize: 15)),
+                    fontWeight: FontWeight.w700, fontSize: 16)),
           ),
         ),
       ];

@@ -124,6 +124,16 @@ const Employees = ({ tab }) => {
           hire_date: payload.hire_date
         });
 
+        // 2026-10-05 (jonli xato: "xodim login paroli ishlamayapti"): tahrirlash
+        // oynasidagi parol avval HECH QAYERGA yuborilmasdi - PUT /employees/{id}
+        // parolni qabul qilmaydi, resetEmployeePassword esa umuman chaqirilmasdi.
+        // Admin "yangi parol qo'ydim" deb o'ylardi, xodim esa u bilan kira
+        // olmasdi (eski parol amal qilishda davom etardi). Endi yangi parol
+        // yozilgan bo'lsa, alohida endpoint orqali haqiqatan saqlanadi.
+        if (payload.password) {
+          await api.resetEmployeePassword(payload.id, payload.password);
+        }
+
         const updatedUsers = users.map(u => u.id === payload.id ? {
           id: saved.id,
           username: saved.username,

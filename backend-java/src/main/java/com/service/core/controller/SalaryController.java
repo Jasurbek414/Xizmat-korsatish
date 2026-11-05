@@ -84,6 +84,11 @@ public class SalaryController {
      * xodimlar qayta o'tkazib yuboriladi (dublikat oldini olish uchun).
      */
     @PostMapping("/generate")
+    // 2026-10-05 audit: tranzaksiyasiz edi - sikl o'rtasida xato bo'lsa (masalan
+    // bitta xodimda), oldingi xodimlarga oylik yozilib qolib, keyingilariga
+    // yozilmasdi; qayta bosilganda esa "allaqachon bor" deb o'tkazib yuborilib,
+    // holat aralash qolardi. Endi hammasi yoki hech biri.
+    @Transactional
     public ResponseEntity<?> generatePayroll(@RequestBody(required = false) Map<String, String> request) {
         String tenantId = TenantContext.getCurrentTenant();
         if (tenantId == null) {
@@ -91,7 +96,7 @@ public class SalaryController {
         }
         UUID companyId = UUID.fromString(tenantId);
         Company company = companyRepository.findById(companyId)
-                .orElseThrow(() -> new RuntimeException("Kompaniya topilmadi"));
+                .orElseThrow(() -> new org.springframework.web.server.ResponseStatusException(HttpStatus.NOT_FOUND, "Kompaniya topilmadi"));
 
         String periodStr = request != null ? request.get("pay_period") : null;
         LocalDate payPeriod;
@@ -144,7 +149,12 @@ public class SalaryController {
         for (User u : eligible) {
             BigDecimal commission = BigDecimal.ZERO;
             if ("WORKER_DRIVER".equalsIgnoreCase(u.getRole()) && finalStatusId != null) {
-                List<Order> workerOrders = orderRepository.findByCompanyIdAndWorkerId(companyId, u.getId());
+                // MUHIM (2026-10-05 audit): avval findByCompanyIdAndWorkerId edi.
+                // `worker` - buyurtmaning "HOZIRGI egasi": admin buyurtmani keyin
+                // sex hodimiga yoki boshqa xodimga qayta tayinlasa (updateWorker),
+                // gilamni haqiqatan olib kelgan haydovchi komissiyasini butunlay
+                // yo'qotardi. Haydovchi endi doimiy `driver` maydoni bo'yicha olinadi.
+                List<Order> workerOrders = orderRepository.findDriverOrdersForCommission(companyId, u.getId());
                 BigDecimal completedTotal = workerOrders.stream()
                         .filter(o -> o.getStatus() != null && finalStatusId.equals(o.getStatus().getId()))
                         .filter(o -> o.getCreatedAt() != null && YearMonth.from(o.getCreatedAt()).equals(payYearMonth))
@@ -211,6 +221,17 @@ public class SalaryController {
                 .add(salary.getBonus() != null ? salary.getBonus() : BigDecimal.ZERO)
                 .subtract(salary.getDeductions() != null ? salary.getDeductions() : BigDecimal.ZERO)
                 .subtract(salary.getAttendanceDeduction() != null ? salary.getAttendanceDeduction() : BigDecimal.ZERO);
+
+        // 2026-10-05 audit: avanslar oylikdan oshib ketsa net manfiy chiqadi va
+        // avval MANFIY "EXPENSE" tranzaksiya yozilardi - bu Moliya balansini
+        // sun'iy OSHIRARDI (go'yo xodim pul qaytargandek), aslida esa hech
+        // qanday pul kelmagan. Bunday holatni admin o'zi hal qilishi kerak
+        // (avansni kamaytirish yoki qarz sifatida qayd etish).
+        if (netAmount.compareTo(BigDecimal.ZERO) < 0) {
+            return ResponseEntity.badRequest().body(Map.of("message",
+                    "Avans/chegirmalar oylikdan oshib ketgan (to'lanadigan summa manfiy: " + netAmount.toPlainString()
+                            + "). Avval chegirmani tuzating."));
+        }
 
         User currentUser = getCurrentUser();
         // Register EXPENSE transaction
@@ -288,6 +309,14 @@ public class SalaryController {
         Salary salary = salaryRepository.findById(id).orElse(null);
         if (salary == null || !salary.getCompany().getId().equals(UUID.fromString(tenantId))) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("message", "Maosh hisobi topilmadi"));
+        }
+        // MUHIM (2026-10-05 audit): bonus/chegirma olib tashlash endpointlari PAID
+        // hisobni rad etardi, lekin AVANS QO'SHISH rad etmasdi. To'langan oyga avans
+        // qo'shilsa - Moliyaga yana EXPENSE yoziladi (pul ikkinchi marta chiqadi),
+        // oylik esa allaqachon to'liq summada to'langan - xodim ortiqcha pul oladi.
+        if ("PAID".equalsIgnoreCase(salary.getStatus())) {
+            return ResponseEntity.badRequest().body(Map.of("message",
+                    "To'langan oylikka avans qo'shib bo'lmaydi. Kerak bo'lsa avval to'lovni bekor qiling."));
         }
 
         // MUHIM (audit'da topilgan xato, tuzatildi): summa formati/ishorasi

@@ -44,12 +44,25 @@ const Telephony = ({ auth }) => {
   // ichki extension holati (bridgeStatus) dan FARQLI.
   const [trunkStatus, setTrunkStatus] = useState('UNKNOWN');
   const [sipSettings, setSipSettings] = useState(() => {
-    const saved = localStorage.getItem('sip_settings');
     const emptyDefaults = {
       server_ip: '', username: '', password: '', auth_username: '',
       local_port: '5060', ws_port: '8089', ws_server: '', engine: 'JSSIP',
     };
-    return saved ? { ...emptyDefaults, ...JSON.parse(saved) } : emptyDefaults;
+    // 2026-10-05 audit: (1) avval UzTelecom trunk PAROLI ham shu yerda
+    // localStorage'da ochiq matnda saqlanardi - brauzerdagi istalgan skript yoki
+    // shu kompyuterdan foydalangan boshqa odam uni o'qiy olardi. Parol endi
+    // saqlanmaydi (faqat ruxsati bor foydalanuvchiga backenddan olinadi);
+    // eski versiyada saqlangani ham shu yerda tashlab yuboriladi.
+    // (2) buzilgan JSON butun Telefoniya sahifasini yiqitardi.
+    try {
+      const saved = JSON.parse(localStorage.getItem('sip_settings') || 'null');
+      if (!saved) return emptyDefaults;
+      const rest = { ...saved };
+      delete rest.password;
+      return { ...emptyDefaults, ...rest };
+    } catch {
+      return emptyDefaults;
+    }
   });
 
   // Operatorning FreeSWITCH "internal" profilidagi shaxsiy ichki extension'i -
@@ -96,7 +109,7 @@ const Telephony = ({ auth }) => {
       // Haqiqiy parol faqat ADMIN/MANAGER/SUPERADMIN uchun (SipSettings formasi) -
       // DISPATCHER uchun 403, jim e'tiborsiz qoldiramiz (dial uchun kerak emas).
       try {
-        const credentials = await api.getSipAccountCredentials(first.id);
+        const credentials = await api.getSipAccountCredentials(first.id, { silent403: true });
         setSipSettings((prev) => ({ ...prev, password: credentials.password }));
       } catch (credErr) { /* ruxsat yo'q - kutilgan */ }
     } catch (err) {
@@ -341,13 +354,19 @@ const Telephony = ({ auth }) => {
       };
       // Mavjud trunk'ni YANGILAYMIZ (audit: "dublikat trunk" xatosi) - har safar
       // yangi qator yaratib, eskisini FreeSWITCH'da yetim qoldirmaymiz.
+      let savedId = sipSettings.id;
       if (sipSettings.id) {
         await api.updateSipAccount(sipSettings.id, payload);
       } else {
         const created = await api.createSipAccount(payload);
+        savedId = created.id;
         setSipSettings((prev) => ({ ...prev, id: created.id }));
       }
-      localStorage.setItem('sip_settings', JSON.stringify(sipSettings));
+      // Parolsiz saqlanadi (yuqoridagi useState izohiga qarang). Yangi yaratilgan
+      // trunk ID'si ham yoziladi - avval eski (ID'siz) holat saqlanib qolardi.
+      const toStore = { ...sipSettings, id: savedId };
+      delete toStore.password;
+      localStorage.setItem('sip_settings', JSON.stringify(toStore));
       showToast('Sip sozlamalari saqlandi!', 'success');
     } catch (err) {
       showToast('Sozlamalarni saqlashda xatolik: ' + err.message);

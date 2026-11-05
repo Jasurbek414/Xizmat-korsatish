@@ -83,7 +83,7 @@ public class BudgetController {
         Budget budget = budgetRepository.findByCompanyIdAndCategory(companyId, category).orElse(null);
         if (budget == null) {
             Company company = companyRepository.findById(companyId)
-                    .orElseThrow(() -> new RuntimeException("Kompaniya topilmadi"));
+                    .orElseThrow(() -> new org.springframework.web.server.ResponseStatusException(HttpStatus.NOT_FOUND, "Kompaniya topilmadi"));
             budget = Budget.builder().company(company).category(category).limitAmount(limit).build();
         } else {
             budget.setLimitAmount(limit);

@@ -92,6 +92,25 @@ public class GlobalExceptionHandler {
     }
 
     /**
+     * 2026-10-05 audit: so'rov tanasidagi noto'g'ri raqam (`new BigDecimal("abc")`,
+     * `Double.parseDouble`, `Integer.parseInt` - barchasi NumberFormatException,
+     * ya'ni IllegalArgumentException avlodi) yoki noto'g'ri UUID
+     * (`UUID.fromString`, `@PathVariable UUID`) avval zaxira handlerga tushib 500
+     * ("server buzuq") qaytarardi - aslida bu mijoz xatosi (400). Bunday parse
+     * chaqiruvlari kontrollerlarda o'nlab joyda bor (narx, o'lchov, koordinata,
+     * ID'lar) - har birini alohida try/catch qilish o'rniga shu yerda bir yo'la
+     * hal qilinadi. Ichki xabar (masalan "For input string") mijozga qaytarilmaydi.
+     */
+    @ExceptionHandler({IllegalArgumentException.class,
+            org.springframework.web.method.annotation.MethodArgumentTypeMismatchException.class})
+    public ResponseEntity<?> handleBadArgument(Exception e) {
+        log.warn("Noto'g'ri so'rov qiymati: {}", e.getMessage());
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of(
+                "message", "So'rovdagi qiymat noto'g'ri formatda (raqam, sana yoki ID)."
+        ));
+    }
+
+    /**
      * Boshqa hech qaysi handler ushlamagan har qanday kutilmagan xato uchun zaxira. Buni
      * qo'ymasak, Spring xatoni "/error"ga forward qiladi va yuqoridagi sinf izohida
      * tushuntirilgan sabab bilan chalkashtiruvchi 403 chiqadi - asl xato (masalan 500) emas.

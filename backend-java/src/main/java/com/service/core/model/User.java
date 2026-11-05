@@ -82,6 +82,11 @@ public class User implements UserDetails {
     @Column(name = "hire_date")
     private LocalDate hireDate;
 
+    // 2026-10-05 audit: avval JSON javobga chiqardi - /employees, /gps/drivers,
+    // buyurtmadagi worker/driver orqali har bir xodimning Firebase push tokeni
+    // 'mobile_team_view' huquqli istalgan hamkasbiga ko'rinardi. Hech bir mijoz
+    // uni o'qimaydi (faqat PUT /auth/fcm-token orqali YOZILADI).
+    @JsonIgnore
     @Column(name = "fcm_token", length = 255)
     private String fcmToken;
 

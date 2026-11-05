@@ -43,7 +43,7 @@ class OrderItemStageInfo {
   final String colorCode;
   final int sortOrder;
 
-  OrderItemStageInfo({
+  const OrderItemStageInfo({
     required this.id,
     required this.key,
     required this.nameUz,
@@ -56,7 +56,7 @@ class OrderItemStageInfo {
   factory OrderItemStageInfo.fromJson(Map<String, dynamic> json) {
     return OrderItemStageInfo(
       id: json['id'] ?? '',
-      key: json['stageKey'] ?? '',
+      key: json['stageKey'] ?? json['key'] ?? '',
       nameUz: json['nameUz'] ?? '',
       nameRu: json['nameRu'] ?? '',
       nameEn: json['nameEn'] ?? '',
@@ -65,6 +65,45 @@ class OrderItemStageInfo {
     );
   }
 }
+
+const List<OrderItemStageInfo> kDefaultItemStages = [
+  OrderItemStageInfo(
+    id: 'stage-accepted',
+    key: 'ACCEPTED',
+    nameUz: 'Qabul qilindi',
+    nameRu: 'Принят',
+    nameEn: 'Accepted',
+    colorCode: '#3B82F6',
+    sortOrder: 1,
+  ),
+  OrderItemStageInfo(
+    id: 'stage-washed',
+    key: 'WASHED',
+    nameUz: 'Yuvildi',
+    nameRu: 'Постиран',
+    nameEn: 'Washed',
+    colorCode: '#0284C7',
+    sortOrder: 2,
+  ),
+  OrderItemStageInfo(
+    id: 'stage-dried',
+    key: 'DRIED',
+    nameUz: 'Quritildi',
+    nameRu: 'Высушен',
+    nameEn: 'Dried',
+    colorCode: '#F59E0B',
+    sortOrder: 3,
+  ),
+  OrderItemStageInfo(
+    id: 'stage-ready',
+    key: 'READY',
+    nameUz: 'Tayyor',
+    nameRu: 'Готов',
+    nameEn: 'Ready',
+    colorCode: '#10B981',
+    sortOrder: 4,
+  ),
+];
 
 class OrderClientInfo {
   final String fullName;
@@ -96,6 +135,7 @@ class OrderItemInfo {
   final double width;
   final int quantity;
   final String status; // ACCEPTED, WASHED, DRIED, READY
+  final double? price;
 
   OrderItemInfo({
     required this.id,
@@ -104,6 +144,7 @@ class OrderItemInfo {
     required this.width,
     required this.quantity,
     required this.status,
+    this.price,
   });
 
   factory OrderItemInfo.fromJson(Map<String, dynamic> json) {
@@ -114,6 +155,7 @@ class OrderItemInfo {
       width: (json['width'] as num?)?.toDouble() ?? 0.0,
       quantity: (json['quantity'] as num?)?.toInt() ?? 1,
       status: json['status'] ?? 'ACCEPTED',
+      price: (json['price'] as num?)?.toDouble(),
     );
   }
 }

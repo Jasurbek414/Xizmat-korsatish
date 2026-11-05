@@ -23,12 +23,15 @@ public class RoleController {
     private final RoleRepository roleRepository;
     private final CompanyRepository companyRepository;
     private final RoleSeedService roleSeedService;
+    private final com.service.core.repository.UserRepository userRepository;
 
     public RoleController(RoleRepository roleRepository, CompanyRepository companyRepository,
-                           RoleSeedService roleSeedService) {
+                           RoleSeedService roleSeedService,
+                           com.service.core.repository.UserRepository userRepository) {
         this.roleRepository = roleRepository;
         this.companyRepository = companyRepository;
         this.roleSeedService = roleSeedService;
+        this.userRepository = userRepository;
     }
 
     @GetMapping("/permission-keys")
@@ -79,7 +82,7 @@ public class RoleController {
         }
 
         Company company = companyRepository.findById(companyId)
-                .orElseThrow(() -> new RuntimeException("Kompaniya topilmadi"));
+                .orElseThrow(() -> new org.springframework.web.server.ResponseStatusException(HttpStatus.NOT_FOUND, "Kompaniya topilmadi"));
 
         String key = "ROLE_" + System.currentTimeMillis();
         Role role = Role.builder()
@@ -135,6 +138,19 @@ public class RoleController {
         }
         if (role.isSystem()) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of("message", "Tizim rolini o'chirib bo'lmaydi"));
+        }
+
+        // 2026-10-05 audit: avval tekshiruvsiz o'chirilardi. users.role oddiy
+        // matn (FK emas) bo'lgani uchun baza to'sqinlik qilmasdi - natijada shu
+        // rolda ishlayotgan xodimlar uchun PermissionService.has() rolni topolmay
+        // HAR BIR so'rovga 403 qaytarardi, mobil ilova esa login paytida o'z
+        // rolini topolmasdi. Xodimlar jimgina "qulflanib" qolardi.
+        long usersWithRole = userRepository.findByCompanyIdAndRole(role.getCompany().getId(), role.getKey()).stream()
+                .filter(u -> !"DELETED".equalsIgnoreCase(u.getStatus()))
+                .count();
+        if (usersWithRole > 0) {
+            return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of("message",
+                    "Bu rolda " + usersWithRole + " ta xodim bor - avval ularni boshqa rolga o'tkazing."));
         }
 
         roleRepository.delete(role);

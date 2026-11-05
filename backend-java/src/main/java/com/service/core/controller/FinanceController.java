@@ -1,9 +1,12 @@
 package com.service.core.controller;
 
 import com.service.core.model.Company;
+import com.service.core.model.Order;
 import com.service.core.model.Transaction;
 import com.service.core.model.User;
 import com.service.core.repository.CompanyRepository;
+import com.service.core.repository.OrderRepository;
+import com.service.core.repository.SalaryRepository;
 import com.service.core.repository.TransactionRepository;
 import com.service.core.repository.UserRepository;
 import com.service.core.service.PermissionKeys;
@@ -29,13 +32,18 @@ public class FinanceController {
     private final CompanyRepository companyRepository;
     private final UserRepository userRepository;
     private final PermissionService permissionService;
+    private final OrderRepository orderRepository;
+    private final SalaryRepository salaryRepository;
 
     public FinanceController(TransactionRepository transactionRepository, CompanyRepository companyRepository,
-                              UserRepository userRepository, PermissionService permissionService) {
+                              UserRepository userRepository, PermissionService permissionService,
+                              OrderRepository orderRepository, SalaryRepository salaryRepository) {
         this.transactionRepository = transactionRepository;
         this.companyRepository = companyRepository;
         this.userRepository = userRepository;
         this.permissionService = permissionService;
+        this.orderRepository = orderRepository;
+        this.salaryRepository = salaryRepository;
     }
 
     private User getCurrentUser() {
@@ -102,9 +110,9 @@ public class FinanceController {
         UUID companyId = UUID.fromString(tenantId);
         List<Transaction> transactions;
         if (isScopedToOwnRecords()) {
-            transactions = transactionRepository.findByCompanyIdAndWorkerId(companyId, currentUser.getId());
+            transactions = transactionRepository.findByCompanyIdAndWorkerIdOrderByCreatedAtAsc(companyId, currentUser.getId());
         } else {
-            transactions = transactionRepository.findByCompanyIdAndStatus(companyId, "CONFIRMED");
+            transactions = transactionRepository.findByCompanyIdAndStatusOrderByCreatedAtAsc(companyId, "CONFIRMED");
         }
         return ResponseEntity.ok(transactions);
     }
@@ -126,8 +134,16 @@ public class FinanceController {
         String category = (String) request.get("category");
         String description = (String) request.get("description");
 
-        if (type == null || amountObj == null || category == null) {
+        if (type == null || amountObj == null || category == null || category.isBlank()) {
             return ResponseEntity.badRequest().body(Map.of("message", "Majburiy maydonlarni to'ldiring"));
+        }
+        // 2026-10-05 audit: tur tekshirilmasdi - "income" kichik harfda keladi
+        // (toUpperCase bilan tuzatilardi), lekin istalgan boshqa qiymat ("FOO",
+        // "TRANSFER") ham saqlanib, getStats() da na kirim, na chiqim sifatida
+        // hisoblanmay, jimgina balansdan "yo'qolib" qolardi.
+        type = type.trim().toUpperCase();
+        if (!"INCOME".equals(type) && !"EXPENSE".equals(type)) {
+            return ResponseEntity.badRequest().body(Map.of("message", "Tranzaksiya turi INCOME yoki EXPENSE bo'lishi kerak"));
         }
 
         // MUHIM (audit'da topilgan xato, tuzatildi): boshqa shu turdagi
@@ -146,7 +162,7 @@ public class FinanceController {
             return ResponseEntity.badRequest().body(Map.of("message", "Summa musbat bo'lishi shart"));
         }
         Company company = companyRepository.findById(UUID.fromString(tenantId))
-                .orElseThrow(() -> new RuntimeException("Kompaniya topilmadi"));
+                .orElseThrow(() -> new org.springframework.web.server.ResponseStatusException(HttpStatus.NOT_FOUND, "Kompaniya topilmadi"));
 
         boolean isWorker = isScopedToOwnRecords();
         // Ishchi HAR DOIM PENDING (xavfsizlik - o'zini o'zi tasdiqlamasin).
@@ -271,6 +287,7 @@ public class FinanceController {
      */
     @DeleteMapping("/transactions/{id}")
     @PreAuthorize("@perm.has('finance')")
+    @org.springframework.transaction.annotation.Transactional
     public ResponseEntity<?> deleteTransaction(@PathVariable UUID id) {
         String tenantId = TenantContext.getCurrentTenant();
         if (tenantId == null) {
@@ -280,6 +297,29 @@ public class FinanceController {
         if (tx == null || !tx.getCompany().getId().equals(UUID.fromString(tenantId))) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("message", "Tranzaksiya topilmadi"));
         }
+
+        // MUHIM (2026-10-05 audit): bu tranzaksiyalar boshqa yozuvning HOLATINI
+        // ifodalaydi. Avval faqat tranzaksiya o'chirilardi, bog'liq yozuv esa
+        // o'zgarmasdi - natijada:
+        //  - ORDER_PAYMENT: buyurtma "HANDED_OVER" (kassaga topshirilgan) bo'lib
+        //    qolardi, lekin kirim yo'q. confirm-handover faqat COLLECTED'ni qabul
+        //    qilgani uchun uni qayta to'g'ri topshirishning yo'li umuman yo'q edi.
+        //  - Oylik to'lovi: Salary "PAID" bo'lib qolardi, xarajat esa yo'q - va
+        //    /unpay ham endi hech narsani tiklamasdi.
+        // Endi bog'liq yozuv "topshirilishi/to'lanishi kutilayotgan" holatga
+        // qaytariladi, shunda xato yozuvni o'chirib, to'g'risini qayta kiritish mumkin.
+        if ("ORDER_PAYMENT".equals(tx.getCategory()) && tx.getOrder() != null
+                && "HANDED_OVER".equals(tx.getOrder().getPaymentStatus())) {
+            Order order = tx.getOrder();
+            order.setPaymentStatus("COLLECTED");
+            orderRepository.save(order);
+        }
+        salaryRepository.findByPaymentTransactionId(tx.getId()).ifPresent(salary -> {
+            salary.setStatus("UNPAID");
+            salary.setPaymentTransactionId(null);
+            salaryRepository.save(salary);
+        });
+
         transactionRepository.delete(tx);
         return ResponseEntity.noContent().build();
     }

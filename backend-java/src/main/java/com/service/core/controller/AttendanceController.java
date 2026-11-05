@@ -100,7 +100,7 @@ public class AttendanceController {
         }
 
         Company company = companyRepository.findById(companyId)
-                .orElseThrow(() -> new RuntimeException("Kompaniya topilmadi"));
+                .orElseThrow(() -> new org.springframework.web.server.ResponseStatusException(HttpStatus.NOT_FOUND, "Kompaniya topilmadi"));
 
         Absence absence = Absence.builder()
                 .company(company)

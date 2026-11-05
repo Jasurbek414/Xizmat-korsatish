@@ -12,9 +12,20 @@ const FinanceTable = ({ filteredTx, wallets, onDeleteTx }) => {
   const [selectedTx, setSelectedTx] = useState(null);
   const [page, setPage] = useState(1);
 
-  // Ro'yxat eng yangisi tepada bo'lishi kerak (filteredTx backenddan eski->yangi
-  // tartibda keladi) - sahifalash shu tartiblangan ro'yxat ustida ishlaydi.
-  const sortedTx = useMemo(() => filteredTx.slice().reverse(), [filteredTx]);
+  // Ro'yxat eng yangisi tepada bo'lishi kerak - sahifalash shu tartiblangan
+  // ro'yxat ustida ishlaydi.
+  // 2026-10-05 audit: avval shunchaki `.reverse()` edi ("backend eski->yangi
+  // qaytaradi" farazi bilan). Backend so'rovida ORDER BY yo'q edi, va o'tgan
+  // sanaga kiritilgan yozuv ham, yangi qo'shilgani ham shu sabab noto'g'ri
+  // joyda chiqardi. Endi sana bo'yicha aniq saralanadi (teng sanalarda
+  // kelgan tartibning teskarisi saqlanadi).
+  const sortedTx = useMemo(() => filteredTx
+    .map((tx, idx) => ({ tx, idx }))
+    .sort((a, b) => {
+      const diff = new Date(b.tx.created_at || 0) - new Date(a.tx.created_at || 0);
+      return diff !== 0 ? diff : b.idx - a.idx;
+    })
+    .map(({ tx }) => tx), [filteredTx]);
   const totalPages = Math.max(1, Math.ceil(sortedTx.length / PAGE_SIZE));
   const safePage = Math.min(page, totalPages);
 

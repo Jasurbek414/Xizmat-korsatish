@@ -76,12 +76,27 @@ public class GpsController {
 
         Double latitude = Double.parseDouble(latObj.toString());
         Double longitude = Double.parseDouble(lngObj.toString());
+        // 2026-10-05 audit: diapazon tekshirilmasdi - buzilgan qiymat (NaN,
+        // >90) xaritadagi markerni va safar masofasini buzardi.
+        if (latitude.isNaN() || longitude.isNaN() || Math.abs(latitude) > 90 || Math.abs(longitude) > 180) {
+            return ResponseEntity.badRequest().body(Map.of("message", "Koordinata noto'g'ri"));
+        }
 
         // Mobil ilova nuqta HAQIQATDA qachon o'lchanganini ham yuboradi (oflayn
         // navbatdan keyinroq yuborilgan eski nuqtalar uchun muhim - aks holda
         // ular "hozirgi joylashuv" deb noto'g'ri qabul qilinardi). Yubormasa
         // yoki eski ilova versiyasi bo'lsa - "hozir" deb hisoblaymiz.
         LocalDateTime recordedAt = parseTimestamp(request.get("timestamp"));
+        // 2026-10-05 audit: telefon soati noto'g'ri (kelajakda) bo'lsa, avval
+        // lastLocationAt kelajak sanaga yozilib qolardi va pastdagi "faqat
+        // YANGIROQ nuqta joriy joylashuvni yangilaydi" sharti sabab haydovchining
+        // keyingi BARCHA haqiqiy nuqtalari "eski" deb rad etilardi - xaritada
+        // u o'sha kelajak sanagacha bir joyda qotib turardi. Kelajak vaqt
+        // server vaqtiga tushiriladi.
+        LocalDateTime serverNow = LocalDateTime.now();
+        if (recordedAt.isAfter(serverNow)) {
+            recordedAt = serverNow;
+        }
 
         String username = (String) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
         Optional<User> userOpt = userRepository.findByUsername(username);
@@ -270,7 +285,12 @@ public class GpsController {
         }
 
         // Return latest active kuryer drivers list within company
-        List<User> drivers = userRepository.findByCompanyIdAndRole(UUID.fromString(tenantId), "WORKER_DRIVER");
+        // 2026-10-05 audit: EmployeeController.getDrivers() bilan bir xil -
+        // "o'chirilgan" (soft-delete, status=DELETED) haydovchilar xaritada va
+        // mobil "Jamoa" ekranida oxirgi joylashuvi bilan ko'rinib qolardi.
+        List<User> drivers = userRepository.findByCompanyIdAndRole(UUID.fromString(tenantId), "WORKER_DRIVER").stream()
+                .filter(u -> !"DELETED".equalsIgnoreCase(u.getStatus()))
+                .toList();
         return ResponseEntity.ok(drivers);
     }
 }

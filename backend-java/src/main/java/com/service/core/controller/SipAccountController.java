@@ -97,7 +97,7 @@ public class SipAccountController {
         }
 
         Company company = companyRepository.findById(UUID.fromString(tenantId))
-                .orElseThrow(() -> new RuntimeException("Kompaniya topilmadi"));
+                .orElseThrow(() -> new org.springframework.web.server.ResponseStatusException(HttpStatus.NOT_FOUND, "Kompaniya topilmadi"));
 
         SipAccount account = SipAccount.builder()
                 .company(company)
@@ -170,16 +170,19 @@ public class SipAccountController {
                                           String authUsername, String password) {
     }
 
-    // MUHIM (audit'da topilgan, jiddiy xato): avval bu yerda ham qattiq
-    // yozilgan ADMIN/MANAGER cheklovi bor edi - yuqoridagi ro'yxat
-    // endpoint'i esa 'telephony' huquqiga tayanadi (Dispetcher shu orqali
-    // trunk'larni KO'RADI). Natijada Dispetcher qo'ng'iroq qilish/qabul
-    // qilish uchun SHART bo'lgan parolni ololmasdi - brauzerdagi SIP
-    // klienti (JsSIP) hech qachon ro'yxatdan o'ta olmasdi, garchi
-    // Dispetcher rolida 'telephony' yoqilgan bo'lsa ham. Endi ikkalasi bir
-    // xil qoida bilan himoyalangan.
+    // MUHIM (2026-10-05 audit, XAVFSIZLIK - oldingi qaror qayta ko'rib chiqildi):
+    // bu endpoint avval ataylab @perm.has('telephony') ga ochilgan edi - "JsSIP
+    // ro'yxatdan o'tishi uchun dispetcherga trunk paroli kerak" deb. Bu endi
+    // TO'G'RI EMAS: brauzer telefoni (useSipPhone.js) faqat xodimning shaxsiy
+    // ichki extension paroli bilan ishlaydi (/telephony/my-extension), UzTelecom
+    // TRUNK paroli esa faqat Sozlamalar formasida (create/update) kerak - ular
+    // allaqachon ADMIN/MANAGER bilan cheklangan. Natijada 'telephony' huquqli
+    // istalgan dispetcher kompaniyaning operator (UzTelecom) hisobining
+    // parolini ochiq matnda olib, uni boshqa joyda (o'z SIP klientida)
+    // ishlatib, kompaniya hisobidan qo'ng'iroq qila olardi. Endi formani
+    // ko'rsatish huquqi bilan bir xil rollar.
     @GetMapping("/{id}/credentials")
-    @PreAuthorize("@perm.has('telephony')")
+    @PreAuthorize("hasAnyRole('SUPERADMIN','ADMIN','MANAGER')")
     public ResponseEntity<?> getSipAccountCredentials(@PathVariable UUID id) {
         String tenantId = TenantContext.getCurrentTenant();
         if (tenantId == null) {

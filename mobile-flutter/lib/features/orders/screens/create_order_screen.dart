@@ -87,13 +87,14 @@ class _CreateOrderScreenState extends State<CreateOrderScreen> {
         }
         return _selectedClient != null;
       case 1:
-        // MUHIM (2026-09-26 audit): avval faqat "maydon bo'sh emasmi" tekshirilardi.
-        // Natijada "500 000" (probel bilan — tabiiy yozilish) kiritilsa, keyingi
-        // qadamga o'tib ketilardi va saqlashda `double.tryParse` yiqilib narx
-        // JIMGINA 0 bo'lardi. Endi narx haqiqatan o'qilishi va noldan katta
-        // bo'lishi SHART.
+        // Xizmat turi tanlangan bo'lsa yetarli. Buyurtma yaratilayotganda
+        // gilamlar hali sexga bormagan, o'lchov va aniq kv metr ma'lum bo'lmasligi mumkin.
+        // Shuning uchun narx 0 yoki bo'sh bo'lsa ham keyingi qadamga o'tishga ruxsat beriladi.
         final price = parseMoney(_priceController.text);
-        return _selectedService != null && price != null && price > 0;
+        if (_priceController.text.trim().isNotEmpty && (price == null || price < 0)) {
+          return false;
+        }
+        return _selectedService != null;
       case 2:
         return _addressController.text.trim().isNotEmpty;
       default:
@@ -102,13 +103,11 @@ class _CreateOrderScreenState extends State<CreateOrderScreen> {
   }
 
   Future<void> _submitForm() async {
-    // Narx himoyasi: `_canProceed` bunga yo'l qo'ymasligi kerak, lekin narx
-    // o'qilmasa 0 so'mli buyurtma yaratishdan ko'ra umuman yaratmaslik to'g'ri.
-    final priceToSend = parseMoney(_priceController.text);
-    if (priceToSend == null || priceToSend <= 0) {
+    final priceToSend = parseMoney(_priceController.text) ?? 0.0;
+    if (priceToSend < 0) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text("Narxni to'g'ri kiriting (faqat raqamlar, 0 dan katta)"),
+          content: Text("Narx manfiy bo'lishi mumkin emas"),
           backgroundColor: AppTheme.dangerColor,
         ),
       );
@@ -465,7 +464,8 @@ class _CreateOrderScreenState extends State<CreateOrderScreen> {
                       : AppTheme.textPrimary),
               onChanged: (_) => setState(() {}),
               decoration: const InputDecoration(
-                labelText: "Umumiy narx (so'm)",
+                labelText: "Dastlabki narx (ixtiyoriy, sexda o'lchanadi)",
+                hintText: "0",
                 prefixIcon: Icon(LucideIcons.wallet, size: 18),
                 suffixText: "so'm",
               ),
@@ -546,8 +546,8 @@ class _CreateOrderScreenState extends State<CreateOrderScreen> {
             _confirmRow(
                 LucideIcons.wallet,
                 'Narx',
-                _priceController.text.isEmpty
-                    ? '-'
+                _priceController.text.trim().isEmpty || _priceController.text.trim() == '0'
+                    ? '0 so\'m (sexda o\'lchanadi)'
                     : '${_priceController.text} so\'m'),
             _confirmRow(LucideIcons.mapPin, 'Manzil',
                 _addressController.text.trim()),

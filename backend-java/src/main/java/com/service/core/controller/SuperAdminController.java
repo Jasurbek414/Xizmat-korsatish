@@ -45,11 +45,13 @@ public class SuperAdminController {
     private final OrderRepository orderRepository;
     private final TransactionRepository transactionRepository;
     private final SubscriptionRepository subscriptionRepository;
+    private final com.service.core.service.RefreshTokenService refreshTokenService;
 
     public SuperAdminController(CompanyRepository companyRepository, UserRepository userRepository,
                                 RoleSeedService roleSeedService, PasswordEncoder passwordEncoder,
                                 OrderRepository orderRepository, TransactionRepository transactionRepository,
-                                SubscriptionRepository subscriptionRepository) {
+                                SubscriptionRepository subscriptionRepository,
+                                com.service.core.service.RefreshTokenService refreshTokenService) {
         this.companyRepository = companyRepository;
         this.userRepository = userRepository;
         this.roleSeedService = roleSeedService;
@@ -57,6 +59,7 @@ public class SuperAdminController {
         this.orderRepository = orderRepository;
         this.transactionRepository = transactionRepository;
         this.subscriptionRepository = subscriptionRepository;
+        this.refreshTokenService = refreshTokenService;
     }
 
     @GetMapping
@@ -66,6 +69,10 @@ public class SuperAdminController {
     }
 
     @PostMapping
+    // 2026-10-05: kompaniya + rollar + admin foydalanuvchi bitta tranzaksiyada -
+    // avval admin yaratishda xato bo'lsa, admin'siz "yetim" kompaniya qolardi va
+    // shu subdomain endi "band" deb qayta yaratib bo'lmasdi.
+    @org.springframework.transaction.annotation.Transactional
     public ResponseEntity<?> createCompany(@RequestBody Map<String, String> request) {
         String name = request.get("name");
         String subDomain = request.get("sub_domain");
@@ -141,7 +148,9 @@ public class SuperAdminController {
         Map<String, Long> usersByRole = users.stream()
                 .collect(Collectors.groupingBy(User::getRole, Collectors.counting()));
 
-        List<Order> orders = orderRepository.findByCompanyId(id);
+        // 2026-10-05: faqat SONI kerak - avval butun buyurtmalar jadvali (mijoz,
+        // xodim bog'lanishlari bilan) xotiraga yuklanib, keyin .size() olinardi.
+        long orderCount = orderRepository.countByCompanyId(id);
 
         BigDecimal totalRevenue = transactionRepository.findByCompanyIdAndStatus(id, "CONFIRMED").stream()
                 .filter(tx -> "INCOME".equalsIgnoreCase(tx.getType()))
@@ -155,7 +164,7 @@ public class SuperAdminController {
         result.put("company", company);
         result.put("userCount", users.size());
         result.put("usersByRole", usersByRole);
-        result.put("orderCount", orders.size());
+        result.put("orderCount", orderCount);
         result.put("totalRevenue", totalRevenue);
         result.put("latestSubscription", latestSubscription);
         return ResponseEntity.ok(result);
@@ -202,6 +211,11 @@ public class SuperAdminController {
         String generatedPassword = generatePassword();
         user.setPassword(passwordEncoder.encode(generatedPassword));
         userRepository.save(user);
+        // 2026-10-05 audit: EmployeeController.resetPassword va AuthController.
+        // changePassword bilan bir xil sabab - parol tiklashning odatiy sababi
+        // "hisob begona qo'lda". Refresh token'lar bekor qilinmasa, eski
+        // qurilma 30 kun davomida yangi parolsiz ham kirib turaverardi.
+        refreshTokenService.revokeAllForUser(user.getId());
 
         return ResponseEntity.ok(Map.of(
                 "username", user.getUsername(),

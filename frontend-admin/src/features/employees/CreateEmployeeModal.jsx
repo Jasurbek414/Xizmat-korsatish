@@ -43,7 +43,10 @@ const CreateEmployeeModal = ({ isOpen, onClose, employee, onSubmit }) => {
         setStatus(employee.status || 'ACTIVE');
         setLat(employee.lat ? employee.lat.toString() : '41.311081');
         setLng(employee.lng ? employee.lng.toString() : '69.240562');
-        setPassword(employee.password || '');
+        // Tahrirlashda parol maydoni BO'SH boshlanadi: backend parolni hech qachon
+        // qaytarmaydi (@JsonIgnore). Bo'sh qoldirilsa - parol o'zgarmaydi;
+        // yozilsa - Employees.jsx uni alohida /employees/{id}/password orqali saqlaydi.
+        setPassword('');
         setSalary(employee.salary ? employee.salary.toString() : '');
         setSalaryType(employee.salary_type || employee.salaryType || 'MONTHLY');
         setHireDate((employee.hire_date || employee.hireDate || '').slice(0, 10));
@@ -187,14 +190,16 @@ const CreateEmployeeModal = ({ isOpen, onClose, employee, onSubmit }) => {
 
           {/* Password */}
           <div>
-            <label className="block text-slate-500 dark:text-gray-400 mb-1">{t('employees_page.password')} *</label>
-            <input 
+            <label className="block text-slate-500 dark:text-gray-400 mb-1">
+              {isEdit ? 'Yangi parol' : t('employees_page.password')}{isEdit ? '' : ' *'}
+            </label>
+            <input
               type="text"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              placeholder="••••••••"
+              placeholder={isEdit ? "O'zgartirmaslik uchun bo'sh qoldiring" : '••••••••'}
               className="w-full glass-input rounded-xl px-3 py-2 text-slate-850 dark:text-white focus:outline-none"
-              required
+              required={!isEdit}
             />
           </div>
 

@@ -28,7 +28,7 @@ class OrdersLoaded extends OrdersState {
   OrdersLoaded({
     required this.orders,
     required this.statuses,
-    this.itemStages = const [],
+    this.itemStages = kDefaultItemStages,
     this.newOrderIds = const {},
   });
 
@@ -89,7 +89,8 @@ class OrdersCubit extends Cubit<OrdersState> {
     final available = results[0] as List<Order>;
     final statuses = results[1] as List<OrderStatusInfo>;
     final completed = results[2] as List<Order>;
-    final itemStages = results[3] as List<OrderItemStageInfo>;
+    final rawItemStages = results[3] as List<OrderItemStageInfo>;
+    final itemStages = rawItemStages.isNotEmpty ? rawItemStages : kDefaultItemStages;
 
     // Dispatch pool + completed = barcha buyurtmalar (dublikatlarsiz)
     final seenIds = available.map((o) => o.id).toSet();
@@ -227,6 +228,7 @@ class OrdersCubit extends Cubit<OrdersState> {
       await refresh();
     } on ApiException catch (e) {
       emit(OrdersError(e.message));
+      rethrow;
     }
   }
 
@@ -291,13 +293,59 @@ class OrdersCubit extends Cubit<OrdersState> {
     }
   }
 
-  /// Gilamni tahrirlash (nomi, eni, bo'yi, soni)
-  Future<void> updateOrderItem(Order order, OrderItemInfo item, {String? name, double? length, double? width, int? quantity}) async {
+  /// Gilamni tahrirlash (nomi, eni, bo'yi, soni, narxi, statusi)
+  Future<void> updateOrderItem(Order order, OrderItemInfo item, {
+    String? name,
+    double? length,
+    double? width,
+    int? quantity,
+    double? price,
+    String? status,
+  }) async {
     try {
-      await _repository.updateOrderItem(order.id, item.id, name: name, length: length, width: width, quantity: quantity);
+      await _repository.updateOrderItem(
+        order.id,
+        item.id,
+        name: name,
+        length: length,
+        width: width,
+        quantity: quantity,
+        price: price,
+        status: status,
+      );
+      if (status != null && status != item.status) {
+        await _syncWorkshopStatus(order, item, status);
+      }
       await refresh();
     } on ApiException catch (e) {
       emit(OrdersError(e.message));
+    }
+  }
+
+  /// Bir nechta gilamning statusini bir vaqtda o'zgartirish (Multi-select)
+  Future<void> bulkChangeOrderItemStatus(Order order, List<OrderItemInfo> items, String newStatus) async {
+    try {
+      for (final item in items) {
+        await _repository.updateOrderItemStatus(order.id, item.id, newStatus);
+      }
+      if (items.isNotEmpty) {
+        await _syncWorkshopStatus(order, items.last, newStatus);
+      }
+      await refresh();
+    } on ApiException catch (e) {
+      emit(OrdersError(e.message));
+      rethrow;
+    }
+  }
+
+  /// Haydovchi mijoz oldida aniq GPS koordinatasini saqlashi uchun
+  Future<void> updateOrderLocation(Order order, double latitude, double longitude) async {
+    try {
+      await _repository.updateOrderLocation(order.id, latitude, longitude);
+      await refresh();
+    } on ApiException catch (e) {
+      emit(OrdersError(e.message));
+      rethrow;
     }
   }
 
