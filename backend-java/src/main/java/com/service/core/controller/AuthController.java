@@ -276,8 +276,7 @@ public class AuthController {
                 com.service.core.service.PermissionKeys.FINANCE,
                 com.service.core.service.PermissionKeys.SALARIES,
                 com.service.core.service.PermissionKeys.SETTINGS,
-                com.service.core.service.PermissionKeys.MAP,
-                com.service.core.service.PermissionKeys.TELEPHONY)) {
+                com.service.core.service.PermissionKeys.MAP)) {
             if (Boolean.TRUE.equals(role.getPermissions().get(key))) return true;
         }
         return false;

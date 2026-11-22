@@ -87,7 +87,7 @@ const AttendanceModal = ({ isOpen, onClose, employees = [] }) => {
         <div className="flex justify-between items-center border-b border-slate-100 dark:border-white/5 pb-2">
           <div className="flex items-center gap-1.5 text-indigo-600 dark:text-indigo-400">
             <CalendarX2 className="w-4 h-4" />
-            <h3 className="text-base font-bold text-slate-800 dark:text-white font-['Outfit']">Davomat (Kelmagan kunlar)</h3>
+            <h3 className="text-base font-bold text-slate-800 dark:text-white ">Davomat (Kelmagan kunlar)</h3>
           </div>
           <button
             onClick={onClose}
@@ -202,3 +202,4 @@ const AttendanceModal = ({ isOpen, onClose, employees = [] }) => {
 };
 
 export default AttendanceModal;
+

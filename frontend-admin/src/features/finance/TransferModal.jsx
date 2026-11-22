@@ -46,7 +46,7 @@ const TransferModal = ({ isOpen, onClose, wallets, onTransfer }) => {
         <div className="flex justify-between items-center border-b border-slate-100 dark:border-white/5 pb-2">
           <div className="flex items-center gap-2">
             <ArrowRightLeft className="w-4 h-4 text-indigo-500" />
-            <h3 className="text-base font-bold text-slate-800 dark:text-white font-['Outfit']">
+            <h3 className="text-base font-bold text-slate-800 dark:text-white ">
               {t('finance_page.transfer')}
             </h3>
           </div>
@@ -136,3 +136,4 @@ const TransferModal = ({ isOpen, onClose, wallets, onTransfer }) => {
 };
 
 export default TransferModal;
+

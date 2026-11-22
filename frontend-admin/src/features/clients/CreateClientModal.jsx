@@ -21,7 +21,7 @@ const CreateClientModal = ({
       {showAddModal && (
         <div className="fixed inset-0 bg-black/50 dark:bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="glass-card rounded-2xl max-w-sm w-full p-6 space-y-4 shadow-2xl animate-scale-in bg-white dark:bg-[#111827]">
-            <h3 className="text-base font-bold text-slate-800 dark:text-white font-['Outfit']">{t('clients_page.new_client')}</h3>
+            <h3 className="text-base font-bold text-slate-800 dark:text-white ">{t('clients_page.new_client')}</h3>
             <form onSubmit={handleAddClient} className="space-y-4 text-xs font-semibold">
               <div>
                 <label className="block text-slate-500 dark:text-gray-400 mb-1">{t('clients_page.fullname')}</label>
@@ -77,7 +77,7 @@ const CreateClientModal = ({
       {showEditModal && editingClient && (
         <div className="fixed inset-0 bg-black/50 dark:bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="glass-card rounded-2xl max-w-sm w-full p-6 space-y-4 shadow-2xl animate-scale-in bg-white dark:bg-[#111827]">
-            <h3 className="text-base font-bold text-slate-800 dark:text-white font-['Outfit']">Mijozni Tahrirlash</h3>
+            <h3 className="text-base font-bold text-slate-800 dark:text-white ">Mijozni Tahrirlash</h3>
             <form onSubmit={handleEditClient} className="space-y-4 text-xs font-semibold">
               <div>
                 <label className="block text-slate-500 dark:text-gray-400 mb-1">{t('clients_page.fullname')}</label>
@@ -132,3 +132,4 @@ const CreateClientModal = ({
 };
 
 export default CreateClientModal;
+

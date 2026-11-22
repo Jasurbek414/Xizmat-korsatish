@@ -48,7 +48,7 @@ const EmployeeCashControl = ({ pendingHandovers = [] }) => {
           <Users className="w-4 h-4" />
         </div>
         <div>
-          <h4 className="text-xs font-extrabold text-slate-800 dark:text-white tracking-tight font-['Outfit']">
+          <h4 className="text-xs font-extrabold text-slate-800 dark:text-white tracking-tight ">
             Xodimlar bo'yicha kassa nazorati
           </h4>
           <p className="text-[9px] text-slate-400 dark:text-gray-500 font-medium">
@@ -78,7 +78,7 @@ const EmployeeCashControl = ({ pendingHandovers = [] }) => {
                   </span>
                 )}
               </div>
-              <p className="text-lg font-extrabold font-['Outfit'] text-amber-600">
+              <p className="text-lg font-extrabold text-amber-600">
                 {formatCurrency(e.sum, 'uz')}
               </p>
               <div className="flex items-center justify-between text-[9px] text-slate-400 dark:text-gray-500 font-semibold">
@@ -97,3 +97,4 @@ const EmployeeCashControl = ({ pendingHandovers = [] }) => {
 };
 
 export default EmployeeCashControl;
+

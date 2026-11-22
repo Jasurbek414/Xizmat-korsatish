@@ -136,7 +136,7 @@ const GeneralSettings = () => {
   return (
     <div className="space-y-6">
       <div>
-        <h3 className="text-lg font-bold text-slate-800 dark:text-white tracking-tight font-['Outfit']">
+        <h3 className="text-lg font-bold text-slate-800 dark:text-white tracking-tight ">
           {t('settings_page.general')}
         </h3>
         <p className="text-xs text-slate-500 dark:text-gray-400 font-medium">
@@ -161,7 +161,7 @@ const GeneralSettings = () => {
       <form onSubmit={handleSave} className="grid grid-cols-1 lg:grid-cols-2 gap-6 text-xs font-semibold">
         {/* Left Card: Company Profile */}
         <div className="glass-card p-6 rounded-2xl space-y-4 border border-slate-200 dark:border-white/5 bg-white dark:bg-transparent shadow-sm">
-          <h4 className="text-sm font-bold text-slate-800 dark:text-white pb-2 border-b border-slate-100 dark:border-white/5 font-['Outfit']">
+          <h4 className="text-sm font-bold text-slate-800 dark:text-white pb-2 border-b border-slate-100 dark:border-white/5 ">
             {t('settings_page.company_details')}
           </h4>
           
@@ -311,7 +311,7 @@ const GeneralSettings = () => {
         {/* Right Card: Business Rules & Constraints */}
         <div className="glass-card p-6 rounded-2xl space-y-4 border border-slate-200 dark:border-white/5 bg-white dark:bg-transparent shadow-sm flex flex-col justify-between">
           <div className="space-y-4">
-            <h4 className="text-sm font-bold text-slate-800 dark:text-white pb-2 border-b border-slate-100 dark:border-white/5 font-['Outfit']">
+            <h4 className="text-sm font-bold text-slate-800 dark:text-white pb-2 border-b border-slate-100 dark:border-white/5 ">
               {t('settings_page.business_rules')}
             </h4>
 
@@ -398,7 +398,7 @@ const GeneralSettings = () => {
             <AlertTriangle className="w-5 h-5 text-rose-500" />
           </div>
           <div className="flex-1 space-y-1">
-            <h4 className="text-sm font-bold text-rose-600 dark:text-rose-400 font-['Outfit']">Xavfli zona</h4>
+            <h4 className="text-sm font-bold text-rose-600 dark:text-rose-400 ">Xavfli zona</h4>
             <p className="text-xs text-slate-500 dark:text-gray-400 font-medium">
               Moliyani 0ga tushirish - barcha kirim-chiqim (tranzaksiya) yozuvlarini butunlay o'chiradi va balansni 0 qiladi.
               Buyurtmalar, mijozlar, xodimlar, oyliklar va boshqa ma'lumotlarga tegmaydi. Bu amal <strong>QAYTARILMAYDI</strong> -
@@ -420,7 +420,7 @@ const GeneralSettings = () => {
           <div className="glass-card rounded-2xl max-w-sm w-full p-6 space-y-4 shadow-2xl animate-scale-in bg-white dark:bg-[#111827]">
             <div className="flex items-center gap-2">
               <AlertTriangle className="w-5 h-5 text-rose-500 shrink-0" />
-              <h3 className="text-base font-bold text-slate-800 dark:text-white font-['Outfit']">Moliyani 0ga tushirish</h3>
+              <h3 className="text-base font-bold text-slate-800 dark:text-white ">Moliyani 0ga tushirish</h3>
             </div>
             <p className="text-xs text-slate-500 dark:text-gray-400 font-medium leading-relaxed">
               Barcha kirim-chiqim yozuvlari <strong>butunlay o'chiriladi</strong> va qaytarib bo'lmaydi.
@@ -459,3 +459,4 @@ const GeneralSettings = () => {
 };
 
 export default GeneralSettings;
+

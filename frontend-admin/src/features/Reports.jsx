@@ -271,7 +271,7 @@ const Reports = () => {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-slate-200 dark:border-white/5 pb-4">
         <div>
-          <h2 className="text-2xl font-extrabold text-slate-800 dark:text-white tracking-tight font-['Outfit']">Hisobotlar</h2>
+          <h2 className="text-2xl font-extrabold text-slate-800 dark:text-white tracking-tight ">Hisobotlar</h2>
           <p className="text-xs text-slate-500 dark:text-gray-400 font-medium">Har oy yoki istalgan sana oralig'i uchun moliyaviy hisobot</p>
         </div>
         <div className="flex items-center gap-2 print:hidden">
@@ -336,7 +336,7 @@ const Reports = () => {
             <span className="text-[10px] text-slate-400 dark:text-gray-500 uppercase tracking-wider">Daromad</span>
             <div className="w-8 h-8 rounded-lg bg-indigo-500/5 text-indigo-600 dark:text-indigo-400 flex items-center justify-center"><Landmark className="w-4 h-4" /></div>
           </div>
-          <h3 className="text-lg font-extrabold text-slate-800 dark:text-white font-['Outfit']">{formatCurrency(stats.revenue, 'uz')}</h3>
+          <h3 className="text-lg font-extrabold text-slate-800 dark:text-white ">{formatCurrency(stats.revenue, 'uz')}</h3>
           <div className="mt-1.5"><GrowthBadge value={revenueGrowth} goodDirection="up" /></div>
         </div>
         <div className="glass-card p-5 rounded-2xl bg-white dark:bg-transparent shadow-sm">
@@ -344,7 +344,7 @@ const Reports = () => {
             <span className="text-[10px] text-slate-400 dark:text-gray-500 uppercase tracking-wider">Xarajat</span>
             <div className="w-8 h-8 rounded-lg bg-rose-500/5 text-rose-600 dark:text-rose-400 flex items-center justify-center"><Scale className="w-4 h-4" /></div>
           </div>
-          <h3 className="text-lg font-extrabold text-slate-800 dark:text-white font-['Outfit']">{formatCurrency(stats.expense, 'uz')}</h3>
+          <h3 className="text-lg font-extrabold text-slate-800 dark:text-white ">{formatCurrency(stats.expense, 'uz')}</h3>
           <div className="mt-1.5"><GrowthBadge value={expenseGrowth} goodDirection="down" /></div>
         </div>
         <div className="glass-card p-5 rounded-2xl bg-white dark:bg-transparent shadow-sm">
@@ -352,7 +352,7 @@ const Reports = () => {
             <span className="text-[10px] text-slate-400 dark:text-gray-500 uppercase tracking-wider">Sof Foyda</span>
             <div className="w-8 h-8 rounded-lg bg-emerald-500/5 text-emerald-600 dark:text-emerald-400 flex items-center justify-center"><TrendingUp className="w-4 h-4" /></div>
           </div>
-          <h3 className={`text-lg font-extrabold font-['Outfit'] ${stats.net >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600'}`}>{formatCurrency(stats.net, 'uz')}</h3>
+          <h3 className={`text-lg font-extrabold ${stats.net >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600'}`}>{formatCurrency(stats.net, 'uz')}</h3>
           <div className="mt-1.5"><GrowthBadge value={netGrowth} goodDirection="up" /></div>
         </div>
         <div className="glass-card p-5 rounded-2xl bg-white dark:bg-transparent shadow-sm">
@@ -360,7 +360,7 @@ const Reports = () => {
             <span className="text-[10px] text-slate-400 dark:text-gray-500 uppercase tracking-wider">Marja</span>
             <div className="w-8 h-8 rounded-lg bg-amber-500/5 text-amber-600 dark:text-amber-400 flex items-center justify-center"><Percent className="w-4 h-4" /></div>
           </div>
-          <h3 className="text-lg font-extrabold text-indigo-600 dark:text-indigo-400 font-['Outfit']">{stats.margin.toFixed(1)}%</h3>
+          <h3 className="text-lg font-extrabold text-indigo-600 dark:text-indigo-400 ">{stats.margin.toFixed(1)}%</h3>
           <div className="mt-1.5">
             <GrowthBadge
               value={prevStats.revenue !== 0 || prevStats.expense !== 0 ? marginDeltaPp : null}
@@ -386,7 +386,7 @@ const Reports = () => {
               orqali qancha to'laganini ko'rsatadi, kassa yaqinlashtirishda
               (naqd summani jismoniy sanashda) ishlatiladi. */}
           <div className="glass-card p-5 rounded-2xl border border-slate-200 dark:border-white/5 bg-white dark:bg-transparent shadow-sm space-y-3">
-            <h4 className="font-bold text-slate-800 dark:text-white text-xs font-['Outfit'] uppercase tracking-wider">To'lov Usuli Taqsimoti</h4>
+            <h4 className="font-bold text-slate-800 dark:text-white text-xs uppercase tracking-wider">To'lov Usuli Taqsimoti</h4>
             <div className="flex justify-between items-center p-3 rounded-xl bg-emerald-500/5 border border-emerald-500/10">
               <span className="flex items-center gap-1.5 text-slate-600 dark:text-gray-300"><Banknote className="w-3.5 h-3.5 text-emerald-600" /> Naqd</span>
               <span className="font-extrabold text-emerald-600">{formatCurrency(paymentSplit.cash, 'uz')}</span>
@@ -398,7 +398,7 @@ const Reports = () => {
           </div>
 
           <div className="glass-card p-5 rounded-2xl border border-slate-200 dark:border-white/5 bg-white dark:bg-transparent shadow-sm space-y-4">
-            <h4 className="font-bold text-slate-800 dark:text-white text-xs font-['Outfit'] uppercase tracking-wider">Kutilayotgan Majburiyatlar</h4>
+            <h4 className="font-bold text-slate-800 dark:text-white text-xs uppercase tracking-wider">Kutilayotgan Majburiyatlar</h4>
             <p className="text-[9px] text-slate-400 dark:text-gray-500 -mt-3">Joriy holat, davrga bog'liq emas</p>
 
             <div className="space-y-3">
@@ -443,3 +443,4 @@ const Reports = () => {
 };
 
 export default Reports;
+

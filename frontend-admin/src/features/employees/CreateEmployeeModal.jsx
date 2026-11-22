@@ -110,7 +110,7 @@ const CreateEmployeeModal = ({ isOpen, onClose, employee, onSubmit }) => {
         <div className="flex justify-between items-center border-b border-slate-100 dark:border-white/5 pb-2">
           <div className="flex items-center gap-1.5 text-indigo-500">
             <UserPlus className="w-4 h-4" />
-            <h3 className="text-base font-bold text-slate-800 dark:text-white font-['Outfit']">
+            <h3 className="text-base font-bold text-slate-800 dark:text-white ">
               {isEdit ? t('employees_page.edit_employee') : t('employees_page.add_employee')}
             </h3>
           </div>
@@ -305,3 +305,4 @@ const CreateEmployeeModal = ({ isOpen, onClose, employee, onSubmit }) => {
 };
 
 export default CreateEmployeeModal;
+

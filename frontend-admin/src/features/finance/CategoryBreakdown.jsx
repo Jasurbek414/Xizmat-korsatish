@@ -28,7 +28,7 @@ const CategoryBreakdown = ({ transactions }) => {
       
       {/* Header and Tab Selector */}
       <div className="flex flex-col gap-3">
-        <h4 className="font-bold text-slate-800 dark:text-white text-xs font-['Outfit'] uppercase tracking-wider">
+        <h4 className="font-bold text-slate-800 dark:text-white text-xs uppercase tracking-wider">
           Kategoriyalar Tahlili (Category Analysis)
         </h4>
         
@@ -93,3 +93,4 @@ const CategoryBreakdown = ({ transactions }) => {
 };
 
 export default CategoryBreakdown;
+

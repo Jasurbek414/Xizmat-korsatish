@@ -7,7 +7,7 @@ import com.service.core.model.User;
 import com.service.core.repository.DriverTripRepository;
 import com.service.core.repository.GpsLogRepository;
 import com.service.core.repository.UserRepository;
-import com.service.core.service.telephony.GpsWebSocketHandler;
+import com.service.core.service.gps.GpsWebSocketHandler;
 import com.service.core.tenant.TenantContext;
 import com.service.core.util.GeoUtils;
 import org.springframework.http.HttpStatus;

@@ -1,10 +1,9 @@
 import React, { useState, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Sliders, Briefcase, CheckCircle, MessageSquare, Shield, Database, Fingerprint, Printer } from 'lucide-react';
+import { Sliders, CheckCircle, MessageSquare, Shield, Database, Fingerprint, Printer } from 'lucide-react';
 
 // Import subcomponents
 import GeneralSettings from './settings/GeneralSettings';
-import ServicesCatalog from './settings/ServicesCatalog';
 import OrderStatuses from './settings/OrderStatuses';
 import ItemStatusLabels from './settings/ItemStatusLabels';
 import NotificationSettings from './settings/NotificationSettings';
@@ -29,7 +28,6 @@ const Settings = ({ auth }) => {
 
   const tabs = [
     { id: 'general', label: t('settings_page.general'), icon: Sliders },
-    { id: 'services', label: t('settings_page.services'), icon: Briefcase },
     { id: 'statuses', label: t('settings_page.statuses'), icon: CheckCircle },
     { id: 'notifications', label: t('settings_page.notifications'), icon: MessageSquare },
     { id: 'roles', label: t('settings_page.roles'), icon: Fingerprint },
@@ -42,8 +40,6 @@ const Settings = ({ auth }) => {
     switch (activeSubTab) {
       case 'general':
         return <GeneralSettings />;
-      case 'services':
-        return <ServicesCatalog />;
       case 'statuses':
         return (
           <div className="space-y-6">
@@ -70,7 +66,7 @@ const Settings = ({ auth }) => {
     <div className="flex flex-col lg:flex-row gap-6 items-start animate-fade-in">
       {/* Settings Navigation Sidebar / Tabs */}
       <div className="w-full lg:w-64 shrink-0 glass-card p-4 rounded-2xl border border-slate-200 dark:border-white/5 bg-white dark:bg-transparent shadow-sm space-y-1">
-        <h2 className="text-sm font-bold text-slate-800 dark:text-white px-3 pb-3 border-b border-slate-100 dark:border-white/5 mb-3 font-['Outfit']">
+        <h2 className="text-sm font-bold text-slate-800 dark:text-white px-3 pb-3 border-b border-slate-100 dark:border-white/5 mb-3 ">
           {t('menu.settings')}
         </h2>
         <div className="flex flex-row lg:flex-col overflow-x-auto lg:overflow-x-visible gap-1.5 scrollbar-thin">
@@ -104,3 +100,4 @@ const Settings = ({ auth }) => {
 };
 
 export default Settings;
+

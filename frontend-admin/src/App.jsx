@@ -17,7 +17,6 @@ import Settings from './features/Settings';
 import LeafletMap from './features/LeafletMap';
 import LoginPage from './features/LoginPage';
 import SuperadminLoginPage from './features/SuperadminLoginPage';
-import Telephony from './features/Telephony';
 import { initMockDb, addNotification } from './store/mockDb';
 import NotificationCenter from './components/NotificationCenter';
 import { api } from './services/api';
@@ -52,7 +51,7 @@ const App = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#f1f5f9] dark:bg-[#030712] flex items-center justify-center text-slate-800 dark:text-white font-semibold">
+      <div className="min-h-screen bg-slate-50 dark:bg-[#0b0f19] flex items-center justify-center text-slate-800 dark:text-white font-semibold">
         Yuklanmoqda...
       </div>
     );
@@ -182,7 +181,7 @@ const SuperadminPortal = ({ auth, setAuth, theme, toggleTheme }) => {
   };
 
   return (
-    <div className="flex bg-[#f1f5f9] dark:bg-[#030712] min-h-screen text-slate-800 dark:text-gray-100 font-sans w-full transition-colors duration-200">
+    <div className="flex bg-slate-50 dark:bg-[#0b0f19] min-h-screen text-slate-800 dark:text-gray-100 font-sans w-full transition-colors duration-200">
       <Sidebar
         currentTab={currentTab}
         setCurrentTab={setCurrentTab}
@@ -212,7 +211,7 @@ const SuperadminPortal = ({ auth, setAuth, theme, toggleTheme }) => {
             </div>
           </div>
         </header>
-        <main className="p-8 flex-1 overflow-y-auto bg-[#f1f5f9] dark:bg-[#030712] transition-colors duration-200">
+        <main className="p-8 flex-1 overflow-y-auto bg-slate-50 dark:bg-[#0b0f19] transition-colors duration-200">
           {currentTab === 'companies' && <SuperadminDashboard tab="companies" />}
           {currentTab === 'broadcast' && <BroadcastPanel />}
           {currentTab === 'settings' && <SuperadminSettings />}
@@ -286,15 +285,13 @@ const AdminPortal = ({ auth, setAuth, theme, toggleTheme }) => {
         return <Settings tab="settings" auth={auth} />;
       case 'map':
         return <LeafletMap tab="map" />;
-      case 'telephony':
-        return <Telephony auth={auth} />;
       default:
         return <AdminDashboard tab="dashboard" />;
     }
   };
 
   return (
-    <div className="flex bg-[#f1f5f9] dark:bg-[#030712] min-h-screen text-slate-800 dark:text-gray-100 font-sans w-full transition-colors duration-200">
+    <div className="flex bg-slate-50 dark:bg-[#0b0f19] min-h-screen text-slate-800 dark:text-gray-100 font-sans w-full transition-colors duration-200">
       <Sidebar
         currentTab={currentTab}
         setCurrentTab={setCurrentTab}
@@ -329,7 +326,7 @@ const AdminPortal = ({ auth, setAuth, theme, toggleTheme }) => {
             </div>
           </div>
         </header>
-        <main className="p-8 flex-1 overflow-y-auto bg-[#f1f5f9] dark:bg-[#030712] transition-colors duration-200">
+        <main className="p-8 flex-1 overflow-y-auto bg-slate-50 dark:bg-[#0b0f19] transition-colors duration-200">
           {renderAdminTab()}
         </main>
       </div>

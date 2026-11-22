@@ -162,7 +162,7 @@ const NotificationCenter = () => {
       {isOpen && (
         <div className="absolute right-0 mt-2.5 w-80 rounded-2xl bg-white dark:bg-[#111827] border border-slate-200 dark:border-white/5 shadow-2xl p-4 z-50 animate-scale-in text-xs font-semibold space-y-3">
           <div className="flex justify-between items-center border-b border-slate-100 dark:border-white/5 pb-2">
-            <h4 className="text-sm font-extrabold text-slate-850 dark:text-white font-['Outfit'] flex items-center gap-1.5">
+            <h4 className="text-sm font-extrabold text-slate-850 dark:text-white flex items-center gap-1.5">
               <span>{t('notifications_center.title')}</span>
               {unreadCount > 0 && (
                 <span className="px-1.5 py-0.5 rounded-md bg-rose-500/10 text-rose-600 dark:text-rose-455 text-[9px] font-extrabold">
@@ -242,7 +242,7 @@ const NotificationCenter = () => {
               {renderIcon(toast.type)}
 
               <div className="space-y-0.5 flex-1 pr-4">
-                <span className="font-extrabold text-slate-800 dark:text-white block font-['Outfit']">
+                <span className="font-extrabold text-slate-800 dark:text-white block ">
                   {toast.title}
                 </span>
                 <p className="text-[10px] text-slate-500 dark:text-gray-400 leading-normal">
@@ -266,3 +266,4 @@ const NotificationCenter = () => {
 };
 
 export default NotificationCenter;
+

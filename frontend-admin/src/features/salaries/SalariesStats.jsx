@@ -12,7 +12,7 @@ const SalariesStats = ({ summary, onPayAll, onGeneratePayroll, onOpenAttendance 
       {/* Title + Batch Action Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h2 className="text-2xl font-extrabold text-slate-800 dark:text-white tracking-tight font-['Outfit']">{t('salaries_page.title')}</h2>
+          <h2 className="text-2xl font-extrabold text-slate-800 dark:text-white tracking-tight ">{t('salaries_page.title')}</h2>
           <p className="text-xs text-slate-500 dark:text-gray-400 font-medium">{t('salaries_page.desc')}</p>
         </div>
 
@@ -47,7 +47,7 @@ const SalariesStats = ({ summary, onPayAll, onGeneratePayroll, onOpenAttendance 
         <div className="glass-card p-6 rounded-2xl flex items-center justify-between shadow-sm dark:shadow-none bg-white dark:bg-transparent">
           <div className="space-y-1">
             <p className="text-[10px] font-bold text-slate-400 dark:text-gray-500 uppercase tracking-wider">{t('salaries_page.total_payroll')}</p>
-            <h3 className="text-xl font-extrabold text-slate-800 dark:text-white font-['Outfit']">
+            <h3 className="text-xl font-extrabold text-slate-800 dark:text-white ">
               {formatCurrency(summary.total, i18n.language)}
             </h3>
           </div>
@@ -60,7 +60,7 @@ const SalariesStats = ({ summary, onPayAll, onGeneratePayroll, onOpenAttendance 
         <div className="glass-card p-6 rounded-2xl flex items-center justify-between shadow-sm dark:shadow-none bg-white dark:bg-transparent">
           <div className="space-y-1">
             <p className="text-[10px] font-bold text-slate-400 dark:text-gray-500 uppercase tracking-wider">{t('salaries_page.paid_payroll')}</p>
-            <h3 className="text-xl font-extrabold text-emerald-600 dark:text-emerald-400 font-['Outfit']">
+            <h3 className="text-xl font-extrabold text-emerald-600 dark:text-emerald-400 ">
               {formatCurrency(summary.paid, i18n.language)}
             </h3>
           </div>
@@ -73,7 +73,7 @@ const SalariesStats = ({ summary, onPayAll, onGeneratePayroll, onOpenAttendance 
         <div className="glass-card p-6 rounded-2xl flex items-center justify-between shadow-sm dark:shadow-none bg-white dark:bg-transparent">
           <div className="space-y-1">
             <p className="text-[10px] font-bold text-slate-400 dark:text-gray-500 uppercase tracking-wider">{t('salaries_page.pending_payroll')}</p>
-            <h3 className="text-xl font-extrabold text-amber-600 dark:text-amber-400 font-['Outfit']">
+            <h3 className="text-xl font-extrabold text-amber-600 dark:text-amber-400 ">
               {formatCurrency(summary.pending, i18n.language)}
             </h3>
           </div>
@@ -89,3 +89,4 @@ const SalariesStats = ({ summary, onPayAll, onGeneratePayroll, onOpenAttendance 
 };
 
 export default SalariesStats;
+

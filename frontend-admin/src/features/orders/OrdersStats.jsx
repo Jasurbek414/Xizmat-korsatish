@@ -58,7 +58,7 @@ const OrdersStats = ({ orders, statuses }) => {
           <div key={idx} className="glass-card p-6 rounded-2xl flex items-center justify-between shadow-sm dark:shadow-none bg-white dark:bg-transparent">
             <div className="space-y-1.5">
               <p className="text-[10px] font-bold text-slate-400 dark:text-gray-500 uppercase tracking-wider">{s.title}</p>
-              <h3 className="text-xl font-extrabold text-slate-800 dark:text-white font-['Outfit']">{s.val}</h3>
+              <h3 className="text-xl font-extrabold text-slate-800 dark:text-white ">{s.val}</h3>
               <p className="text-[10px] text-slate-400 dark:text-gray-500 font-medium">{s.desc}</p>
             </div>
             <div className={`w-11 h-11 rounded-xl ${s.bg} flex items-center justify-center ${s.color}`}>
@@ -72,3 +72,4 @@ const OrdersStats = ({ orders, statuses }) => {
 };
 
 export default OrdersStats;
+

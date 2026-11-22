@@ -15,7 +15,7 @@ const EmployeesTable = ({
     <div className="glass-card rounded-2xl overflow-hidden shadow-sm dark:shadow-none bg-white dark:bg-transparent border border-slate-200 dark:border-white/5 text-xs font-semibold">
       
       <div className="p-4 border-b border-slate-200 dark:border-white/5 bg-slate-50 dark:bg-transparent flex justify-between items-center">
-        <h4 className="font-bold text-slate-800 dark:text-white text-xs font-['Outfit'] uppercase tracking-wider">
+        <h4 className="font-bold text-slate-800 dark:text-white text-xs uppercase tracking-wider">
           Xodimlar Ro'yxati (Employee List)
         </h4>
         <span className="text-[10px] text-slate-400 font-bold">Jami: {users.length} ta xodim</span>
@@ -155,3 +155,4 @@ const EmployeesTable = ({
 };
 
 export default EmployeesTable;
+

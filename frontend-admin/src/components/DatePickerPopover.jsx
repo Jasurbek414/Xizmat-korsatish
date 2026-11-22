@@ -79,7 +79,7 @@ const DatePickerPopover = ({ value, onSelect, onClose, markedDates }) => {
         >
           <ChevronLeft className="w-4 h-4" />
         </button>
-        <span className="text-xs font-bold text-slate-800 dark:text-white font-['Outfit']">
+        <span className="text-xs font-bold text-slate-800 dark:text-white ">
           {MONTHS[viewMonth]} {viewYear}
         </span>
         <button
@@ -163,3 +163,4 @@ const DatePickerPopover = ({ value, onSelect, onClose, markedDates }) => {
 };
 
 export default DatePickerPopover;
+

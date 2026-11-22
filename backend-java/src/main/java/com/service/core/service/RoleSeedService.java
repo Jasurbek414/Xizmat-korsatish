@@ -67,7 +67,6 @@ public class RoleSeedService {
         perms.put(PermissionKeys.FINANCE, true);
         perms.put(PermissionKeys.SALARIES, true);
         perms.put(PermissionKeys.MAP, true);
-        perms.put(PermissionKeys.TELEPHONY, true);
         perms.put(PermissionKeys.MOBILE_FINANCE_VIEW, true);
         perms.put(PermissionKeys.MOBILE_TEAM_VIEW, true);
         perms.put(PermissionKeys.MOBILE_CHAT, true);
@@ -79,7 +78,6 @@ public class RoleSeedService {
         perms.put(PermissionKeys.CLIENTS, true);
         perms.put(PermissionKeys.ORDERS, true);
         perms.put(PermissionKeys.MAP, true);
-        perms.put(PermissionKeys.TELEPHONY, true);
         // Dispetcher haydovchidan naqd pulni qabul qilib, kassaga topshirishni
         // tasdiqlaydi (FinanceController pending-transactions/confirm) - bu
         // huquq avval faqat qattiq yozilgan rol tekshiruvi orqali berilgan edi.
@@ -121,4 +119,4 @@ public class RoleSeedService {
         perms.put(PermissionKeys.MOBILE_SALARY_VIEW, true);
         return perms;
     }
-}
+}

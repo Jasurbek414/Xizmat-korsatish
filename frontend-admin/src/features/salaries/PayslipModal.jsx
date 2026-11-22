@@ -36,7 +36,7 @@ const PayslipModal = ({ isOpen, onClose, salary, orders = [], completedStatusId 
         {/* Header toolbar */}
         <div className="flex justify-between items-center border-b border-slate-100 dark:border-white/5 pb-3">
           <div className="flex items-center gap-1.5 text-indigo-600 dark:text-indigo-400">
-            <span className="font-extrabold text-sm font-['Outfit']">Hisob-kitob varaqasi (Payslip)</span>
+            <span className="font-extrabold text-sm ">Hisob-kitob varaqasi (Payslip)</span>
           </div>
           <div className="flex items-center gap-1.5">
             <button 
@@ -60,7 +60,7 @@ const PayslipModal = ({ isOpen, onClose, salary, orders = [], completedStatusId 
           {/* Logo & Company info */}
           <div className="flex justify-between items-start border-b border-dashed border-slate-200 dark:border-white/5 pb-3">
             <div>
-              <h4 className="font-black text-slate-800 dark:text-white font-['Outfit'] uppercase text-[10px] tracking-wider">ServiceCore SaaS ERP</h4>
+              <h4 className="font-black text-slate-800 dark:text-white uppercase text-[10px] tracking-wider">ServiceCore SaaS ERP</h4>
               <p className="text-[9px] text-slate-400 font-mono">Toshkent, O'zbekiston</p>
             </div>
             <div className="text-right">
@@ -137,7 +137,7 @@ const PayslipModal = ({ isOpen, onClose, salary, orders = [], completedStatusId 
               {/* Summary line */}
               <div className="flex justify-between items-center bg-indigo-500/5 px-3 py-2.5 rounded-xl border border-indigo-500/10 mt-3">
                 <span className="font-extrabold text-indigo-600 dark:text-indigo-400 uppercase text-[9px] tracking-wide">Sof To'lanadigan (Net Salary)</span>
-                <span className="font-black text-sm text-indigo-600 dark:text-indigo-400 font-['Outfit']">
+                <span className="font-black text-sm text-indigo-600 dark:text-indigo-400 ">
                   {formatCurrency(netSalary, i18n.language)}
                 </span>
               </div>
@@ -161,3 +161,4 @@ const PayslipModal = ({ isOpen, onClose, salary, orders = [], completedStatusId 
 };
 
 export default PayslipModal;
+

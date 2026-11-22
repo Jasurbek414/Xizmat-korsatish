@@ -66,7 +66,7 @@ const NotificationSettings = () => {
   return (
     <div className="space-y-6">
       <div>
-        <h3 className="text-lg font-bold text-slate-800 dark:text-white tracking-tight font-['Outfit']">
+        <h3 className="text-lg font-bold text-slate-800 dark:text-white tracking-tight ">
           {t('settings_page.notifications')}
         </h3>
         <p className="text-xs text-slate-500 dark:text-gray-400 font-medium">
@@ -84,7 +84,7 @@ const NotificationSettings = () => {
       <form onSubmit={handleSave} className="grid grid-cols-1 lg:grid-cols-3 gap-6 text-xs font-semibold">
         {/* Left Column: API settings */}
         <div className="glass-card p-6 rounded-2xl space-y-4 border border-slate-200 dark:border-white/5 bg-white dark:bg-transparent shadow-sm h-fit">
-          <h4 className="text-sm font-bold text-slate-800 dark:text-white pb-2 border-b border-slate-100 dark:border-white/5 font-['Outfit']">
+          <h4 className="text-sm font-bold text-slate-800 dark:text-white pb-2 border-b border-slate-100 dark:border-white/5 ">
             {t('settings_page.sms_settings')}
           </h4>
 
@@ -136,7 +136,7 @@ const NotificationSettings = () => {
 
         {/* Right Column: Templates (spans 2 columns) */}
         <div className="lg:col-span-2 glass-card p-6 rounded-2xl space-y-4 border border-slate-200 dark:border-white/5 bg-white dark:bg-transparent shadow-sm">
-          <h4 className="text-sm font-bold text-slate-800 dark:text-white pb-2 border-b border-slate-100 dark:border-white/5 font-['Outfit']">
+          <h4 className="text-sm font-bold text-slate-800 dark:text-white pb-2 border-b border-slate-100 dark:border-white/5 ">
             {t('settings_page.sms_templates')}
           </h4>
 
@@ -199,3 +199,4 @@ const NotificationSettings = () => {
 };
 
 export default NotificationSettings;
+

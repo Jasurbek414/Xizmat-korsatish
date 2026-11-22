@@ -9,7 +9,7 @@ const RevenueBreakdownCard = ({ title, icon: Icon, items, emptyText, countLabel 
 
   return (
     <div className="glass-card p-5 rounded-2xl border border-slate-200 dark:border-white/5 bg-white dark:bg-transparent shadow-sm space-y-3">
-      <h4 className="font-bold text-slate-800 dark:text-white text-xs font-['Outfit'] uppercase tracking-wider flex items-center gap-1.5">
+      <h4 className="font-bold text-slate-800 dark:text-white text-xs uppercase tracking-wider flex items-center gap-1.5">
         {Icon && <Icon className="w-3.5 h-3.5 text-indigo-500" />} {title}
       </h4>
 
@@ -46,3 +46,4 @@ const RevenueBreakdownCard = ({ title, icon: Icon, items, emptyText, countLabel 
 };
 
 export default RevenueBreakdownCard;
+

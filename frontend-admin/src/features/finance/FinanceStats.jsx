@@ -29,7 +29,7 @@ const FinanceStats = ({ balance, dailyExpenses, expectedFunds, pendingHandoversS
             <p className="text-[10px] font-bold text-indigo-200 uppercase tracking-wider flex items-center gap-1.5">
               <Wallet className="w-3.5 h-3.5" /> Umumiy Nazorat Ostidagi Mablag'
             </p>
-            <h3 className="text-3xl font-extrabold font-['Outfit']">
+            <h3 className="text-3xl font-extrabold ">
               {formatCurrency(totalControlled, i18n.language)}
             </h3>
             <p className="text-[10px] text-indigo-200 mt-1">Kompaniyaga tegishli, hozirda qayerda turishidan qat'i nazar - jami mablag'</p>
@@ -38,13 +38,13 @@ const FinanceStats = ({ balance, dailyExpenses, expectedFunds, pendingHandoversS
           <div className="flex gap-3 md:gap-4">
             <div className="bg-white/10 rounded-xl px-4 py-3 min-w-[140px]">
               <p className="text-[9px] font-bold text-indigo-200 uppercase tracking-wide">Kassada</p>
-              <p className="text-base font-extrabold font-['Outfit']">{formatCurrency(balance, i18n.language)}</p>
+              <p className="text-base font-extrabold ">{formatCurrency(balance, i18n.language)}</p>
             </div>
             <div className="bg-white/10 rounded-xl px-4 py-3 min-w-[140px]">
               <p className="text-[9px] font-bold text-indigo-200 uppercase tracking-wide flex items-center gap-1">
                 <ShieldAlert className="w-2.5 h-2.5" /> Kuryerlarda
               </p>
-              <p className="text-base font-extrabold font-['Outfit']">{formatCurrency(pendingHandoversSum, i18n.language)}</p>
+              <p className="text-base font-extrabold ">{formatCurrency(pendingHandoversSum, i18n.language)}</p>
             </div>
           </div>
         </div>
@@ -56,7 +56,7 @@ const FinanceStats = ({ balance, dailyExpenses, expectedFunds, pendingHandoversS
         <div className="glass-card p-6 rounded-2xl flex items-center justify-between shadow-sm dark:shadow-none bg-white dark:bg-[#111827]/80">
           <div className="space-y-1">
             <p className="text-[10px] font-bold text-slate-400 dark:text-gray-500 uppercase tracking-wider">Kunlik Xarajatlar (Bugun)</p>
-            <h3 className="text-xl font-extrabold text-rose-600 dark:text-rose-400 font-['Outfit']">
+            <h3 className="text-xl font-extrabold text-rose-600 dark:text-rose-400 ">
               -{formatCurrency(dailyExpenses, i18n.language)}
             </h3>
             <p className="text-[9px] text-slate-400 dark:text-gray-500 mt-1">Bugungi kunda qilingan chiqimlar yig'indisi</p>
@@ -70,7 +70,7 @@ const FinanceStats = ({ balance, dailyExpenses, expectedFunds, pendingHandoversS
         <div className="glass-card p-6 rounded-2xl flex items-center justify-between shadow-sm dark:shadow-none bg-white dark:bg-[#111827]/80">
           <div className="space-y-1">
             <p className="text-[10px] font-bold text-slate-400 dark:text-gray-500 uppercase tracking-wider">Kutilayotgan Mablag'lar</p>
-            <h3 className="text-xl font-extrabold text-emerald-600 dark:text-emerald-400 font-['Outfit']">
+            <h3 className="text-xl font-extrabold text-emerald-600 dark:text-emerald-400 ">
               {formatCurrency(expectedFunds, i18n.language)}
             </h3>
             <p className="text-[9px] text-slate-400 dark:text-gray-500 mt-1">Faol buyurtmalarning umumiy summasi</p>
@@ -85,7 +85,7 @@ const FinanceStats = ({ balance, dailyExpenses, expectedFunds, pendingHandoversS
         <div className="glass-card p-6 rounded-2xl flex items-center justify-between shadow-sm dark:shadow-none bg-white dark:bg-[#111827]/80">
           <div className="space-y-1">
             <p className="text-[10px] font-bold text-slate-400 dark:text-gray-500 uppercase tracking-wider">To'lanmagan Ish Haqi</p>
-            <h3 className="text-xl font-extrabold text-amber-600 dark:text-amber-400 font-['Outfit']">
+            <h3 className="text-xl font-extrabold text-amber-600 dark:text-amber-400 ">
               {formatCurrency(pendingPayroll, i18n.language)}
             </h3>
             <p className="text-[9px] text-slate-400 dark:text-gray-500 mt-1">Yaqinda to'lanishi kerak bo'lgan maosh majburiyati</p>
@@ -122,3 +122,4 @@ const FinanceStats = ({ balance, dailyExpenses, expectedFunds, pendingHandoversS
 };
 
 export default FinanceStats;
+

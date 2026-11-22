@@ -31,7 +31,7 @@ const Sidebar = ({ currentTab, setCurrentTab, role, roleLabel, perms = {}, handl
             S
           </div>
           <div>
-            <h1 className="text-sm font-bold text-slate-800 dark:text-white tracking-tight font-['Outfit'] m-0 leading-none">
+            <h1 className="text-sm font-bold text-slate-800 dark:text-white tracking-tight m-0 leading-none">
               Service<span className="text-indigo-500 dark:text-indigo-400">Core</span>
             </h1>
             <span className="text-[9px] text-slate-400 dark:text-gray-500 font-semibold tracking-wider uppercase mt-1 block">
@@ -78,3 +78,4 @@ const Sidebar = ({ currentTab, setCurrentTab, role, roleLabel, perms = {}, handl
 };
 
 export default Sidebar;
+

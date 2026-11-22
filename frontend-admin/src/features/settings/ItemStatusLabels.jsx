@@ -132,7 +132,7 @@ const ItemStatusLabels = () => {
           <Layers className="w-4.5 h-4.5" />
         </div>
         <div>
-          <h4 className="text-sm font-bold text-slate-800 dark:text-white font-['Outfit']">
+          <h4 className="text-sm font-bold text-slate-800 dark:text-white ">
             Gilam bosqichlari
           </h4>
           <p className="text-[9px] text-slate-400 dark:text-gray-500 mt-0.5 max-w-xl leading-relaxed">
@@ -307,3 +307,4 @@ const ItemStatusLabels = () => {
 };
 
 export default ItemStatusLabels;
+

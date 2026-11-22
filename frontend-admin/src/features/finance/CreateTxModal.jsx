@@ -85,7 +85,7 @@ const CreateTxModal = ({ isOpen, onClose, newTx, setNewTx, onSubmit, wallets, cu
         
         {/* Header */}
         <div className="flex justify-between items-center border-b border-slate-100 dark:border-white/5 pb-2">
-          <h3 className="text-base font-bold text-slate-800 dark:text-white font-['Outfit']">{t('finance_page.new_tx')}</h3>
+          <h3 className="text-base font-bold text-slate-800 dark:text-white ">{t('finance_page.new_tx')}</h3>
           <button 
             onClick={onClose}
             className="p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-white/5 text-slate-500 dark:text-gray-400 transition cursor-pointer"
@@ -258,3 +258,4 @@ const CreateTxModal = ({ isOpen, onClose, newTx, setNewTx, onSubmit, wallets, cu
 };
 
 export default CreateTxModal;
+

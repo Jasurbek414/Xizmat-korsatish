@@ -1,4 +1,4 @@
-package com.service.core.service.telephony;
+package com.service.core.service.gps;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
@@ -19,21 +19,6 @@ import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * /ws/gps - "Xodimlar Monitoringi" xaritasi uchun REAL VAQT kanali.
- *
- * NEGA KERAK: avval veb-admin har 6 soniyada backendni SO'RAB turardi
- * (polling) - lekin haydovchi GPS'ni har 15 soniyada yuboradi, ya'ni yangi
- * nuqta ALLAQACHON bor bo'lsa ham, admin uni ko'rish uchun keyingi so'rov
- * (~0-6s kutish) navbatini kutishga majbur edi. Foydalanuvchi "hatto bir
- * soniya ham farq qilmasin" deb so'ragani uchun - GpsController har bir
- * yangi nuqtani saqlagan ZAHOTI shu kanal orqali DARHOL (kutishsiz)
- * ulangan barcha admin brauzerlariga yuboradi. Polling (6s) FALLBACK
- * sifatida saqlanadi (masalan WebSocket vaqtincha uzilib qolsa).
- *
- * Telefoniya kanali (/ws/telephony, TelephonyWebSocketHandler) bilan BIR
- * XIL autentifikatsiya (TelephonyHandshakeInterceptor - umumiy, nomiga
- * qaramasdan telefoniyaga xos emas) va keepalive/broadcast naqshi
- * qo'llaniladi, lekin bu yerda faqat BITTA yo'nalish bor: server -> mijoz
- * (mijozdan PING'dan boshqa hech narsa kutilmaydi).
  */
 @Component
 public class GpsWebSocketHandler extends TextWebSocketHandler {
@@ -41,10 +26,6 @@ public class GpsWebSocketHandler extends TextWebSocketHandler {
     private static final Logger log = LoggerFactory.getLogger(GpsWebSocketHandler.class);
 
     private final ObjectMapper objectMapper = new ObjectMapper();
-
-    // Bir kompaniyada BIR NECHTA admin/menejer xaritani BIR VAQTDA ochib
-    // turishi mumkin - shu sabab foydalanuvchi emas, KOMPANIYA bo'yicha
-    // guruhlangan sessiyalar to'plami.
     private final Map<UUID, Set<ConcurrentWebSocketSessionDecorator>> companySessions = new ConcurrentHashMap<>();
 
     private UUID companyIdOf(WebSocketSession session) {
@@ -75,10 +56,7 @@ public class GpsWebSocketHandler extends TextWebSocketHandler {
 
     @Override
     protected void handleTextMessage(WebSocketSession session, TextMessage message) {
-        // Mijozdan FAQAT keepalive PING keladi - boshqa hech qanday amal
-        // qabul qilinmaydi (bu kanal FAQAT server -> mijoz translyatsiya).
-        // Alohida PONG yubormaymiz - brauzer tomoni buni kutmaydi (faqat
-        // ulanish ochiq/tirik ekanini ta'minlash uchun trafik hosil qiladi).
+        // Keepalive PING faqat
     }
 
     @Override
@@ -93,11 +71,6 @@ public class GpsWebSocketHandler extends TextWebSocketHandler {
         }
     }
 
-    /**
-     * GpsController.logCoordinates() har bir yangi nuqtani saqlagandan
-     * so'ng chaqiradi - shu kompaniyaning xaritasini ochib turgan BARCHA
-     * admin brauzerlariga darhol yuboriladi.
-     */
     public void broadcastGpsUpdate(UUID companyId, UUID driverId, double latitude, double longitude, LocalDateTime recordedAt) {
         Set<ConcurrentWebSocketSessionDecorator> sessions = companySessions.get(companyId);
         if (sessions == null || sessions.isEmpty()) return;
@@ -123,7 +96,7 @@ public class GpsWebSocketHandler extends TextWebSocketHandler {
                 try {
                     session.sendMessage(message);
                 } catch (IOException e) {
-                    // Ignore - ulanish keyingi tsiklda o'zi tozalanadi (afterConnectionClosed).
+                    // Ignore
                 }
             }
         }

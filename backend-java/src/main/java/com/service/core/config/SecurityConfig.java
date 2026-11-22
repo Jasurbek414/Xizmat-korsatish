@@ -69,11 +69,11 @@ public class SecurityConfig {
                 // qilinadi va istalgan payt bekor qilinadi.
                 .requestMatchers("/api/v1/auth/login", "/api/v1/auth/subdomain/**",
                                  "/api/v1/auth/refresh", "/api/v1/auth/logout").permitAll()
-                // /ws/telephony JWT tekshiruvi Spring Security filter zanjirida emas,
-                // TelephonyHandshakeInterceptor'da (WebSocket handshake bosqichida) amalga
+                // /ws/gps JWT tekshiruvi Spring Security filter zanjirida emas,
+                // GpsHandshakeInterceptor'da (WebSocket handshake bosqichida) amalga
                 // oshiriladi - shuning uchun bu yerda ham ruxsat berilishi kerak, lekin
                 // haqiqiy autentifikatsiya interceptor darajasida majburiy.
-                .requestMatchers("/ws/telephony", "/ws/telephony/**").permitAll()
+                .requestMatchers("/ws/gps", "/ws/gps/**").permitAll()
                 // MUHIM: DELETE uchun aniq rol nomlari URL darajasida QAYTA tekshirilmaydi -
                 // buni endi har bir kontrollerning o'z @PreAuthorize("@perm.has(...)")
                 // annotatsiyasi (Rollar va Huquqlar sahifasidagi HAQIQIY ruxsatlar asosida,

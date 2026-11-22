@@ -864,7 +864,7 @@ const LeafletMap = ({ tab }) => {
       }),
       zIndexOffset: 1000
     }).addTo(map).bindPopup(`
-      <div style="color: #1e293b; font-family: 'Outfit', sans-serif; padding: 4px; font-size: 11px;">
+      <div style="color: #1e293b; font-family: 'Plus Jakarta Sans', sans-serif; padding: 4px; font-size: 11px;">
         <strong style="color: #7c3aed;">Korxona markazi</strong>
       </div>
     `);
@@ -1053,7 +1053,7 @@ const LeafletMap = ({ tab }) => {
 
       // Bind custom popup
       driverMarker.bindPopup(`
-        <div style="color: #1e293b; font-family: 'Outfit', sans-serif; padding: 6px; font-size: 11px; width: 180px;">
+        <div style="color: #1e293b; font-family: 'Plus Jakarta Sans', sans-serif; padding: 6px; font-size: 11px; width: 180px;">
           <h4 style="margin: 0 0 3px; font-weight: 800; font-size: 12px; color: #1e1b4b;">${driver.full_name}</h4>
           <p style="margin: 0; color: #64748b; font-weight: 550;">Tel: ${driver.phone || '—'}</p>
           <div style="margin-top: 6px; display: flex; align-items: center; gap: 4px;">
@@ -1182,7 +1182,7 @@ const LeafletMap = ({ tab }) => {
       {/* Title Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-slate-200 dark:border-white/5 pb-4">
         <div>
-          <h2 className="text-2xl font-extrabold text-slate-800 dark:text-white tracking-tight font-['Outfit']">Xodimlar Monitoringi</h2>
+          <h2 className="text-2xl font-extrabold text-slate-800 dark:text-white tracking-tight ">Xodimlar Monitoringi</h2>
           <p className="text-xs text-slate-500 dark:text-gray-400 font-medium">Haydovchi va kuryerlar joylashuvini real vaqtda OpenStreetMap orqali boshqarish</p>
         </div>
         
@@ -1598,3 +1598,4 @@ const LeafletMap = ({ tab }) => {
 };
 
 export default LeafletMap;
+

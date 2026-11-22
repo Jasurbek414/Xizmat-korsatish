@@ -30,7 +30,7 @@ const PlatformStats = () => {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-2xl font-extrabold text-slate-800 dark:text-white tracking-tight font-['Outfit']">{t('superadmin.analytics_title')}</h2>
+        <h2 className="text-2xl font-extrabold text-slate-800 dark:text-white tracking-tight ">{t('superadmin.analytics_title')}</h2>
         <p className="text-xs text-slate-500 dark:text-gray-400 font-medium">{t('superadmin.analytics_desc')}</p>
       </div>
 
@@ -41,7 +41,7 @@ const PlatformStats = () => {
             <div key={idx} className="glass-card p-6 rounded-2xl flex items-center justify-between shadow-sm dark:shadow-none bg-white dark:bg-transparent">
               <div className="space-y-1">
                 <p className="text-[10px] font-bold text-slate-400 dark:text-gray-500 uppercase tracking-wider">{tile.title}</p>
-                <h3 className="text-2xl font-extrabold text-slate-800 dark:text-white font-['Outfit']">{tile.val}</h3>
+                <h3 className="text-2xl font-extrabold text-slate-800 dark:text-white ">{tile.val}</h3>
               </div>
               <div className={`w-10 h-10 rounded-xl ${tile.bg} flex items-center justify-center ${tile.color}`}>
                 <Icon className="w-5.5 h-5.5" />
@@ -52,7 +52,7 @@ const PlatformStats = () => {
       </div>
 
       <div className="glass-card rounded-2xl p-6 shadow-sm dark:shadow-none bg-white dark:bg-transparent border border-slate-200 dark:border-white/5 space-y-4">
-        <h3 className="text-sm font-bold text-slate-800 dark:text-white font-['Outfit']">{t('superadmin.top_companies_title')}</h3>
+        <h3 className="text-sm font-bold text-slate-800 dark:text-white ">{t('superadmin.top_companies_title')}</h3>
         {(s.topCompanies || []).length === 0 ? (
           <p className="text-xs text-slate-400 dark:text-gray-500 font-semibold">{t('superadmin.top_companies_empty')}</p>
         ) : (
@@ -79,3 +79,4 @@ const PlatformStats = () => {
 };
 
 export default PlatformStats;
+

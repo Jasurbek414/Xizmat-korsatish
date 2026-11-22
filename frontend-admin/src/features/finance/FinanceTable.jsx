@@ -49,7 +49,7 @@ const FinanceTable = ({ filteredTx, wallets, onDeleteTx }) => {
     <>
     <div className="glass-card rounded-2xl overflow-hidden shadow-sm dark:shadow-none bg-white dark:bg-transparent border border-slate-200 dark:border-white/5 text-xs font-semibold">
       <div className="p-4 border-b border-slate-200 dark:border-white/5 bg-slate-50 dark:bg-transparent flex justify-between items-center">
-        <h4 className="font-bold text-slate-800 dark:text-white text-xs font-['Outfit'] uppercase tracking-wider">{t('finance_page.tx_history')}</h4>
+        <h4 className="font-bold text-slate-800 dark:text-white text-xs uppercase tracking-wider">{t('finance_page.tx_history')}</h4>
         <span className="text-[10px] text-slate-400 font-bold">Jami: {filteredTx.length} ta tranzaksiya</span>
       </div>
       <div className="overflow-x-auto">
@@ -101,7 +101,7 @@ const FinanceTable = ({ filteredTx, wallets, onDeleteTx }) => {
                   <td className="p-4 font-semibold text-slate-800 dark:text-white max-w-[220px] truncate">{tx.description}</td>
 
                   {/* Date */}
-                  <td className="p-4 text-slate-500 dark:text-gray-400 font-['Outfit']">
+                  <td className="p-4 text-slate-500 dark:text-gray-400 ">
                     {formatDate(tx.created_at, i18n.language)}
                   </td>
 
@@ -111,7 +111,7 @@ const FinanceTable = ({ filteredTx, wallets, onDeleteTx }) => {
                   </td>
 
                   {/* Amount */}
-                  <td className={`p-4 text-right font-extrabold font-['Outfit'] ${tx.type === 'INCOME' ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600'}`}>
+                  <td className={`p-4 text-right font-extrabold ${tx.type === 'INCOME' ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600'}`}>
                     {tx.type === 'INCOME' ? '+' : '-'}{formatCurrency(tx.amount, i18n.language)}
                   </td>
 
@@ -182,7 +182,7 @@ const FinanceTable = ({ filteredTx, wallets, onDeleteTx }) => {
           >
             <div className="flex justify-between items-center border-b border-slate-100 dark:border-white/5 pb-2">
               <div>
-                <h3 className="text-sm font-bold text-slate-800 dark:text-white font-['Outfit']">Tranzaksiya tafsiloti</h3>
+                <h3 className="text-sm font-bold text-slate-800 dark:text-white ">Tranzaksiya tafsiloti</h3>
                 <p className="text-[9px] text-slate-400 font-mono">
                   № {selectedTx.id ? selectedTx.id.slice(0, 8).toUpperCase() : "Noma'lum"}
                 </p>
@@ -298,7 +298,7 @@ const FinanceTable = ({ filteredTx, wallets, onDeleteTx }) => {
 
               <div className="flex justify-between items-center bg-slate-50 dark:bg-white/2 px-3 py-2.5 rounded-xl border border-slate-100 dark:border-white/5">
                 <span className="font-extrabold uppercase text-[9px] tracking-wide text-slate-500 dark:text-gray-400">Summa</span>
-                <span className={`font-black text-sm font-['Outfit'] ${selectedTx.type === 'INCOME' ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600'}`}>
+                <span className={`font-black text-sm ${selectedTx.type === 'INCOME' ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600'}`}>
                   {selectedTx.type === 'INCOME' ? '+' : '-'}{formatCurrency(selectedTx.amount, i18n.language)}
                 </span>
               </div>
@@ -335,3 +335,4 @@ const FinanceTable = ({ filteredTx, wallets, onDeleteTx }) => {
 };
 
 export default FinanceTable;
+

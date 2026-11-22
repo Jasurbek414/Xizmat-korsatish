@@ -248,7 +248,7 @@ const Employees = ({ tab }) => {
       {/* Title block */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-slate-200 dark:border-white/5 pb-4">
         <div>
-          <h2 className="text-2xl font-extrabold text-slate-800 dark:text-white tracking-tight font-['Outfit']">{t('employees_page.title')}</h2>
+          <h2 className="text-2xl font-extrabold text-slate-800 dark:text-white tracking-tight ">{t('employees_page.title')}</h2>
           <p className="text-xs text-slate-500 dark:text-gray-400 font-medium">{t('employees_page.desc')}</p>
         </div>
 
@@ -314,3 +314,4 @@ const Employees = ({ tab }) => {
 };
 
 export default Employees;
+

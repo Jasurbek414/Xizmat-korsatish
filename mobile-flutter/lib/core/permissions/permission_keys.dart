@@ -35,7 +35,6 @@ class PermissionKeys {
   static const String salaries = 'salaries';
   static const String settings = 'settings';
   static const String map = 'map';
-  static const String telephony = 'telephony';
 }
 
 /// Joriy foydalanuvchining roliga tayinlangan ruxsatlar to'plami.

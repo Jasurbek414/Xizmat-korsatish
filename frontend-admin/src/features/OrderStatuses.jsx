@@ -50,14 +50,14 @@ const OrderStatuses = ({ tab }) => {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-2xl font-extrabold text-slate-800 dark:text-white tracking-tight font-['Outfit']">{t('settings_page.statuses_title')}</h2>
+        <h2 className="text-2xl font-extrabold text-slate-800 dark:text-white tracking-tight ">{t('settings_page.statuses_title')}</h2>
         <p className="text-xs text-slate-500 dark:text-gray-400 font-medium">{t('settings_page.statuses_desc')}</p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left: Add Status Form */}
         <div className="glass-card p-6 rounded-2xl space-y-4 h-fit border border-slate-200 dark:border-white/5 bg-white dark:bg-transparent shadow-sm">
-          <h3 className="text-sm font-bold text-slate-800 dark:text-white flex items-center gap-2 font-['Outfit']">
+          <h3 className="text-sm font-bold text-slate-800 dark:text-white flex items-center gap-2 ">
             <Plus className="w-4 h-4 text-indigo-500" /> {t('settings_page.new_status')}
           </h3>
           <form onSubmit={handleAddStatus} className="space-y-4 text-xs font-semibold">
@@ -114,7 +114,7 @@ const OrderStatuses = ({ tab }) => {
 
         {/* Right: Statuses List */}
         <div className="lg:col-span-2 glass-card p-6 rounded-2xl space-y-4 border border-slate-200 dark:border-white/5 bg-white dark:bg-transparent shadow-sm">
-          <h3 className="text-sm font-bold text-slate-800 dark:text-white font-['Outfit']">{t('settings_page.order_sequence')}</h3>
+          <h3 className="text-sm font-bold text-slate-800 dark:text-white ">{t('settings_page.order_sequence')}</h3>
           <div className="space-y-2">
             {statuses.map((status, index) => (
               <div 
@@ -165,3 +165,4 @@ const OrderStatuses = ({ tab }) => {
 };
 
 export default OrderStatuses;
+

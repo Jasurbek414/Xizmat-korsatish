@@ -146,7 +146,7 @@ const OrderStatuses = () => {
   return (
     <div className="space-y-6">
       <div>
-        <h3 className="text-lg font-bold text-slate-800 dark:text-white tracking-tight font-['Outfit']">
+        <h3 className="text-lg font-bold text-slate-800 dark:text-white tracking-tight ">
           {t('settings_page.statuses_title')}
         </h3>
         <p className="text-xs text-slate-500 dark:text-gray-400 font-medium">
@@ -157,7 +157,7 @@ const OrderStatuses = () => {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left: Form Card (Add/Edit Status) */}
         <div className="glass-card p-6 rounded-2xl space-y-4 h-fit border border-slate-200 dark:border-white/5 bg-white dark:bg-transparent shadow-sm">
-          <h4 className="text-sm font-bold text-slate-800 dark:text-white flex items-center gap-2 font-['Outfit']">
+          <h4 className="text-sm font-bold text-slate-800 dark:text-white flex items-center gap-2 ">
             {editingStatus ? (
               <>
                 <Edit3 className="w-4 h-4 text-indigo-500" /> Tahrirlash: {editingStatus.name_uz}
@@ -292,7 +292,7 @@ const OrderStatuses = () => {
 
         {/* Right: Statuses List */}
         <div className="lg:col-span-2 glass-card p-6 rounded-2xl space-y-4 border border-slate-200 dark:border-white/5 bg-white dark:bg-transparent shadow-sm">
-          <h4 className="text-sm font-bold text-slate-800 dark:text-white font-['Outfit']">{t('settings_page.order_sequence')}</h4>
+          <h4 className="text-sm font-bold text-slate-800 dark:text-white ">{t('settings_page.order_sequence')}</h4>
           <div className="space-y-2">
             {statuses.map((status, index) => (
               <div 
@@ -373,3 +373,4 @@ const OrderStatuses = () => {
 };
 
 export default OrderStatuses;
+

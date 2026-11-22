@@ -67,7 +67,7 @@ const DebtManager = ({ debts, wallets, onPayDebt, onCreateDebt }) => {
         <div className="glass-card p-6 rounded-2xl flex items-center justify-between shadow-sm bg-white dark:bg-transparent">
           <div className="space-y-1">
             <p className="text-[10px] font-bold text-slate-400 dark:text-gray-500 uppercase tracking-wider">{t('finance_page.total_receivables')}</p>
-            <h3 className="text-xl font-extrabold text-emerald-600 dark:text-emerald-400 font-['Outfit']">
+            <h3 className="text-xl font-extrabold text-emerald-600 dark:text-emerald-400 ">
               +{formatCurrency(totalReceivables, i18n.language)}
             </h3>
             <p className="text-[9px] text-slate-400 dark:text-gray-500">Mijozlardan qaytishi kutilayotgan qarzlar</p>
@@ -81,7 +81,7 @@ const DebtManager = ({ debts, wallets, onPayDebt, onCreateDebt }) => {
         <div className="glass-card p-6 rounded-2xl flex items-center justify-between shadow-sm bg-white dark:bg-transparent">
           <div className="space-y-1">
             <p className="text-[10px] font-bold text-slate-400 dark:text-gray-500 uppercase tracking-wider">{t('finance_page.total_payables')}</p>
-            <h3 className="text-xl font-extrabold text-rose-600 dark:text-rose-400 font-['Outfit']">
+            <h3 className="text-xl font-extrabold text-rose-600 dark:text-rose-400 ">
               -{formatCurrency(totalPayables, i18n.language)}
             </h3>
             <p className="text-[9px] text-slate-400 dark:text-gray-500">Kompaniyaning hamkorlar oldidagi qarzlar</p>
@@ -95,7 +95,7 @@ const DebtManager = ({ debts, wallets, onPayDebt, onCreateDebt }) => {
         <div className="glass-card p-6 rounded-2xl flex items-center justify-between shadow-sm bg-white dark:bg-transparent">
           <div className="space-y-1">
             <p className="text-[10px] font-bold text-slate-400 dark:text-gray-500 uppercase tracking-wider">Net Balans (Farq)</p>
-            <h3 className={`text-xl font-extrabold font-['Outfit'] ${totalReceivables - totalPayables >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+            <h3 className={`text-xl font-extrabold ${totalReceivables - totalPayables >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
               {formatCurrency(totalReceivables - totalPayables, i18n.language)}
             </h3>
             <p className="text-[9px] text-slate-400 dark:text-gray-500">Kutilayotgan umumiy sof balans o'zgarishi</p>
@@ -238,7 +238,7 @@ const DebtManager = ({ debts, wallets, onPayDebt, onCreateDebt }) => {
                     <td className="p-4 font-semibold text-slate-600 dark:text-gray-300">{d.description}</td>
                     
                     {/* Date */}
-                    <td className="p-4 font-medium text-slate-500 dark:text-gray-400 font-['Outfit']">
+                    <td className="p-4 font-medium text-slate-500 dark:text-gray-400 ">
                       <span className="flex items-center gap-1">
                         <Calendar className="w-3 h-3 text-slate-400" />
                         {formatDate(d.created_at, i18n.language)}
@@ -246,7 +246,7 @@ const DebtManager = ({ debts, wallets, onPayDebt, onCreateDebt }) => {
                     </td>
                     
                     {/* Amount */}
-                    <td className={`p-4 font-extrabold font-['Outfit'] ${d.status === 'ACTIVE' ? (d.type === 'RECEIVABLE' ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600') : 'text-slate-400 line-through'}`}>
+                    <td className={`p-4 font-extrabold ${d.status === 'ACTIVE' ? (d.type === 'RECEIVABLE' ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600') : 'text-slate-400 line-through'}`}>
                       {formatCurrency(d.amount, i18n.language)}
                     </td>
                     
@@ -307,3 +307,4 @@ const DebtManager = ({ debts, wallets, onPayDebt, onCreateDebt }) => {
 };
 
 export default DebtManager;
+

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, MessageSquare } from 'lucide-react';
+import { Plus, MessageSquare, LayoutGrid, List } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { api } from '../services/api';
 import { confirmDialog } from '../services/confirmDialog';
@@ -10,8 +10,10 @@ import { addNotification } from '../store/mockDb';
 import OrdersStats from './orders/OrdersStats';
 import OrdersFilters from './orders/OrdersFilters';
 import OrdersTable from './orders/OrdersTable';
+import OrdersKanban from './orders/OrdersKanban';
 import OrderDetailsModal from './orders/OrderDetailsModal';
 import CreateOrderModal from './orders/CreateOrderModal';
+import ReceiptPrintModal from './orders/ReceiptPrintModal';
 
 const Orders = ({ tab }) => {
   const { t } = useTranslation();
@@ -22,18 +24,20 @@ const Orders = ({ tab }) => {
   const [services, setServices] = useState([]);
   const [workers, setWorkers] = useState([]);
   
+  // View mode: 'kanban' or 'table'
+  const [viewMode, setViewMode] = useState('kanban');
+
   // Modals
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [editingOrder, setEditingOrder] = useState(null);
+  const [printOrder, setPrintOrder] = useState(null);
   const [smsToast, setSmsToast] = useState(null);
   const [createOrderError, setCreateOrderError] = useState(null);
   
   // Filters
   const [search, setSearch] = useState('');
   const [selectedStatusId, setSelectedStatusId] = useState('all');
-  // Kalendar orqali tanlangan sana (YYYY-MM-DD) yoki null. Ro'yxatni shu kun
-  // bo'yicha filtrlaydi VA yangi buyurtma o'sha kunga yoziladi.
   const [selectedDate, setSelectedDate] = useState(null);
   
   // Form State
@@ -44,27 +48,19 @@ const Orders = ({ tab }) => {
     worker_id: '',
     address: '',
     description: '',
-    // Summa xizmat tanlanganda avtomatik to'ladi, lekin qo'lda
-    // o'zgartirilishi mumkin (kelishilgan narx katalogdan farq qilsa).
-    price: ''
+    price: '',
+    carpet_count: null,
+    pickup_date: ''
   });
   const [companySettings, setCompanySettings] = useState({});
 
   const mapOrders = (ordersData) => {
     return ordersData.map(o => ({
       id: o.id,
-      // `?? ''` MUHIM: obyekt kelgan-u, ichida nom maydoni bo'lmagan holat
-      // (lazy proxy) `undefined` qoldirardi - pastdagi filtr va jadval shunda
-      // yiqilardi. Endi eng yomon holatda bo'sh satr bo'ladi.
       client_id: o.client ? o.client.id : '',
       client_name: (o.client ? (o.client.fullName || o.client.full_name) : '') ?? '',
       client_phone: (o.client ? o.client.phone : '') ?? '',
       client_address: (o.client ? o.client.address : '') ?? '',
-      // MUHIM (audit'da topilgan xato, tuzatildi): avval faqat xizmat NOMI
-      // saqlanardi, ID emas - tahrirlashda xizmat ISM bo'yicha QAYTA
-      // qidirilardi (pastga q. handleOpenEdit). Ikkita bir xil nomli xizmat
-      // bo'lsa (yoki nom keyin o'zgartirilgan bo'lsa), buyurtma BOSHQA
-      // xizmatga bog'lanib, narx xato hisoblanishi mumkin edi.
       service_id: o.service ? o.service.id : '',
       service_name: (o.service ? (o.service.nameUz || o.service.name_uz) : '') ?? '',
       worker_name: (o.worker ? (o.worker.fullName || o.worker.full_name) : 'Biriktirilmagan') ?? 'Biriktirilmagan',
@@ -83,17 +79,25 @@ const Orders = ({ tab }) => {
     }));
   };
 
+  const reloadOrders = async () => {
+    try {
+      const ordersData = await api.getOrders();
+      const mapped = mapOrders(ordersData);
+      setOrders(mapped);
+
+      // Keep selected order in sync
+      if (selectedOrder) {
+        const found = mapped.find(o => o.id === selectedOrder.id);
+        if (found) setSelectedOrder(found);
+      }
+    } catch (err) {
+      console.error("Orders reload error:", err);
+    }
+  };
+
   useEffect(() => {
     const loadData = async () => {
       try {
-        // MUHIM: har bir so'rov ALOHIDA .catch bilan o'ralgan (Promise.all
-        // o'rniga) - aks holda BITTA ruxsat yetishmasa (masalan Dispetcher/
-        // Menejerda "settings" huquqi yo'q, shuning uchun getCompanySettings
-        // 403 qaytaradi), butun Buyurtmalar sahifasi bo'sh qolardi. Jonli
-        // aniqlangan: bu sabab Buyurtmalar moduli DISPATCHER va MANAGER
-        // rollari uchun butunlay ishlamas edi. companySettings faqat SMS
-        // simulyatsiyasi uchun ishlatiladi - yo'q bo'lsa shu funksiya jimgina
-        // o'chadi, qolgan sahifa to'liq ishlayveradi.
         const [ordersData, statusesData, clientsData, servicesData, workersData, settingsData] = await Promise.all([
           api.getOrders(),
           api.getOrderStatuses(),
@@ -134,7 +138,6 @@ const Orders = ({ tab }) => {
 
     if (!template) return;
 
-    // Find worker phone
     const workerPhone = orderInfo.worker_phone || '+998 90 000 00 00';
 
     const text = template
@@ -150,9 +153,6 @@ const Orders = ({ tab }) => {
       phone: workerPhone
     });
 
-    console.log(`[SMS SIMULATOR] Event: ${event}. To: ${orderInfo.client_name}. Content: ${text}`);
-
-    // Auto dismiss after 6 seconds
     setTimeout(() => {
       setSmsToast(prev => (prev && prev.text === text ? null : prev));
     }, 6000);
@@ -160,25 +160,15 @@ const Orders = ({ tab }) => {
 
   const handleCreateOrder = async (e) => {
     e.preventDefault();
-    if (!newOrder.client_phone || !newOrder.client_name || !newOrder.service_id) return;
+    if (!newOrder.client_phone || !newOrder.client_name) return;
     setCreateOrderError(null);
 
     try {
-      // MUHIM (jonli holatda topilgan xato, tuzatildi): buyurtma
-      // TAHRIRLANAYOTGANDA, agar telefon raqami o'zgartirilmagan bo'lsa,
-      // ASL mijoz ID'si to'g'ridan-to'g'ri ishlatiladi - pastdagi
-      // `endsWith` qidiruvi ATLAB O'TILADI. Sabab: `endsWith` raqamning
-      // faqat OXIRGI qismini solishtiradi - agar ikkita mijozning raqami
-      // bir xil oxirgi raqamlar bilan tugasa (yoki oldin xato mijoz
-      // yaratilgan bo'lsa), tahrirlash BOSHQA mijozga o'tkazib yuborishi
-      // mumkin edi. Raqam ATAYIN o'zgartirilsa - pastdagi mantiq
-      // (topilsa ishlatish, topilmasa yangi mijoz yaratish) ishlayveradi.
       let client = null;
       if (editingOrder && editingOrder.client_id && newOrder.client_phone === editingOrder.client_phone) {
         client = { id: editingOrder.client_id, address: editingOrder.client_address, full_name: editingOrder.client_name };
       }
 
-      // Find client in current loaded list (matching phone)
       const cleanNewPhone = newOrder.client_phone.replace(/\D/g, '');
       if (!client) {
         client = clients.find(c => {
@@ -188,25 +178,15 @@ const Orders = ({ tab }) => {
       }
 
       if (!client) {
-        // Create new client in backend
         const createdClient = await api.createClient({
           full_name: newOrder.client_name,
           phone: newOrder.client_phone,
           address: newOrder.address
         });
         client = createdClient;
-
-        // Refresh clients state
         const updatedClients = await api.getClients();
         setClients(updatedClients);
       } else {
-        // MUHIM (jonli holatda topilgan xato, tuzatildi): mavjud mijoz
-        // (ID orqali yoki telefon bo'yicha) topilganda, shu forma
-        // maydonidagi ISM hech qachon Mijoz yozuvining o'ziga qaytarilmasdi -
-        // faqat YANGI mijoz yaratilganda ism to'g'ri saqlanardi. Buyurtmani
-        // TAHRIRLAB, "Mijoz ismi"ni o'zgartirsa (masalan kirillchadan
-        // lotinchaga), bu o'zgarish jimgina yo'qolib ketardi. Endi ism
-        // saqlangan qiymatdan farq qilsa, mijoz yozuvi ham yangilanadi.
         const currentName = (client.full_name || client.fullName || '').trim();
         const typedName = newOrder.client_name.trim();
         if (typedName && typedName !== currentName) {
@@ -220,38 +200,55 @@ const Orders = ({ tab }) => {
         }
       }
 
-      // Create or update the order
+      // Default service fallback if not chosen
+      let serviceId = newOrder.service_id;
+      if (!serviceId && services.length > 0) {
+        serviceId = services[0].id;
+      }
+
       const firstStatus = statuses.length > 0 ? statuses[0].id : null;
       const orderPayload = {
         client_id: client.id,
-        service_id: newOrder.service_id,
+        service_id: serviceId,
         worker_id: newOrder.worker_id || null,
-        // Qo'lda kiritilgan summa ustuvor; bo'sh qoldirilsa xizmat narxi.
         price: newOrder.price !== '' && newOrder.price != null
           ? Number(newOrder.price)
-          : (services.find(s => s.id === newOrder.service_id)?.price || 0),
+          : 0,
         address: newOrder.address || client.address || '',
         description: newOrder.description || '',
-        status_id: firstStatus
+        status_id: editingOrder ? editingOrder.status_id : firstStatus
       };
 
-      // Kalendarda sana tanlangan bo'lsa, buyurtma O'SHA kunga yoziladi -
-      // shunda ro'yxatdan tushib qolgan eski buyurtmani keyin ham to'g'ri
-      // sana bilan kiritish mumkin. Yangi buyurtma yaratilgandagina
-      // qo'llanadi: mavjud buyurtmani tahrirlashda sanasi o'zgarmasligi kerak.
       if (selectedDate && !editingOrder) {
         orderPayload.created_at = selectedDate;
       }
 
+      let createdOrder = null;
       if (editingOrder) {
         await api.updateOrder(editingOrder.id, orderPayload);
       } else {
-        await api.createOrder(orderPayload);
+        createdOrder = await api.createOrder(orderPayload);
+
+        // If carpet_count is specified, auto-add initial carpets
+        if (newOrder.carpet_count && newOrder.carpet_count > 0 && createdOrder && createdOrder.id) {
+          const count = Math.min(newOrder.carpet_count, 15);
+          for (let i = 1; i <= count; i++) {
+            try {
+              await api.addOrderItem(createdOrder.id, {
+                name: count > 1 ? `Standart gilam ${i}` : 'Standart gilam',
+                length: 0,
+                width: 0,
+                quantity: 1,
+                status: 'ACCEPTED'
+              });
+            } catch (err) {
+              console.warn("Item auto-create error:", err);
+            }
+          }
+        }
       }
 
-      // Reload orders list
-      const ordersData = await api.getOrders();
-      setOrders(mapOrders(ordersData));
+      await reloadOrders();
       
       setShowCreateModal(false);
       setEditingOrder(null);
@@ -262,11 +259,12 @@ const Orders = ({ tab }) => {
         worker_id: '',
         address: '',
         description: '',
-        price: ''
+        price: '',
+        carpet_count: null,
+        pickup_date: ''
       });
 
-      // Trigger notification
-      const service = services.find(s => s.id === newOrder.service_id);
+      const service = services.find(s => s.id === serviceId);
       const worker = workers.find(w => w.id === newOrder.worker_id);
       addNotification(
         `Yangi buyurtma olindi`,
@@ -278,12 +276,11 @@ const Orders = ({ tab }) => {
         'SUCCESS'
       );
 
-      // Trigger SMS simulation
       triggerSmsSimulation('CREATED', {
-        id: 'Yangi',
+        id: createdOrder ? createdOrder.id?.slice(0, 6) : 'Yangi',
         client_name: client.fullName || client.full_name,
         service_name: service ? service.nameUz : '',
-        price: service ? service.price : 0,
+        price: orderPayload.price,
         worker_name: worker ? worker.fullName || worker.full_name : '',
         worker_phone: worker ? worker.phone : ''
       });
@@ -296,150 +293,134 @@ const Orders = ({ tab }) => {
   const handleStatusChange = async (orderId, statusId) => {
     try {
       await api.updateOrderStatus(orderId, statusId);
-      const ordersData = await api.getOrders();
-      const updatedOrders = mapOrders(ordersData);
-      setOrders(updatedOrders);
+      await reloadOrders();
 
-      const targetOrder = updatedOrders.find(o => o.id === orderId);
-      if (targetOrder) {
-        const sortedStatuses = [...statuses].sort((a, b) => a.sort_order - b.sort_order);
-        const isLastStatus = sortedStatuses.length > 0 && sortedStatuses.slice(-1)[0].id === statusId;
-        const isSecondStatus = sortedStatuses.length > 1 && sortedStatuses[1].id === statusId;
+      const order = orders.find(o => o.id === orderId);
+      const newStatus = statuses.find(s => s.id === statusId);
 
-        if (isSecondStatus) {
-          triggerSmsSimulation('ASSIGNED', targetOrder);
-        } else if (isLastStatus) {
-          triggerSmsSimulation('COMPLETED', targetOrder);
+      if (order && newStatus) {
+        const lastStatus = statuses.length > 0 ? statuses[statuses.length - 1] : null;
+        const isCompleted = lastStatus && lastStatus.id === statusId;
+
+        if (isCompleted) {
+          triggerSmsSimulation('COMPLETED', order);
+          addNotification(
+            `Buyurtma yakunlandi`,
+            `Заказ завершен`,
+            `Order completed`,
+            `Buyurtma #${order.id} muvaffaqiyatli yakunlandi.`,
+            `Order #${order.id} successfully completed.`,
+            `Order #${order.id} successfully completed.`,
+            'SUCCESS'
+          );
         }
-
-        // Trigger notification
-        const statusObj = statuses.find(s => s.id === statusId);
-        const statusNameUz = statusObj ? statusObj.name_uz : 'Yangilandi';
-        addNotification(
-          `Buyurtma holati o'zgardi`,
-          `Статус заказа изменен`,
-          `Order status changed`,
-          `Buyurtma holati "${statusNameUz}" darajasiga o'tkazildi.`,
-          `Order status updated to "${statusNameUz}".`,
-          `Order status updated to "${statusNameUz}".`,
-          isLastStatus ? 'SUCCESS' : 'INFO'
-        );
-      }
-
-      if (selectedOrder && selectedOrder.id === orderId) {
-        setSelectedOrder(prev => ({ ...prev, status_id: statusId }));
       }
     } catch (err) {
-      console.error("Failed to change order status:", err);
+      console.error("Failed to update status:", err);
     }
   };
 
   const handleOpenEdit = (order) => {
     setEditingOrder(order);
-    // MUHIM (jonli holatda topilgan xato, tuzatildi): avval mijoz ISM
-    // bo'yicha `clients` ro'yxatidan qidirilardi - agar boshqa mijoz ham
-    // XUDDI SHU ismga ega bo'lsa (masalan bir nechta "Aziz"), `.find()`
-    // ro'yxatdagi BIRINCHI mos kelganini qaytarardi, ya'ni bu buyurtmaga
-    // umuman aloqasi yo'q boshqa odamning telefon raqami tahrirlash
-    // formasiga yozilib qolardi. `order.client_phone` (mapOrders orqali
-    // buyurtmaning O'Z mijozidan to'g'ridan-to'g'ri olingan) - hech qanday
-    // qidiruvsiz, doim to'g'ri.
     setNewOrder({
-      client_phone: order.client_phone || '',
+      client_phone: order.client_phone,
       client_name: order.client_name,
-      // MUHIM (audit'da topilgan, tuzatildi): avval nom bo'yicha QAYTA
-      // qidirilardi (yuqoridagi client_phone bilan bir xil turdagi xato) -
-      // endi buyurtmaning O'Z xizmat ID'si (mapOrders orqali) to'g'ridan-to'g'ri
-      // ishlatiladi.
-      service_id: order.service_id || '',
-      worker_id: order.worker_id || '',
+      service_id: order.service_id,
+      worker_id: order.worker_id,
       address: order.address,
-      description: order.description || '',
-      // MUHIM (audit'da topilgan): bu maydon to'ldirilmasa, saqlashda
-      // "bo'sh bo'lsa katalog narxi" fallback'i doim ishga tushib, kelishilgan
-      // narxni jim-jit katalog narxi bilan almashtirib yuborardi.
-      price: order.price != null ? order.price : ''
+      description: order.description,
+      price: order.price != null ? String(order.price) : ''
     });
+    setCreateOrderError(null);
     setShowCreateModal(true);
   };
 
   const handleDeleteOrder = async (id) => {
-    if (!(await confirmDialog("Haqiqatan ham ushbu buyurtmani o'chirib yubormoqchimisiz?"))) return;
-    try {
-      await api.deleteOrder(id);
-      const ordersData = await api.getOrders();
-      setOrders(mapOrders(ordersData));
-    } catch (err) {
-      console.error("Failed to delete order:", err);
+    const isConfirmed = await confirmDialog({
+      title: "Buyurtmani o'chirish",
+      message: "Haqiqatan ham bu buyurtmani o'chirib tashlamoqchimisiz? Bu amalni ortga qaytarib bo'lmaydi.",
+      confirmText: "Ha, o'chirilsin",
+      cancelText: "Bekor qilish",
+      type: "danger"
+    });
+
+    if (isConfirmed) {
+      try {
+        await api.deleteOrder(id);
+        setOrders(prev => prev.filter(o => o.id !== id));
+      } catch (err) {
+        console.error("Failed to delete order:", err);
+      }
     }
   };
 
-  // Filter orders by search and status tab
-  //
-  // MUHIM (jonli xatolik, 2026-08-04): avval bu yerda to'g'ridan-to'g'ri
-  // `o.client_name.toLowerCase()` chaqirilardi. Agar backend buyurtma bilan
-  // birga `client`/`service` obyektini TO'LIQ yubormasa (masalan Hibernate
-  // lazy proxy tufayli faqat `{id}` kelsa), mapOrders o'sha maydonga
-  // `undefined` yozardi va bu qator butun Buyurtmalar sahifasini yiqitardi -
-  // tashqaridan bu "qidiruv ishlamayapti" bo'lib ko'rinadi. Endi barcha
-  // qiymatlar String()'ga o'raladi, ya'ni bitta nuqsonli yozuv sahifani
-  // buzmaydi.
-  //
-  // Qidiruv maydoni ham kengaytirildi: foydalanuvchilar ko'pincha TELEFON
-  // RAQAMI yoki MANZIL bo'yicha qidiradi, lekin avval faqat mijoz/xodim/
-  // xizmat nomi tekshirilardi va natija bo'sh chiqardi.
-  const query = search.trim().toLowerCase();
-
-  // Sana filtri mahalliy vaqt bo'yicha solishtiriladi. `toISOString()`
-  // ATAYIN ishlatilmadi - u UTC'ga o'tkazadi va O'zbekiston (UTC+5)
-  // ertalabki buyurtmalarini oldingi kunga tashlab yuborardi.
-  const localDateKey = (value) => {
-    if (!value) return null;
-    const d = new Date(value);
-    if (Number.isNaN(d.getTime())) return null;
-    const pad = (n) => String(n).padStart(2, '0');
-    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-  };
-
   const filteredOrders = orders.filter(o => {
+    const s = search.toLowerCase();
+    const matchesSearch = (o.client_name || '').toLowerCase().includes(s) ||
+                          (o.client_phone || '').toLowerCase().includes(s) ||
+                          (o.service_name || '').toLowerCase().includes(s) ||
+                          (o.address || '').toLowerCase().includes(s);
     const matchesStatus = selectedStatusId === 'all' || o.status_id === selectedStatusId;
-    if (!matchesStatus) return false;
+    
+    let matchesDate = true;
+    if (selectedDate && o.created_at) {
+      matchesDate = o.created_at.startsWith(selectedDate);
+    }
 
-    if (selectedDate && localDateKey(o.created_at) !== selectedDate) return false;
-
-    if (!query) return true;
-
-    const haystack = [
-      o.client_name,
-      o.client_phone,
-      o.worker_name,
-      o.service_name,
-      o.address,
-      o.client_address,
-      o.description
-    ]
-      .map(v => String(v ?? '').toLowerCase())
-      .join(' ');
-
-    return haystack.includes(query);
+    return matchesSearch && matchesStatus && matchesDate;
   });
 
-  if (pageLoading) return <PageLoader />;
+  if (pageLoading) {
+    return <PageLoader message="Buyurtmalar yuklanmoqda..." />;
+  }
 
   return (
     <div className="space-y-6 animate-fade-in">
-      {/* Title Block */}
+      {/* Title Block & View Switcher */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h2 className="text-2xl font-extrabold text-slate-800 dark:text-white tracking-tight font-['Outfit']">{t('orders_page.title')}</h2>
-          <p className="text-xs text-slate-500 dark:text-gray-400 font-medium">{t('orders_page.desc')}</p>
+          <h2 className="text-2xl font-extrabold text-slate-800 dark:text-white tracking-tight ">
+            {t('orders_page.title')}
+          </h2>
+          <p className="text-xs text-slate-500 dark:text-gray-400 font-medium">
+            Gilam yuvish buyurtmalari oqimi, o'lchovlar va bosqichlar nazorati
+          </p>
         </div>
-        <button 
-          onClick={() => setShowCreateModal(true)}
-          className="flex items-center gap-2 premium-btn text-white px-4 py-2 rounded-xl text-xs font-bold transition cursor-pointer w-fit shadow-sm"
-        >
-          <Plus className="w-4 h-4" /> {t('orders_page.add_order')}
-        </button>
+
+        <div className="flex items-center gap-3">
+          {/* View Mode Toggle: Kanban vs Table */}
+          <div className="flex items-center p-1 rounded-xl bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10">
+            <button
+              type="button"
+              onClick={() => setViewMode('kanban')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
+                viewMode === 'kanban'
+                  ? 'bg-white dark:bg-indigo-600 text-indigo-600 dark:text-white shadow-xs'
+                  : 'text-slate-500 dark:text-gray-400 hover:text-slate-900 dark:hover:text-white'
+              }`}
+            >
+              <LayoutGrid className="w-3.5 h-3.5" /> Doska (Kanban)
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode('table')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
+                viewMode === 'table'
+                  ? 'bg-white dark:bg-indigo-600 text-indigo-600 dark:text-white shadow-xs'
+                  : 'text-slate-500 dark:text-gray-400 hover:text-slate-900 dark:hover:text-white'
+              }`}
+            >
+              <List className="w-3.5 h-3.5" /> Jadval
+            </button>
+          </div>
+
+          <button 
+            onClick={() => { setEditingOrder(null); setCreateOrderError(null); setShowCreateModal(true); }}
+            className="flex items-center gap-2 premium-btn text-white px-4 py-2.5 rounded-xl text-xs font-bold transition cursor-pointer w-fit shadow-md shadow-indigo-500/20"
+          >
+            <Plus className="w-4 h-4" /> {t('orders_page.add_order')}
+          </button>
+        </div>
       </div>
 
       {/* Orders Statistics Cards */}
@@ -458,25 +439,38 @@ const Orders = ({ tab }) => {
         onAddOrderForDate={() => { setEditingOrder(null); setCreateOrderError(null); setShowCreateModal(true); }}
       />
 
-      {/* Orders List Table */}
-      <OrdersTable 
-        filteredOrders={filteredOrders} 
-        statuses={statuses} 
-        onStatusChange={handleStatusChange} 
-        onOpenDetails={setSelectedOrder} 
-        onEditOrder={handleOpenEdit}
-        onDeleteOrder={handleDeleteOrder}
-      />
+      {/* Orders List View: Kanban or Table */}
+      {viewMode === 'kanban' ? (
+        <OrdersKanban
+          orders={filteredOrders}
+          statuses={statuses}
+          onStatusChange={handleStatusChange}
+          onOpenDetails={setSelectedOrder}
+          onOpenPrint={setPrintOrder}
+        />
+      ) : (
+        <OrdersTable 
+          filteredOrders={filteredOrders} 
+          statuses={statuses} 
+          onStatusChange={handleStatusChange} 
+          onOpenDetails={setSelectedOrder} 
+          onEditOrder={handleOpenEdit}
+          onDeleteOrder={handleDeleteOrder}
+          onOpenPrint={setPrintOrder}
+        />
+      )}
 
-      {/* Order Details Modal (Timeline tracker & Audit logs) */}
+      {/* Order Details Modal (Gilamlar o'lchov boshqaruvi bilan) */}
       <OrderDetailsModal 
         order={selectedOrder} 
         isOpen={!!selectedOrder} 
         onClose={() => setSelectedOrder(null)}
         statuses={statuses}
+        onOrderUpdated={reloadOrders}
+        onOpenPrint={(ord) => setPrintOrder(ord)}
       />
 
-      {/* Create Order Modal */}
+      {/* Create Order Modal (Gilam soni va mo'ljal bilan) */}
       <CreateOrderModal
         isOpen={showCreateModal}
         onClose={() => { setShowCreateModal(false); setEditingOrder(null); setCreateOrderError(null); }}
@@ -487,6 +481,14 @@ const Orders = ({ tab }) => {
         setNewOrder={setNewOrder}
         onSubmit={handleCreateOrder}
         error={createOrderError}
+      />
+
+      {/* Receipt & Birka Print Modal */}
+      <ReceiptPrintModal
+        isOpen={!!printOrder}
+        onClose={() => setPrintOrder(null)}
+        order={printOrder}
+        companyName={companySettings.name || "Namifor Gilam Yuvish"}
       />
 
       {/* SMS Toast simulation popup */}
@@ -515,3 +517,4 @@ const Orders = ({ tab }) => {
 };
 
 export default Orders;
+

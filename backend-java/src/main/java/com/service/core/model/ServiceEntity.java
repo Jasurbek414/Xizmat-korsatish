@@ -48,15 +48,9 @@ public class ServiceEntity {
     private String nameEn;
 
     @Column(nullable = false, precision = 10, scale = 2)
-    private BigDecimal price;
+    private BigDecimal price;`r`n`r`n    @Column(name = "measurement_unit", length = 50)`r`n    @Builder.Default`r`n    private String measurementUnit = "kvmetr";
 
-    @Column(length = 100)
-    private String category;
-
-    @Column(name = "measurement_unit", length = 50)
-    @Builder.Default
-    private String measurementUnit = "mВІ";
-
+    
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
 
@@ -65,3 +59,6 @@ public class ServiceEntity {
         createdAt = LocalDateTime.now();
     }
 }
+
+
+

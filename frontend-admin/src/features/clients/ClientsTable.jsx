@@ -63,8 +63,8 @@ const ClientsTable = ({ filteredClients, getClientStats, handleOpenClientDetails
                         )}
                       </div>
                     </td>
-                    <td className="p-4 text-slate-700 dark:text-gray-300 font-bold font-['Outfit']">{stats.orderCount} ta</td>
-                    <td className="p-4 text-indigo-600 dark:text-indigo-400 font-extrabold font-['Outfit']">
+                    <td className="p-4 text-slate-700 dark:text-gray-300 font-bold ">{stats.orderCount} ta</td>
+                    <td className="p-4 text-indigo-600 dark:text-indigo-400 font-extrabold ">
                       {stats.spent.toLocaleString()} UZS
                     </td>
                     <td className="p-4 text-right flex items-center justify-end gap-1.5" onClick={(e) => e.stopPropagation()}>
@@ -110,3 +110,4 @@ const ClientsTable = ({ filteredClients, getClientStats, handleOpenClientDetails
 };
 
 export default ClientsTable;
+

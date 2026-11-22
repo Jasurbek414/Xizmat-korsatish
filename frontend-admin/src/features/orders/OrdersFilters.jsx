@@ -114,7 +114,7 @@ const OrdersFilters = ({
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-2">
               <CalendarDays className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
-              <span className="text-xs font-bold text-slate-800 dark:text-white font-['Outfit']">
+              <span className="text-xs font-bold text-slate-800 dark:text-white ">
                 {formatted}
               </span>
             </div>
@@ -189,10 +189,11 @@ const ReportTile = ({ icon: Icon, label, value, tone }) => (
       <Icon className={`w-3 h-3 ${TONES[tone]}`} />
       <span className="text-[9px] font-bold uppercase tracking-wider text-slate-400 dark:text-gray-500">{label}</span>
     </div>
-    <p className={`text-xs font-extrabold font-['Outfit'] truncate ${TONES[tone]}`} title={value}>
+    <p className={`text-xs font-extrabold truncate ${TONES[tone]}`} title={value}>
       {value}
     </p>
   </div>
 );
 
 export default OrdersFilters;
+

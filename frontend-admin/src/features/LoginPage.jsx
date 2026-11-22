@@ -85,7 +85,7 @@ const LoginPage = ({ setAuth }) => {
           <div className="w-11 h-11 rounded-xl bg-gradient-to-tr from-indigo-500 to-indigo-600 flex items-center justify-center font-bold text-white shadow-xl shadow-indigo-500/20 mx-auto text-lg">
             S
           </div>
-          <h2 className="text-xl font-bold text-slate-850 dark:text-white tracking-tight font-['Outfit'] mt-4">
+          <h2 className="text-xl font-bold text-slate-850 dark:text-white tracking-tight mt-4">
             Service<span className="text-indigo-600 dark:text-indigo-400">Core</span>
           </h2>
           <p className="text-[11px] text-slate-500 dark:text-gray-400 font-medium">{t('login_page.desc')}</p>
@@ -158,3 +158,4 @@ const LoginPage = ({ setAuth }) => {
 };
 
 export default LoginPage;
+

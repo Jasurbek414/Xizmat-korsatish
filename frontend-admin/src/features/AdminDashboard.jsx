@@ -322,7 +322,7 @@ const AdminDashboard = ({ tab }) => {
       {/* Header controls & time range select */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h2 className="text-2xl font-extrabold text-slate-800 dark:text-white tracking-tight font-['Outfit']">{t('menu.dashboard')}</h2>
+          <h2 className="text-2xl font-extrabold text-slate-800 dark:text-white tracking-tight ">{t('menu.dashboard')}</h2>
           <p className="text-xs text-slate-500 dark:text-gray-400 font-medium">{t('dashboard.analytics_desc')}</p>
         </div>
 
@@ -392,7 +392,7 @@ const AdminDashboard = ({ tab }) => {
               </div>
               <div className="flex items-end justify-between mt-4">
                 <div className="space-y-1">
-                  <h3 className="text-lg font-extrabold text-slate-800 dark:text-white font-['Outfit'] leading-none">{s.val}</h3>
+                  <h3 className="text-lg font-extrabold text-slate-800 dark:text-white leading-none">{s.val}</h3>
                   <span className="text-[9px] text-slate-400 dark:text-gray-500 font-medium">joriy tanlangan davrda</span>
                 </div>
                 {s.spark && (
@@ -420,7 +420,7 @@ const AdminDashboard = ({ tab }) => {
         <div className="lg:col-span-2 glass-card p-6 rounded-2xl border border-slate-200 dark:border-white/5 bg-white dark:bg-transparent shadow-sm space-y-4">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <div>
-              <h4 className="font-bold text-slate-800 dark:text-white text-sm font-['Outfit']">{t('dashboard.monthly_flow')}</h4>
+              <h4 className="font-bold text-slate-800 dark:text-white text-sm ">{t('dashboard.monthly_flow')}</h4>
               <p className="text-[10px] text-slate-400 dark:text-gray-500 font-medium">Haqiqiy moliya operatsiyalari va oqimi asosida</p>
             </div>
             <div className="flex items-center gap-3 text-[10px] font-bold">
@@ -489,7 +489,7 @@ const AdminDashboard = ({ tab }) => {
         {/* Right: SVG Donut status breakdown */}
         <div className="glass-card p-6 rounded-2xl border border-slate-200 dark:border-white/5 bg-white dark:bg-transparent shadow-sm space-y-5">
           <div>
-            <h4 className="font-bold text-slate-800 dark:text-white text-sm font-['Outfit']">{t('dashboard.status_distribution')}</h4>
+            <h4 className="font-bold text-slate-800 dark:text-white text-sm ">{t('dashboard.status_distribution')}</h4>
             <p className="text-[10px] text-slate-400 dark:text-gray-500 font-medium">Buyurtmalar joriy hayotiy holati</p>
           </div>
 
@@ -514,7 +514,7 @@ const AdminDashboard = ({ tab }) => {
                 ))}
               </svg>
               <div className="absolute inset-0 flex flex-col items-center justify-center">
-                <span className="text-lg font-extrabold text-slate-800 dark:text-white font-['Outfit']">{stats.orders}</span>
+                <span className="text-lg font-extrabold text-slate-800 dark:text-white ">{stats.orders}</span>
                 <span className="text-[8px] text-slate-400 dark:text-gray-500 uppercase font-bold tracking-wider">JAMI</span>
               </div>
             </div>
@@ -544,7 +544,7 @@ const AdminDashboard = ({ tab }) => {
 
         {/* 1. Top Performing Drivers */}
         <div className="glass-card p-6 rounded-2xl border border-slate-200 dark:border-white/5 bg-white dark:bg-transparent shadow-sm space-y-4">
-          <h4 className="font-bold text-slate-800 dark:text-white text-sm font-['Outfit'] flex items-center gap-2">
+          <h4 className="font-bold text-slate-800 dark:text-white text-sm flex items-center gap-2">
             <Trophy className="w-4 h-4 text-amber-500 animate-bounce" />
             {t('dashboard.top_drivers')}
           </h4>
@@ -562,7 +562,7 @@ const AdminDashboard = ({ tab }) => {
                   </div>
                 </div>
                 <div className="text-right">
-                  <span className="font-bold font-['Outfit'] text-indigo-650 dark:text-indigo-400">+{driver.kpiEarnings.toLocaleString()}</span>
+                  <span className="font-bold text-indigo-650 dark:text-indigo-400">+{driver.kpiEarnings.toLocaleString()}</span>
                   <span className="block text-[8px] text-slate-400 dark:text-gray-500">{driverKpiPercent}% KPI</span>
                 </div>
               </div>
@@ -575,7 +575,7 @@ const AdminDashboard = ({ tab }) => {
 
         {/* 2. Finance Summary (real balance from backend) */}
         <div className="glass-card p-6 rounded-2xl border border-slate-200 dark:border-white/5 bg-white dark:bg-transparent shadow-sm space-y-4">
-          <h4 className="font-bold text-slate-800 dark:text-white text-sm font-['Outfit'] flex items-center gap-2">
+          <h4 className="font-bold text-slate-800 dark:text-white text-sm flex items-center gap-2">
             <Wallet className="w-4 h-4 text-indigo-500" />
             {t('dashboard.wallet_balances')}
           </h4>
@@ -583,19 +583,19 @@ const AdminDashboard = ({ tab }) => {
           <div className="space-y-3">
             <div className="p-3 bg-slate-50 dark:bg-white/2 border border-slate-150 dark:border-white/5 rounded-xl flex items-center justify-between">
               <span className="text-[10px] font-bold text-slate-700 dark:text-white">Joriy balans</span>
-              <span className="font-bold text-indigo-650 dark:text-indigo-400 font-['Outfit'] text-xs">
+              <span className="font-bold text-indigo-650 dark:text-indigo-400 text-xs">
                 {(financeStats.balance || 0).toLocaleString()} so'm
               </span>
             </div>
             <div className="p-3 bg-slate-50 dark:bg-white/2 border border-slate-150 dark:border-white/5 rounded-xl flex items-center justify-between">
               <span className="text-[10px] font-bold text-slate-700 dark:text-white">Jami tushum</span>
-              <span className="font-bold text-emerald-600 dark:text-emerald-400 font-['Outfit'] text-xs">
+              <span className="font-bold text-emerald-600 dark:text-emerald-400 text-xs">
                 {(financeStats.totalIncome || 0).toLocaleString()} so'm
               </span>
             </div>
             <div className="p-3 bg-slate-50 dark:bg-white/2 border border-slate-150 dark:border-white/5 rounded-xl flex items-center justify-between">
               <span className="text-[10px] font-bold text-slate-700 dark:text-white">Jami chiqim</span>
-              <span className="font-bold text-rose-600 dark:text-rose-400 font-['Outfit'] text-xs">
+              <span className="font-bold text-rose-600 dark:text-rose-400 text-xs">
                 {(financeStats.totalExpense || 0).toLocaleString()} so'm
               </span>
             </div>
@@ -604,7 +604,7 @@ const AdminDashboard = ({ tab }) => {
 
         {/* 3. Recent Orders */}
         <div className="glass-card p-6 rounded-2xl border border-slate-200 dark:border-white/5 bg-white dark:bg-transparent shadow-sm space-y-4">
-          <h4 className="font-bold text-slate-800 dark:text-white text-sm font-['Outfit'] flex items-center gap-2">
+          <h4 className="font-bold text-slate-800 dark:text-white text-sm flex items-center gap-2">
             <CheckCircle className="w-4 h-4 text-indigo-500" />
             {t('dashboard.recent_orders')}
           </h4>
@@ -617,7 +617,7 @@ const AdminDashboard = ({ tab }) => {
                   <div className="text-[9px] text-slate-400 dark:text-gray-500 truncate max-w-[140px] mt-0.5">{o.service_name}</div>
                 </div>
                 <div className="text-right shrink-0 space-y-1">
-                  <div className="font-bold font-['Outfit'] text-slate-800 dark:text-white">{o.price.toLocaleString()} UZS</div>
+                  <div className="font-bold text-slate-800 dark:text-white">{o.price.toLocaleString()} UZS</div>
                   {getStatusBadge(o.status_id)}
                 </div>
               </div>
@@ -634,3 +634,4 @@ const AdminDashboard = ({ tab }) => {
 };
 
 export default AdminDashboard;
+

@@ -63,7 +63,7 @@ const SuperadminDashboard = ({ tab }) => {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-extrabold text-slate-800 dark:text-white tracking-tight font-['Outfit']">{t('superadmin.companies_list_title')}</h2>
+          <h2 className="text-2xl font-extrabold text-slate-800 dark:text-white tracking-tight ">{t('superadmin.companies_list_title')}</h2>
           <p className="text-xs text-slate-500 dark:text-gray-400 font-medium">{t('superadmin.companies_list_desc')}</p>
         </div>
         <button
@@ -98,3 +98,4 @@ const SuperadminDashboard = ({ tab }) => {
 };
 
 export default SuperadminDashboard;
+

@@ -1,119 +1,143 @@
 @import "tailwindcss";
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Outfit:wght@300;400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
 
-/* Configure class-based dark mode selector for Tailwind v4 */
+/* Tailwind v4 Dark mode variant */
 @variant dark (&:where(.dark, .dark *));
 
+@theme {
+  --font-sans: 'Plus Jakarta Sans', 'Inter', system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+}
+
 :root {
-  font-family: 'Outfit', 'Inter', system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-family: var(--font-sans);
+  color-scheme: light dark;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 body {
   margin: 0;
   overflow-x: hidden;
-  transition: background-color 0.3s cubic-bezier(0.4, 0, 0.2, 1), color 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  background-color: #f8fafc;
+  color: #0f172a;
+  font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
 }
 
-/* Premium Card Separation with distinct shadows and solid borders in light mode */
+.dark body {
+  background-color: #0b0f19;
+  color: #f1f5f9;
+}
+
+/* Number formatting for receipts, currencies and stats */
+.font-numeric {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum';
+}
+
+/* Natural Card Component (replaces harsh glassmorphism) */
 .glass-card {
   background-color: #ffffff;
-  border: 1px solid #cbd5e1;
-  box-shadow: 0 8px 20px -4px rgba(100, 116, 139, 0.12), 0 4px 8px -2px rgba(100, 116, 139, 0.06);
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  box-shadow: 0 1px 3px 0 rgba(15, 23, 42, 0.05), 0 1px 2px -1px rgba(15, 23, 42, 0.05);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
 .dark .glass-card {
-  background-color: rgba(17, 24, 39, 0.45);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.04);
-  box-shadow: none;
+  background-color: #111827;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.2);
 }
 
 .glass-card:hover {
-  border-color: #6366f1;
-  transform: translateY(-2px);
-  box-shadow: 0 12px 28px -4px rgba(100, 116, 139, 0.2), 0 6px 12px -2px rgba(100, 116, 139, 0.1);
+  border-color: #cbd5e1;
 }
 
 .dark .glass-card:hover {
-  border-color: rgba(255, 255, 255, 0.08);
-  transform: none;
-  box-shadow: none;
+  border-color: rgba(255, 255, 255, 0.12);
 }
 
-/* Premium Inputs with higher contrast */
+/* Natural Input Component */
 .glass-input {
   background-color: #ffffff;
-  border: 1px solid #b8c2cc;
+  border: 1px solid #cbd5e1;
   color: #0f172a;
-  transition: all 0.2s ease-in-out;
+  border-radius: 12px;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
 .dark .glass-input {
-  background-color: rgba(17, 24, 39, 0.6);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  color: #f3f4f6;
+  background-color: #0b0f19;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #f1f5f9;
 }
 
 .glass-input:focus {
   border-color: #4f46e5;
-  box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.15);
+  box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.12);
   outline: none;
 }
 
 .dark .glass-input:focus {
-  border-color: rgba(99, 102, 241, 0.6);
-  box-shadow: 0 0 12px rgba(99, 102, 241, 0.15);
+  border-color: #6366f1;
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2);
+  outline: none;
 }
 
-/* Premium Buttons */
+/* Natural Primary Action Buttons */
 .premium-btn {
-  background: linear-gradient(135deg, #4f46e5 0%, #6366f1 100%);
+  background-color: #4f46e5;
   color: #ffffff;
   font-weight: 600;
-  transition: all 0.2s ease-in-out;
+  border-radius: 12px;
+  transition: background-color 0.15s ease, box-shadow 0.15s ease;
+  box-shadow: 0 1px 2px 0 rgba(79, 70, 229, 0.25);
 }
 
 .premium-btn:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 4px 14px rgba(99, 102, 241, 0.35);
+  background-color: #4338ca;
+  box-shadow: 0 4px 12px 0 rgba(79, 70, 229, 0.25);
 }
 
-/* Custom Scrollbars */
+.premium-btn:active {
+  background-color: #3730a3;
+}
+
+/* Modern Ultra-slim Scrollbars */
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 5px;
+  height: 5px;
 }
 ::-webkit-scrollbar-track {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
   background: #cbd5e1;
-  border-radius: 99px;
+  border-radius: 9999px;
 }
 .dark ::-webkit-scrollbar-thumb {
-  background: #1f2937;
+  background: #334155;
 }
 ::-webkit-scrollbar-thumb:hover {
   background: #94a3b8;
 }
 
-/* Leaflet map style mapping */
+/* Leaflet Container */
 .leaflet-container {
   width: 100%;
   height: 100%;
   border-radius: 16px;
-  border: 1px solid #cbd5e1;
+  border: 1px solid #e2e8f0;
 }
 .dark .leaflet-container {
-  border: 1px solid rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
 }
 
-/* Custom Modal Animations */
+/* Scale Animation */
 @keyframes scaleIn {
   from {
-    transform: scale(0.95);
+    transform: scale(0.97);
     opacity: 0;
   }
   to {
@@ -123,27 +147,18 @@ body {
 }
 
 .animate-scale-in {
-  animation: scaleIn 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  animation: scaleIn 0.18s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
-/* Sidebar Button Hover Style */
+/* Clean Sidebar Nav Item */
 .sidebar-btn {
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: all 0.15s ease;
 }
 .sidebar-btn:hover {
-  background-color: rgba(79, 70, 229, 0.08) !important;
-  color: #4f46e5 !important;
-  padding-left: 20px !important;
-}
-.sidebar-btn:hover svg {
+  background-color: #f1f5f9 !important;
   color: #4f46e5 !important;
 }
 .dark .sidebar-btn:hover {
-  background-color: rgba(99, 102, 241, 0.15) !important;
-  color: #a5b4fc !important;
+  background-color: rgba(255, 255, 255, 0.05) !important;
+  color: #818cf8 !important;
 }
-.dark .sidebar-btn:hover svg {
-  color: #a5b4fc !important;
-}
-
-

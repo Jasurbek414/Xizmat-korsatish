@@ -1,22 +1,3 @@
-# MUHIM (2026-08-01, ikkinchi loyiha qo'shilgandan keyin): endi bitta WSL2 VM
-# ichida IKKI loyiha ishlaydi (8 GB RAM, 6 vCPU umumiy hovuz). Cheklovsiz bir
-# xizmatning xotira sizishi butun VM ni bo'g'ib, telefoniyani ham o'ldirishi
-# mumkin edi.
-#
-# NEGA cpu_shares, "cpus" EMAS: "cpus" QATTIQ chegara - xizmat bo'sh turgan
-# quvvatdan ham foydalana olmaydi. cpu_shares esa NISBIY ustuvorlik: raqobat
-# bo'lmasa hamma to'liq tezlikda ishlaydi, raqobat paytida esa telefoniya
-# (asterisk/coturn) ustun chiqadi. Ular real vaqt rejimida ishlaydi va
-# kechikishga sezgir - ovoz uzilib qolmasligi uchun shu muhim.
-# Standart qiymat 1024. Telefoniyaga 2048 (ikki barobar ustunlik).
-#
-# mem_limit esa QATTIQ - u himoya chegarasi, taqsimot emas. Chegaradan
-# oshgan konteynerni Docker o'ldiradi, shuning uchun qiymatlar hozirgi
-# haqiqiy sarfdan (o'lchangan) ancha yuqori olingan.
-# MUHIM (audit'da topilgan): standart Docker json-file log drayveri hech
-# qanday chegarasiz - TRACE darajasidagi loglash (endi o'chirilgan) bilan
-# birga disk vaqt o'tishi bilan to'lib ketishi mumkin edi. Har bir xizmatga
-# shu standart cheklovni qo'llaymiz (3 fayl x 20MB = xizmat boshiga max 60MB).
 x-logging: &default-logging
   driver: "json-file"
   options:
@@ -27,7 +8,6 @@ services:
   db:
     image: postgres:16-alpine
     container_name: service-core-db
-    # PostgreSQL (hozir ~45 MB)
     mem_limit: 512m
     cpu_shares: 1024
     logging: *default-logging
@@ -36,25 +16,13 @@ services:
       - POSTGRES_USER=${DB_USER:-postgres}
       - POSTGRES_PASSWORD=${DB_PASSWORD:-postgres}
     ports:
-      # MUHIM (xavfsizlik, audit'da topilgan): avval "5437:5432" - bu portni
-      # BARCHA tarmoq interfeyslariga (0.0.0.0) ochib, standart "postgres"
-      # foydalanuvchi nomi bilan butun internetdan ulanish imkonini berardi
-      # (.env'dagi DB_PASSWORD ham ishlab chiqarish uchun zaif). Endi faqat
-      # shu serverning o'zidan (127.0.0.1) kirish mumkin - masofadan DB
-      # kerak bo'lsa SSH tunnel orqali oching.
       - "127.0.0.1:5437:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     restart: always
     networks:
       default:
-        ipv4_address: 172.19.0.12
-    # MUHIM (2026-07-31 auditda topilgan): "depends_on: db" FAQAT konteyner
-    # ishga tushganini bildiradi, PostgreSQL so'rovga TAYYOR ekanini emas.
-    # Shu sababli har ko'tarilishda backend baza tayyor bo'lishidan oldin
-    # ulanishga urinib, bir necha marta qayta ishga tushardi. pg_isready
-    # bilan haqiqiy tayyorlikni tekshiramiz (backend'dagi service_healthy
-    # shartiga qarang).
+        ipv4_address: 172.24.0.12
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres} -d service_db"]
       interval: 10s
@@ -65,20 +33,10 @@ services:
   backend:
     build: ./backend-java
     container_name: service-core-backend
-    # Spring Boot/JVM - heap uchun zaxira kerak (hozir ~390 MB)
     mem_limit: 1g
     cpu_shares: 1024
     logging: *default-logging
     ports:
-      # MUHIM (xavfsizlik, 2026-07-31 auditda topilgan): avval "8082:8080" -
-      # ya'ni 0.0.0.0, butun LAN'ga ochiq. Tekshirildi: bu portni HECH KIM
-      # ishlatmaydi - nginx backendga ICHKI docker tarmog'i orqali boradi
-      # (proxy-nginx.conf: "set $upstream_backend backend:8080"), mobil ilova
-      # esa https://servicecore-api.ecos.uz (Cloudflare tunnel) orqali
-      # (mobile-flutter/lib/core/constants.dart). Endi faqat shu mashinadan -
-      # lokal debug uchun ochiq qoladi, tashqaridan yopiq.
-      # VAQTINCHALIK (2026-09-09, mahalliy telefon sinovi uchun): 0.0.0.0 -
-      # shu Wi-Fi tarmog'idagi qurilmalar (masalan test telefon) ham yeta oladi.
       - "0.0.0.0:8082:8080"
     environment:
       - DB_HOST=db
@@ -88,43 +46,15 @@ services:
       - JWT_SECRET=${JWT_SECRET}
       - CORS_ALLOWED_ORIGINS=${CORS_ALLOWED_ORIGINS:-http://localhost:3005,http://localhost:5173,https://namifor.ecos.uz,https://namifor-api.ecos.uz,https://servicecore.ecos.uz}
       - FIREBASE_SERVICE_ACCOUNT_PATH=${FIREBASE_SERVICE_ACCOUNT_PATH:-}
-      # Asterisk ARI (REST+WebSocket) bilan aloqa - parol asterisk-config/ari.conf'da
-      # o'rnatilgan qiymat bilan BIR XIL bo'lishi SHART, aks holda ARI
-      # autentifikatsiyasi muvaffaqiyatsiz tugaydi (avvalgi FREESWITCH_ESL_*
-      # invariantining ARI ekvivalenti).
-      - ASTERISK_ARI_HOST=asterisk
-      - ASTERISK_ARI_PORT=8088
-      - ASTERISK_ARI_USERNAME=asterisk
-      # MUHIM (xavfsizlik, 2026-07-31 auditda topilgan): bu yerda avval
-      # haqiqiy parol standart qiymat (fallback) sifatida ochiq turardi va
-      # git'ga tushgan edi. Endi FAQAT .env'dan olinadi va standart qiymat
-      # ATAYLAB yo'q - .env'da bo'lmasa konteyner ko'tarilmaydi. Jimgina
-      # hammaga ma'lum parol bilan ishga tushib ketishdan shu yaxshi.
-      # Qiymat asterisk-config/ari.conf'dagi bilan BIR XIL bo'lishi shart.
-      - ASTERISK_ARI_PASSWORD=${ASTERISK_ARI_PASSWORD:?.env faylida ASTERISK_ARI_PASSWORD belgilanishi shart}
-      # SIP hisob parollarini bazada shifrlash uchun (SipPasswordConverter).
-      - SIP_CREDENTIALS_KEY=${SIP_CREDENTIALS_KEY:-}
     volumes:
-      # Push bildirishnoma uchun Firebase Admin SDK service account kaliti (read-only).
       - ./backend-java/firebase-service-account.json:/app/firebase-service-account.json:ro
-      # AsteriskTrunkConfigWriter/AsteriskExtensionConfigWriter shu papkaga PJSIP
-      # .conf fayllarini yozadi - asterisk xizmati buni pjsip.d ostida ko'rishi
-      # uchun ikkalasi ham SHU umumiy papkani ulashi kerak (bind mount, FreeSWITCH
-      # gateway/extension volume'lari o'rniga).
-      - ./asterisk-config/pjsip.d:/asterisk-pjsip-config
     depends_on:
       db:
-        # Baza HAQIQATAN so'rovga tayyor bo'lgunicha kutamiz (db healthcheck'iga
-        # qarang) - shunchaki konteyner ishga tushishini emas.
         condition: service_healthy
     restart: always
     networks:
       default:
-        ipv4_address: 172.19.0.13
-    # Spring Boot ishga tushishi ~10-12 soniya oladi, shuning uchun
-    # start_period ataylab uzun. Autentifikatsiyasiz yetadigan endpoint
-    # yo'q, shuning uchun oddiy TCP tekshiruvi - port ochilganini bilish
-    # kifoya (ilova ko'tarilmasa port ham ochilmaydi).
+        ipv4_address: 172.24.0.13
     healthcheck:
       test: ["CMD-SHELL", "nc -z 127.0.0.1 8080 || exit 1"]
       interval: 30s
@@ -135,21 +65,15 @@ services:
   frontend:
     build: ./frontend-admin
     container_name: service-core-frontend
-    # nginx statik (hozir ~8 MB)
     mem_limit: 128m
     cpu_shares: 512
     logging: *default-logging
     ports:
-      # MUHIM (xavfsizlik, 2026-07-31 auditda topilgan): avval "3005:80" -
-      # 0.0.0.0. Backend bilan bir xil sabab: nginx frontendga ichki tarmoq
-      # orqali boradi ("set $upstream_frontend frontend:80"), tashqi
-      # foydalanuvchilar esa Cloudflare tunnel orqali. Host porti faqat
-      # lokal debug uchun kerak.
       - "127.0.0.1:3005:80"
     restart: always
     networks:
       default:
-        ipv4_address: 172.19.0.11
+        ipv4_address: 172.24.0.11
     healthcheck:
       test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1/ || exit 1"]
       interval: 30s
@@ -160,7 +84,6 @@ services:
   tunnel:
     image: cloudflare/cloudflared:latest
     container_name: service-core-tunnel
-    # cloudflared (hozir ~18 MB)
     mem_limit: 128m
     cpu_shares: 512
     logging: *default-logging
@@ -181,7 +104,6 @@ services:
   proxy:
     image: nginx:alpine
     container_name: service-core-proxy
-    # nginx (hozir ~10 MB)
     mem_limit: 128m
     cpu_shares: 512
     logging: *default-logging
@@ -191,210 +113,26 @@ services:
       - 8.8.8.8
     volumes:
       - ./proxy-nginx.conf:/etc/nginx/conf.d/default.conf
-      # Mobil APK va shunga o'xshash yuklab olinadigan fayllar uchun (/downloads/ location).
       - ./downloads:/usr/share/nginx/downloads:ro
     depends_on:
       - frontend
       - backend
     networks:
       default:
-        ipv4_address: 172.19.0.10
+        ipv4_address: 172.24.0.10
     healthcheck:
-      # nginx 3005 (frontend) va 8080 (API) portlarida tinglaydi - 80 da EMAS.
       test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1:3005/ || exit 1"]
       interval: 30s
       timeout: 5s
       retries: 3
       start_period: 10s
 
-  # MUHIM (migratsiya, 2026-07): UzTelecom trunk FreeSWITCH orqali ro'yxatdan
-  # o'tishni rad etib, faqat Asterisk integratsiyasini talab qilgani uchun
-  # FreeSWITCH Asterisk'ga almashtirildi (asl TZ.md ham dastlab Asterisk/AMI'ni
-  # ko'zda tutgan edi - bu FreeSWITCH implementatsiyasi keyingi chetlanish
-  # bo'lgan). Konfiguratsiya ./asterisk-config/ papkasida (pjsip.conf,
-  # extensions.conf, http.conf, ari.conf, rtp.conf).
-  asterisk:
-    image: andrius/asterisk:22
-    container_name: service-core-asterisk
-    # real vaqt PBX - eng yuqori ustuvorlik (hozir ~70 MB)
-    mem_limit: 512m
-    cpu_shares: 2048
-    # MUHIM (jonli sinovda topilgan xato, tuzatildi): "hostname:" ko'rsatilmasa
-    # Docker konteynerga tasodifiy raqamdan boshlanishi mumkin bo'lgan hex ID
-    # (masalan "17b9ed4a32bb") beradi - Asterisk buni transport-ws uchun
-    # ANIQ external_signaling_address sozlanmagani sababli o'zining SIP
-    # Contact sarlavhasida (INVITE'larda) hostname sifatida ishlatadi. JsSIP
-    # (va aksariyat qat'iy SIP grammatikasi) RAQAM bilan boshlanadigan
-    # hostname'ni yaroqsiz deb rad etadi ("error parsing header Contact") -
-    # bu operator brauzeriga INVITE yetib borsa ham JIMGINA tashlab
-    # yuborilishiga, "newRTCSession" hech qachon chaqirilmasligiga sabab
-    # bo'lgan asosiy xato edi. Harf bilan boshlanadigan hostname bu
-    # muammoni butunlay yo'q qiladi.
-    hostname: asterisk-pbx
-    logging: *default-logging
-    restart: always
-    ports:
-      - "5060:5060/udp"
-      - "5060:5060/tcp"
-      # MUHIM (WebRTC media/RTP uchun, avvalgi FreeSWITCH bilan BIR XIL
-      # diapazon - host firewall/xavfsizlik guruhi sozlamalarini o'zgartirmaslik
-      # uchun ataylab saqlangan): rtp.conf'da ham shu oraliqqa cheklangan.
-      - "16384-16483:16384-16483/udp"
-      # ARI (8088, ichki HTTP/WebSocket) va PJSIP WebSocket transporti ATAYIN
-      # host'ga ochilmaydi - faqat ichki Docker tarmog'i orqali "backend" va
-      # "proxy" (nginx) xizmatlari "asterisk" nomi bilan yetadi (xuddi avvalgi
-      # FreeSWITCH ESL porti 8021 kabi - to'g'ridan-to'g'ri internetga ochiq
-      # bo'lsa PBX'ni to'liq masofadan boshqarish xavfi bo'lardi).
-    environment:
-      - PUID=1000
-      - PGID=1000
-    volumes:
-      # MUHIM: butun /etc/asterisk papkasini bind mount qilib bo'lmaydi -
-      # image'ning o'z ichidagi standart fayllarini (modules.conf, logger.conf,
-      # asterisk.conf va h.k.) butunlay yashirib qo'yadi va Asterisk
-      # "modules.conf invalid or missing" bilan darhol chiqib ketadi (birinchi
-      # urinishda aniqlangan xato). Shuning uchun FAQAT o'zimiz yozgan aniq
-      # fayllar alohida-alohida bind mount qilinadi - xuddi avvalgi FreeSWITCH
-      # dialplan fayllari bilan bir xil naqsh.
-      - ./asterisk-config/pjsip.conf:/etc/asterisk/pjsip.conf:ro
-      - ./asterisk-config/extensions.conf:/etc/asterisk/extensions.conf:ro
-      - ./asterisk-config/http.conf:/etc/asterisk/http.conf:ro
-      - ./asterisk-config/ari.conf:/etc/asterisk/ari.conf:ro
-      - ./asterisk-config/rtp.conf:/etc/asterisk/rtp.conf:ro
-      # MUHIM (2026-07-31 auditda topilgan): konteynerda ovoz qurilmasi yo'q,
-      # lekin chan_alsa/chan_oss/chan_console modullari uni ochishga urinib
-      # har ishga tushishda ~41 ta ALSA xatosini yozardi - haqiqiy xatolar shu
-      # shovqin ichida ko'rinmay qolardi. Bu fayl image'ning O'Z modules.conf
-      # nusxasi asosida yozilgan (autoload va mavjud noload'lar saqlangan).
-      - ./asterisk-config/modules.conf:/etc/asterisk/modules.conf:ro
-      # AsteriskTrunkConfigWriter/AsteriskExtensionConfigWriter (backend) shu
-      # papkaga yozadi - pjsip.conf oxiridagi "#include pjsip.d/*.conf" orqali
-      # avtomatik o'qiladi (backend'dagi bir xil bind mount'ga qarang).
-      - ./asterisk-config/pjsip.d:/etc/asterisk/pjsip.d
-      # MUHIM: "andrius/asterisk" image'ida standart MOH (music-on-hold)
-      # audio fayllari YO'Q (/var/lib/asterisk/moh/ bo'sh) - musiconhold.conf'dagi
-      # [default] klass shu papkani ko'rsatadi. Hold (B-qism) va navbat
-      # (C-qism, kutish bridge'i) HAQIQATAN ishlaydi (chaqiriq uzilmaydi),
-      # lekin fayl bo'lmagani uchun mijoz musiqa o'rniga jimlik eshitadi.
-      # Haqiqiy musiqa uchun istalgan 8kHz'ga mos audio faylni (masalan .wav)
-      # shu papkaga qo'yish kifoya - Asterisk qayta ishga tushirilganda avtomatik topadi.
-      - ./asterisk-config/moh:/var/lib/asterisk/moh
-      - asterisk_data:/var/lib/asterisk
-    # Statik IP SHART: rtp.conf'dagi ice_host_candidates aynan shu manzilga
-    # bog'langan (172.19.0.15 => 192.168.100.11). Ikkalasi bir vaqtda
-    # o'zgarishi kerak, aks holda ovoz jimgina ulanmay qoladi.
-    networks:
-      default:
-        ipv4_address: 172.19.0.15
-
-  # TURN server (coturn) - WebRTC ovoz (media) relay.
-  # MUHIM SABAB: server Docker Desktop/WSL2 (Windows) da ishlaydi - u WebRTC
-  # uchun kerakli UDP RTP portlarini ishonchli uzatolmaydi (host UDP forwarding
-  # buzuq, symmetric NAT). Yechim: brauzer media'ni coturn'ga TCP orqali yuboradi
-  # (Docker Desktop TCP'ni ISHONCHLI uzatadi), coturn esa PBX'ga ICHKI docker
-  # tarmog'i orqali (host UDP forwarding'siz) uzatadi. Shunday qilib buzuq host
-  # UDP yo'li butunlay chetlab o'tiladi.
-  # Brauzer: turn:<server>:3478?transport=tcp + iceTransportPolicy:'relay'.
-  # MUHIM (migratsiya, 2026-07): bu izoh avval FreeSWITCH'ning ICE candidate
-  # xatti-harakatiga (ext-rtp-ip/local-network-acl) asoslangan edi - Asterisk'ga
-  # o'tishda PJSIP transport'ning tegishli sozlamalari (external_media_address
-  # yoki ICHKI Docker IP'sini candidate sifatida e'lon qilish xatti-harakati)
-  # 5-bosqichda (haqiqiy qo'ng'iroq sinovi) qayta tekshirilishi kerak - xuddi
-  # shu muammo (ICE candidate noto'g'ri IP bilan) Asterisk'da ham chiqishi mumkin.
-  coturn:
-    image: coturn/coturn:latest
-    container_name: service-core-coturn
-    # real vaqt media relay (hozir ~12 MB)
-    mem_limit: 256m
-    cpu_shares: 2048
-    logging: *default-logging
-    restart: always
-    ports:
-      - "3478:3478/tcp"
-      - "3478:3478/udp"
-      # 443/TLS (turns) - ISP'lar 3478 ni bloklashi mumkin, lekin 443 (HTTPS
-      # porti) deyarli har doim ochiq. Brauzer turns:<ip>:443?transport=tcp
-      # bilan ulanadi - HTTPS trafik kabi ko'rinadi, hech qaysi ISP bloklaмaydi.
-      - "443:443/tcp"
-    volumes:
-      - ./coturn-certs:/certs:ro
-    networks:
-      default:
-        ipv4_address: 172.19.0.14
-    healthcheck:
-      # coturn image'ida wget/curl/nc yo'q, faqat bash bor - shuning uchun
-      # bash'ning o'z /dev/tcp mexanizmi bilan TCP portni tekshiramiz.
-      test: ["CMD-SHELL", "timeout 3 bash -c '</dev/tcp/127.0.0.1/3478' || exit 1"]
-      interval: 30s
-      timeout: 5s
-      retries: 3
-      start_period: 10s
-    command:
-      - "-n"
-      - "--log-file=stdout"
-      # VAQTINCHALIK (2026-07-30 diagnostikasi): batafsil log - brauzer TURN
-      # allocation so'rovi HAQIQATAN yetib kelayotganini ko'rish uchun. Standart
-      # rejimda coturn allocation'larni yozmaydi, shuning uchun "log bo'sh"
-      # holati "so'rov kelmadi" degan ma'noni BERMAYDI - shuni aniqlash uchun
-      # kerak. Muammo hal bo'lgach BU QATORNI OLIB TASHLANG (batafsil log
-      # har media paketni yozib diskni tez to'ldiradi).
-      - "-v"
-      - "--listening-port=3478"
-      - "--tls-listening-port=443"
-      - "--cert=/certs/turn_cert.pem"
-      - "--pkey=/certs/turn_pkey.pem"
-      - "--realm=servicecore.ecos.uz"
-      - "--fingerprint"
-      - "--lt-cred-mech"
-      # MUHIM (xavfsizlik, 2026-07-31 auditda topilgan): TURN login/parol avval
-      # shu yerda ochiq matnda turardi va git'ga tushgan edi. Endi .env'dan
-      # olinadi (standart qiymat ATAYLAB yo'q).
-      # DIQQAT: bu ma'lumotlar brauzerga ham kerak, shuning uchun
-      # frontend-admin/src/features/telephony/hooks/useSipPhone.js ichida ham
-      # bor - parolni almashtirsangiz IKKALA joyni ham yangilang, aks holda
-      # TURN autentifikatsiyasi buziladi va ovoz umuman ulanmaydi.
-      - "--user=${TURN_USER:?.env faylida TURN_USER belgilanishi shart}:${TURN_PASSWORD:?.env faylida TURN_PASSWORD belgilanishi shart}"
-      - "--min-port=49160"
-      - "--max-port=49200"
-      - "--no-dtls"
-      - "--no-cli"
-      - "--no-multicast-peers"
-      # DIQQAT (2026-07-31 da sinab ko'rilgan va QAYTARILGAN): coturn ishga
-      # tushganda "WARNING: NO EXPLICIT RELAY ADDRESS(ES) ARE CONFIGURED" deb
-      # ogohlantiradi va relay manzili sifatida ichki Docker IP'sini
-      # (172.19.0.14) ko'rsatadi. Buni "--external-ip=192.168.100.11" bilan
-      # tuzatishga urinish XATO - bu topologiyada relay manzilini BRAUZER
-      # emas, ASTERISK ishlatadi (brauzer uni o'z SDP nomzodi sifatida
-      # e'lon qiladi, Asterisk esa o'sha manzilga media yuboradi).
-      # Asterisk Docker tarmog'i ICHIDA, shuning uchun unga aynan ichki
-      # manzil kerak. Jonli o'lchandi (asterisk konteyneridan):
-      #     192.168.100.11:3478  (chiqarilgan)   -> yetadi
-      #     192.168.100.11:49160 (chiqarilmagan) -> ConnectionRefused
-      #     172.19.0.14:3478     (ichki)         -> yetadi
-      # Relay portlari (49160-49200) host'ga ATAYLAB chiqarilmagan - butun
-      # loyihaning asosiy g'oyasi shu: Docker Desktop (Windows) UDP
-      # forwarding'i ishonchsiz, shuning uchun brauzer coturn'ga TCP 3478
-      # orqali ulanadi, coturn esa Asterisk'ga ICHKI tarmoq orqali uzatadi -
-      # buzuq host UDP yo'li butunlay chetlab o'tiladi.
-      # XULOSA: bu ogohlantirish shu arxitektura uchun ZARARSIZ, tuzatmang.
-
 volumes:
   postgres_data:
-  asterisk_data:
 
-# MUHIM (2026-07-31 auditda topilgan JIDDIY xato): avval tarmoq umuman
-# e'lon qilinmagan edi - Docker standart tarmoq yaratib, konteynerlarga
-# IP'larni ISHGA TUSHISH TARTIBIGA qarab berardi. Ular har "compose up"
-# da aralashardi: masalan asterisk 172.19.0.5 dan 172.19.0.7 ga o'tib
-# ketgan, .5 ni esa coturn olgan. Bu rtp.conf'dagi ice_host_candidates
-# mappingini JIMGINA buzardi (u aniq IP'ga bog'langan) - ya'ni ovoz
-# tuzatishi ba'zan ishlab, ba'zan ishlamasdi va buni tushunish qiyin edi.
-# Endi har bir xizmatning IP'si qat'iy belgilangan.
-# Dinamik taqsimot .2 dan boshlanadi, shuning uchun to'qnashuvdan xoli
-# bo'lish uchun ataylab .10 dan yuqorisi tanlangan.
 networks:
   default:
     ipam:
       config:
-        - subnet: 172.19.0.0/16
-          gateway: 172.19.0.1
+        - subnet: 172.24.0.0/16
+          gateway: 172.24.0.1

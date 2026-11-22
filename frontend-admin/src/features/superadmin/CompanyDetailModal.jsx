@@ -45,7 +45,7 @@ const CompanyDetailModal = ({ isOpen, onClose, companyId, onCompanyUpdated }) =>
         <div className="flex justify-between items-center border-b border-slate-100 dark:border-white/5 pb-3">
           <div className="flex items-center gap-1.5 text-indigo-500">
             <Building2 className="w-4 h-4" />
-            <h3 className="text-base font-bold text-slate-800 dark:text-white font-['Outfit']">
+            <h3 className="text-base font-bold text-slate-800 dark:text-white ">
               {detail?.company?.name || t('superadmin.detail_title')}
             </h3>
           </div>
@@ -88,3 +88,4 @@ const CompanyDetailModal = ({ isOpen, onClose, companyId, onCompanyUpdated }) =>
 };
 
 export default CompanyDetailModal;
+

@@ -40,7 +40,7 @@ const SuperadminSettings = () => {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-2xl font-extrabold text-slate-800 dark:text-white tracking-tight font-['Outfit']">
+        <h2 className="text-2xl font-extrabold text-slate-800 dark:text-white tracking-tight ">
           {t('superadmin.menu_settings')}
         </h2>
         <p className="text-xs text-slate-500 dark:text-gray-400 font-medium">
@@ -51,7 +51,7 @@ const SuperadminSettings = () => {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="glass-card p-6 rounded-2xl border border-slate-200 dark:border-white/5 bg-white dark:bg-transparent shadow-sm">
           <form onSubmit={handleChangePassword} className="space-y-4 text-xs font-semibold">
-            <h4 className="text-sm font-bold text-slate-800 dark:text-white pb-2 border-b border-slate-100 dark:border-white/5 font-['Outfit'] flex items-center gap-2">
+            <h4 className="text-sm font-bold text-slate-800 dark:text-white pb-2 border-b border-slate-100 dark:border-white/5 flex items-center gap-2">
               <Lock className="w-4 h-4 text-indigo-500" />
               {t('settings_page.change_password')}
             </h4>
@@ -120,3 +120,4 @@ const SuperadminSettings = () => {
 };
 
 export default SuperadminSettings;
+

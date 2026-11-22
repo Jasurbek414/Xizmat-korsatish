@@ -41,7 +41,7 @@ const MonthlyTrendChart = ({ transactions }) => {
   return (
     <div className="glass-card p-5 rounded-2xl border border-slate-200 dark:border-white/5 bg-white dark:bg-transparent shadow-sm space-y-4">
       <div className="flex items-center justify-between">
-        <h4 className="font-bold text-slate-800 dark:text-white text-xs font-['Outfit'] uppercase tracking-wider flex items-center gap-1.5">
+        <h4 className="font-bold text-slate-800 dark:text-white text-xs uppercase tracking-wider flex items-center gap-1.5">
           <BarChart3 className="w-3.5 h-3.5 text-indigo-500" /> So'nggi 6 Oy Tendensiyasi
         </h4>
         <div className="flex items-center gap-3 text-[9px] font-bold">
@@ -80,3 +80,4 @@ const MonthlyTrendChart = ({ transactions }) => {
 };
 
 export default MonthlyTrendChart;
+

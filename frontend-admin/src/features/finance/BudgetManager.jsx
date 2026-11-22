@@ -43,7 +43,7 @@ const BudgetManager = ({ budgets, transactions, onUpdateBudget }) => {
       {/* Overview Block */}
       <div className="glass-card p-5 rounded-2xl bg-white dark:bg-transparent shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h4 className="font-bold text-slate-800 dark:text-white text-xs font-['Outfit'] uppercase tracking-wider">
+          <h4 className="font-bold text-slate-800 dark:text-white text-xs uppercase tracking-wider">
             Budjetlarni Rejalashtirish (Monthly Expense Budgets)
           </h4>
           <p className="text-[10px] text-slate-400 dark:text-gray-500 font-medium">
@@ -91,7 +91,7 @@ const BudgetManager = ({ budgets, transactions, onUpdateBudget }) => {
                   <span className="text-[9px] bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/5 px-2 py-0.5 rounded-md font-bold uppercase tracking-wider text-slate-500 dark:text-gray-400">
                     {b.category}
                   </span>
-                  <h5 className="font-extrabold text-slate-800 dark:text-white mt-2 font-['Outfit']">
+                  <h5 className="font-extrabold text-slate-800 dark:text-white mt-2 ">
                     {formatCurrency(spent, i18n.language)}
                   </h5>
                   <p className="text-[9px] text-slate-400 dark:text-gray-500">Joriy oyda sarflangan mablag'</p>
@@ -170,3 +170,4 @@ const BudgetManager = ({ budgets, transactions, onUpdateBudget }) => {
 };
 
 export default BudgetManager;
+

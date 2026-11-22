@@ -54,7 +54,7 @@ const PLReport = ({ transactions }) => {
               <Landmark className="w-4 h-4" />
             </div>
           </div>
-          <h3 className="text-lg font-extrabold text-slate-800 dark:text-white font-['Outfit']">
+          <h3 className="text-lg font-extrabold text-slate-800 dark:text-white ">
             {formatCurrency(revenue, i18n.language)}
           </h3>
           <p className="text-[9px] text-slate-400 dark:text-gray-500 mt-1">Barcha daromad keltirgan tranzaksiyalar</p>
@@ -68,7 +68,7 @@ const PLReport = ({ transactions }) => {
               <Scale className="w-4 h-4" />
             </div>
           </div>
-          <h3 className="text-lg font-extrabold text-slate-800 dark:text-white font-['Outfit']">
+          <h3 className="text-lg font-extrabold text-slate-800 dark:text-white ">
             {formatCurrency(totalExpenses, i18n.language)}
           </h3>
           <p className="text-[9px] text-slate-400 dark:text-gray-500 mt-1">Maoshlar + Ofis xarajatlari + Soliqlar</p>
@@ -82,7 +82,7 @@ const PLReport = ({ transactions }) => {
               <TrendingUp className="w-4 h-4" />
             </div>
           </div>
-          <h3 className={`text-lg font-extrabold font-['Outfit'] ${netProfit >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600'}`}>
+          <h3 className={`text-lg font-extrabold ${netProfit >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600'}`}>
             {formatCurrency(netProfit, i18n.language)}
           </h3>
           <p className="text-[9px] text-slate-400 dark:text-gray-500 mt-1">Soliqlar va xarajatlardan keyingi sof foyda</p>
@@ -96,7 +96,7 @@ const PLReport = ({ transactions }) => {
               <Percent className="w-4 h-4" />
             </div>
           </div>
-          <h3 className="text-lg font-extrabold text-indigo-600 dark:text-indigo-400 font-['Outfit']">
+          <h3 className="text-lg font-extrabold text-indigo-600 dark:text-indigo-400 ">
             {margin.toFixed(1)}%
           </h3>
           <p className="text-[9px] text-slate-400 dark:text-gray-500 mt-1">Biznesning umumiy foydalilik rentabelligi</p>
@@ -110,7 +110,7 @@ const PLReport = ({ transactions }) => {
         {/* Left: Detailed Statement Table */}
         <div className="lg:col-span-2 glass-card rounded-2xl overflow-hidden shadow-sm bg-white dark:bg-transparent border border-slate-200 dark:border-white/5">
           <div className="p-4 border-b border-slate-200 dark:border-white/5 bg-slate-50 dark:bg-transparent">
-            <h4 className="font-bold text-slate-800 dark:text-white text-xs font-['Outfit'] uppercase tracking-wider">Foyda va Zarar Hisoboti (P&L Detailed Statement)</h4>
+            <h4 className="font-bold text-slate-800 dark:text-white text-xs uppercase tracking-wider">Foyda va Zarar Hisoboti (P&L Detailed Statement)</h4>
           </div>
           <div className="p-4 space-y-4">
             <div className="divide-y divide-slate-100 dark:divide-white/5">
@@ -166,7 +166,7 @@ const PLReport = ({ transactions }) => {
         {/* Right: Monthly breakdown list */}
         <div className="glass-card rounded-2xl overflow-hidden shadow-sm bg-white dark:bg-transparent border border-slate-200 dark:border-white/5">
           <div className="p-4 border-b border-slate-200 dark:border-white/5 bg-slate-50 dark:bg-transparent">
-            <h4 className="font-bold text-slate-800 dark:text-white text-xs font-['Outfit'] uppercase tracking-wider">Oylar Kesimida (Monthly Overview)</h4>
+            <h4 className="font-bold text-slate-800 dark:text-white text-xs uppercase tracking-wider">Oylar Kesimida (Monthly Overview)</h4>
           </div>
           <div className="p-4 space-y-4 overflow-y-auto max-h-[300px]">
             {Object.keys(monthlyData).length === 0 ? (
@@ -181,7 +181,7 @@ const PLReport = ({ transactions }) => {
                 return (
                   <div key={month} className="border-b border-slate-100 dark:border-white/5 pb-3 last:border-0 last:pb-0 space-y-1.5">
                     <div className="flex justify-between items-center">
-                      <span className="font-extrabold text-slate-800 dark:text-white font-['Outfit']">{month}</span>
+                      <span className="font-extrabold text-slate-800 dark:text-white ">{month}</span>
                       <span className={`text-[10px] font-bold px-2 py-0.5 rounded-lg ${netMProfit >= 0 ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' : 'bg-rose-500/10 text-rose-600'}`}>
                         {mMargin.toFixed(0)}% Margin
                       </span>
@@ -215,3 +215,4 @@ const PLReport = ({ transactions }) => {
 };
 
 export default PLReport;
+

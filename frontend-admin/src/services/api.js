@@ -543,6 +543,40 @@ export const api = {
     return handleResponse(res);
   },
 
+  // Order Items (Gilamlar) boshqaruvi
+  async getOrderItems(orderId) {
+    const res = await authFetch(`${API_BASE_URL}/orders/${orderId}/items`, {
+      headers: getHeaders()
+    });
+    return handleResponse(res);
+  },
+
+  async addOrderItem(orderId, itemData) {
+    const res = await authFetch(`${API_BASE_URL}/orders/${orderId}/items`, {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify(itemData)
+    });
+    return handleResponse(res);
+  },
+
+  async updateOrderItem(orderId, itemId, itemData) {
+    const res = await authFetch(`${API_BASE_URL}/orders/${orderId}/items/${itemId}`, {
+      method: 'PUT',
+      headers: getHeaders(),
+      body: JSON.stringify(itemData)
+    });
+    return handleResponse(res);
+  },
+
+  async deleteOrderItem(orderId, itemId) {
+    const res = await authFetch(`${API_BASE_URL}/orders/${orderId}/items/${itemId}`, {
+      method: 'DELETE',
+      headers: getHeaders()
+    });
+    return handleResponse(res);
+  },
+
   // Finance & Transactions
   async getTransactions({ silent403 = false } = {}) {
     const res = await authFetch(`${API_BASE_URL}/finance/transactions`, {
@@ -982,68 +1016,4 @@ export const api = {
     return handleResponse(res);
   },
 
-  async getSipAccounts() {
-    const res = await authFetch(`${API_BASE_URL}/sip-accounts`, {
-      headers: getHeaders()
-    });
-    return handleResponse(res);
-  },
-
-  async createSipAccount(accountData) {
-    const res = await authFetch(`${API_BASE_URL}/sip-accounts`, {
-      method: 'POST',
-      headers: getHeaders(),
-      body: JSON.stringify(accountData)
-    });
-    return handleResponse(res);
-  },
-
-  // Mavjud SipAccount'ni yangilaydi (yangi qator yaratmasdan) - "sozlamalarni
-  // saqlash" har safar YANGI trunk yaratib, eskisini yetim qoldirmasligi uchun.
-  async updateSipAccount(id, accountData) {
-    const res = await authFetch(`${API_BASE_URL}/sip-accounts/${id}`, {
-      method: 'PUT',
-      headers: getHeaders(),
-      body: JSON.stringify(accountData)
-    });
-    return handleResponse(res);
-  },
-
-  async deleteSipAccount(id) {
-    const res = await authFetch(`${API_BASE_URL}/sip-accounts/${id}`, {
-      method: 'DELETE',
-      headers: getHeaders()
-    });
-    return handleResponse(res);
-  },
-
-  // Trunk sozlamalari formasi uchun haqiqiy parol (faqat ADMIN/MANAGER) -
-  // umumiy /sip-accounts ro'yxati parolni qaytarmaydi. Brauzer telefoni
-  // (JsSIP) buni ISHLATMAYDI - u /telephony/my-extension bilan ishlaydi.
-  async getSipAccountCredentials(id, { silent403 = false } = {}) {
-    const res = await authFetch(`${API_BASE_URL}/sip-accounts/${id}/credentials`, {
-      headers: getHeaders()
-    });
-    return handleResponse(res, { silent403 });
-  },
-
-  // Backend endi qo'ng'iroqlarni ESL hodisalari orqali o'zi avtoritativ
-  // yozadi (TelephonyService.endCall) - shu yozuvlarni o'qish uchun.
-  async getCallSessions() {
-    const res = await authFetch(`${API_BASE_URL}/call-sessions`, {
-      headers: getHeaders()
-    });
-    return handleResponse(res);
-  },
-
-  // Brauzerning JsSIP orqali FreeSWITCH "internal" profiliga ro'yxatdan
-  // o'tishi uchun - bu operatorning SHAXSIY ichki extension'i, UzTelecom
-  // trunk (SipAccount) bilan hech qanday aloqasi yo'q. Har qanday
-  // autentifikatsiya qilingan foydalanuvchi (jumladan DISPATCHER) chaqira oladi.
-  async getMyExtension() {
-    const res = await authFetch(`${API_BASE_URL}/telephony/my-extension`, {
-      headers: getHeaders()
-    });
-    return handleResponse(res);
-  }
 };

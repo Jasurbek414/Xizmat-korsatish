@@ -69,7 +69,7 @@ const AdvanceModal = ({ isOpen, onClose, salary, wallets, onSubmit }) => {
         
         {/* Header */}
         <div className="flex justify-between items-center border-b border-slate-100 dark:border-white/5 pb-2">
-          <h3 className="text-base font-bold text-slate-800 dark:text-white font-['Outfit']">
+          <h3 className="text-base font-bold text-slate-800 dark:text-white ">
             {t('salaries_page.advance_fine_title')}
           </h3>
           <button 
@@ -258,3 +258,4 @@ const AdvanceModal = ({ isOpen, onClose, salary, wallets, onSubmit }) => {
 };
 
 export default AdvanceModal;
+

@@ -44,7 +44,7 @@ const EmployeeDetailsModal = ({ isOpen, onClose, user, orders = [], completedSta
         <div className="flex justify-between items-center border-b border-slate-100 dark:border-white/5 pb-3">
           <div className="flex items-center gap-2 text-indigo-600 dark:text-indigo-400">
             <User className="w-4 h-4" />
-            <span className="font-extrabold text-sm font-['Outfit']">Xodim Tafsilotlari</span>
+            <span className="font-extrabold text-sm ">Xodim Tafsilotlari</span>
           </div>
           <button 
             onClick={onClose}
@@ -98,7 +98,7 @@ const EmployeeDetailsModal = ({ isOpen, onClose, user, orders = [], completedSta
             <div className="border border-slate-100 dark:border-white/5 rounded-xl p-4 flex items-center justify-between bg-slate-50/50 dark:bg-white/1">
               <div>
                 <p className="text-[9px] text-slate-400 uppercase font-bold tracking-wider">Jami Biriktirilgan</p>
-                <h4 className="text-base font-extrabold text-slate-800 dark:text-white font-['Outfit'] mt-1">{workerOrders.length} ta</h4>
+                <h4 className="text-base font-extrabold text-slate-800 dark:text-white mt-1">{workerOrders.length} ta</h4>
               </div>
               <div className="w-8 h-8 rounded-lg bg-indigo-500/5 text-indigo-600 dark:text-indigo-400 flex items-center justify-center">
                 <Briefcase className="w-4.5 h-4.5" />
@@ -108,7 +108,7 @@ const EmployeeDetailsModal = ({ isOpen, onClose, user, orders = [], completedSta
             <div className="border border-slate-100 dark:border-white/5 rounded-xl p-4 flex items-center justify-between bg-slate-50/50 dark:bg-white/1">
               <div>
                 <p className="text-[9px] text-slate-400 uppercase font-bold tracking-wider">{t('employees_page.orders_completed')}</p>
-                <h4 className="text-base font-extrabold text-emerald-600 dark:text-emerald-400 font-['Outfit'] mt-1">{completedOrders.length} ta</h4>
+                <h4 className="text-base font-extrabold text-emerald-600 dark:text-emerald-400 mt-1">{completedOrders.length} ta</h4>
               </div>
               <div className="w-8 h-8 rounded-lg bg-emerald-500/5 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
                 <CheckCircle className="w-4.5 h-4.5" />
@@ -157,7 +157,7 @@ const EmployeeDetailsModal = ({ isOpen, onClose, user, orders = [], completedSta
                       <p className="font-bold text-slate-800 dark:text-white">{ord.service_name}</p>
                       <p className="text-[9px] text-slate-400 font-mono">ID: {ord.id} | Mijoz: {ord.client_name}</p>
                     </div>
-                    <span className="font-extrabold text-emerald-600 font-['Outfit']">+{formatCurrency(ord.price, i18n.language)}</span>
+                    <span className="font-extrabold text-emerald-600 ">+{formatCurrency(ord.price, i18n.language)}</span>
                   </div>
                 ))
               )}
@@ -182,3 +182,4 @@ const EmployeeDetailsModal = ({ isOpen, onClose, user, orders = [], completedSta
 };
 
 export default EmployeeDetailsModal;
+

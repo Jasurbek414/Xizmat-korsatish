@@ -39,7 +39,7 @@ const SendMessageModal = ({ isOpen, onClose }) => {
     <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
       <div className="bg-white dark:bg-[#111827] rounded-2xl w-full max-w-md shadow-xl border border-slate-200 dark:border-white/5">
         <div className="flex items-center justify-between p-5 border-b border-slate-100 dark:border-white/5">
-          <h3 className="text-sm font-bold text-slate-800 dark:text-white font-['Outfit'] flex items-center gap-2">
+          <h3 className="text-sm font-bold text-slate-800 dark:text-white flex items-center gap-2">
             <Send className="w-4 h-4 text-indigo-500" />
             Xodimlarga xabar yuborish
           </h3>
@@ -106,3 +106,4 @@ const SendMessageModal = ({ isOpen, onClose }) => {
 };
 
 export default SendMessageModal;
+

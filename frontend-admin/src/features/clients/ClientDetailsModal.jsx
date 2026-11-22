@@ -28,7 +28,7 @@ const ClientDetailsModal = ({
               {selectedClient.full_name.charAt(0)}
             </div>
             <div>
-              <h3 className="text-lg font-bold text-slate-800 dark:text-white font-['Outfit']">{selectedClient.full_name}</h3>
+              <h3 className="text-lg font-bold text-slate-800 dark:text-white ">{selectedClient.full_name}</h3>
               <span className="text-[10px] text-slate-400 dark:text-gray-500 font-mono">ID: {selectedClient.id}</span>
             </div>
           </div>
@@ -94,15 +94,15 @@ const ClientDetailsModal = ({
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div className="border border-slate-200 dark:border-white/5 p-4 rounded-xl space-y-1 bg-white dark:bg-transparent">
                 <p className="text-[9px] text-slate-400 dark:text-gray-500 font-bold uppercase tracking-wider">{t('clients_page.total_orders')}</p>
-                <h5 className="text-lg font-extrabold text-slate-800 dark:text-white font-['Outfit']">{clientStats.orderCount} ta</h5>
+                <h5 className="text-lg font-extrabold text-slate-800 dark:text-white ">{clientStats.orderCount} ta</h5>
               </div>
               <div className="border border-slate-200 dark:border-white/5 p-4 rounded-xl space-y-1 bg-white dark:bg-transparent">
                 <p className="text-[9px] text-slate-400 dark:text-gray-500 font-bold uppercase tracking-wider">{t('clients_page.total_spent')}</p>
-                <h5 className="text-lg font-extrabold text-indigo-600 dark:text-indigo-400 font-['Outfit']">{clientStats.spent.toLocaleString()} UZS</h5>
+                <h5 className="text-lg font-extrabold text-indigo-600 dark:text-indigo-400 ">{clientStats.spent.toLocaleString()} UZS</h5>
               </div>
               <div className="border border-slate-200 dark:border-white/5 p-4 rounded-xl space-y-1 bg-white dark:bg-transparent">
                 <p className="text-[9px] text-slate-400 dark:text-gray-500 font-bold uppercase tracking-wider">Sevimli Xizmat</p>
-                <h5 className="text-xs font-bold text-slate-800 dark:text-white truncate font-['Outfit']" title="Xizmat">
+                <h5 className="text-xs font-bold text-slate-800 dark:text-white truncate " title="Xizmat">
                   Kuryerlik
                 </h5>
               </div>
@@ -201,3 +201,4 @@ const ClientDetailsModal = ({
 };
 
 export default ClientDetailsModal;
+

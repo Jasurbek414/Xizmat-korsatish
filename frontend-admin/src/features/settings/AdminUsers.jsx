@@ -158,7 +158,7 @@ const AdminUsers = ({ currentAuthUser }) => {
   return (
     <div className="space-y-6">
       <div>
-        <h3 className="text-lg font-bold text-slate-800 dark:text-white tracking-tight font-['Outfit']">
+        <h3 className="text-lg font-bold text-slate-800 dark:text-white tracking-tight ">
           {t('settings_page.admins')}
         </h3>
         <p className="text-xs text-slate-500 dark:text-gray-400 font-medium">
@@ -169,7 +169,7 @@ const AdminUsers = ({ currentAuthUser }) => {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left: Add/Edit Staff Form */}
         <div className="glass-card p-6 rounded-2xl space-y-4 h-fit border border-slate-200 dark:border-white/5 bg-white dark:bg-transparent shadow-sm">
-          <h4 className="text-sm font-bold text-slate-800 dark:text-white flex items-center gap-2 font-['Outfit']">
+          <h4 className="text-sm font-bold text-slate-800 dark:text-white flex items-center gap-2 ">
             {editingUser ? (
               <>
                 <Edit3 className="w-4 h-4 text-indigo-500" /> Tahrirlash: {editingUser.full_name}
@@ -279,7 +279,7 @@ const AdminUsers = ({ currentAuthUser }) => {
 
         {/* Right: Staff Table */}
         <div className="lg:col-span-2 glass-card p-6 rounded-2xl border border-slate-200 dark:border-white/5 bg-white dark:bg-transparent shadow-sm">
-          <h4 className="text-sm font-bold text-slate-800 dark:text-white font-['Outfit'] mb-4">Mavjud Xodimlar</h4>
+          <h4 className="text-sm font-bold text-slate-800 dark:text-white mb-4">Mavjud Xodimlar</h4>
           <div className="overflow-hidden border border-slate-200 dark:border-white/5 rounded-2xl">
             <table className="w-full text-left border-collapse">
               <thead>
@@ -368,7 +368,7 @@ const AdminUsers = ({ currentAuthUser }) => {
           <div className="w-full max-w-sm glass-card rounded-2xl p-6 border border-slate-200 dark:border-white/5 bg-white dark:bg-[#111827] shadow-2xl space-y-4">
             <div className="flex justify-between items-start">
               <div>
-                <h4 className="text-sm font-bold text-slate-800 dark:text-white font-['Outfit']">Parolni o'zgartirish</h4>
+                <h4 className="text-sm font-bold text-slate-800 dark:text-white ">Parolni o'zgartirish</h4>
                 <p className="text-[10px] text-slate-500 dark:text-gray-400">{showPasswordModal.full_name} uchun yangi parol o'rnating</p>
               </div>
               <button 
@@ -416,3 +416,4 @@ const AdminUsers = ({ currentAuthUser }) => {
 };
 
 export default AdminUsers;
+

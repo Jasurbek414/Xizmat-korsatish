@@ -24,7 +24,7 @@ const PERMISSION_GROUPS = [
     id: 'panel',
     icon: LayoutDashboard,
     accent: 'indigo',
-    keys: ['clients', 'employees', 'orders', 'finance', 'salaries', 'settings', 'map', 'telephony']
+    keys: ['clients', 'employees', 'orders', 'finance', 'salaries', 'settings', 'map']
   },
   {
     id: 'mobile',
@@ -289,7 +289,7 @@ const RolesPermissions = () => {
       {/* Sarlavha */}
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h3 className="text-lg font-bold text-slate-800 dark:text-white tracking-tight font-['Outfit']">
+          <h3 className="text-lg font-bold text-slate-800 dark:text-white tracking-tight ">
             {t('settings_page.roles')}
           </h3>
           <p className="text-xs text-slate-500 dark:text-gray-400 font-medium max-w-2xl">
@@ -377,7 +377,7 @@ const RolesPermissions = () => {
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div className="min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <h4 className="text-base font-bold text-slate-800 dark:text-white font-['Outfit'] truncate">
+                      <h4 className="text-base font-bold text-slate-800 dark:text-white truncate">
                         {isNew ? t('settings_page.role_new_title') : roleName(selectedRole)}
                       </h4>
                       {!isNew && (
@@ -517,7 +517,7 @@ const RolesPermissions = () => {
               <div className="p-5 space-y-4">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>
-                    <h5 className="text-sm font-bold text-slate-800 dark:text-white font-['Outfit']">
+                    <h5 className="text-sm font-bold text-slate-800 dark:text-white ">
                       {t('settings_page.permissions')}
                     </h5>
                     <p className="text-[10px] font-semibold text-indigo-600 dark:text-indigo-400 mt-0.5">
@@ -634,3 +634,4 @@ const RolesPermissions = () => {
 };
 
 export default RolesPermissions;
+

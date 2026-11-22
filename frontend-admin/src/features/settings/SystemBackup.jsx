@@ -64,7 +64,7 @@ const SystemBackup = ({ currentAuthUser }) => {
   return (
     <div className="space-y-6">
       <div>
-        <h3 className="text-lg font-bold text-slate-800 dark:text-white tracking-tight font-['Outfit']">
+        <h3 className="text-lg font-bold text-slate-800 dark:text-white tracking-tight ">
           {t('settings_page.backup')}
         </h3>
         <p className="text-xs text-slate-500 dark:text-gray-400 font-medium">
@@ -76,7 +76,7 @@ const SystemBackup = ({ currentAuthUser }) => {
         {/* Left Card: Backup & Restore */}
         <div className="glass-card p-6 rounded-2xl space-y-5 border border-slate-200 dark:border-white/5 bg-white dark:bg-transparent shadow-sm flex flex-col justify-between">
           <div className="space-y-4">
-            <h4 className="text-sm font-bold text-slate-800 dark:text-white pb-2 border-b border-slate-100 dark:border-white/5 font-['Outfit']">
+            <h4 className="text-sm font-bold text-slate-800 dark:text-white pb-2 border-b border-slate-100 dark:border-white/5 ">
               {t('settings_page.db_backup')}
             </h4>
 
@@ -116,7 +116,7 @@ const SystemBackup = ({ currentAuthUser }) => {
         {/* Right Card: Change Password Form */}
         <div className="glass-card p-6 rounded-2xl border border-slate-200 dark:border-white/5 bg-white dark:bg-transparent shadow-sm flex flex-col justify-between">
           <form onSubmit={handleChangePassword} className="space-y-4">
-            <h4 className="text-sm font-bold text-slate-800 dark:text-white pb-2 border-b border-slate-100 dark:border-white/5 font-['Outfit'] flex items-center gap-2">
+            <h4 className="text-sm font-bold text-slate-800 dark:text-white pb-2 border-b border-slate-100 dark:border-white/5 flex items-center gap-2">
               <Lock className="w-4 h-4 text-indigo-500" />
               {t('settings_page.change_password')}
             </h4>
@@ -184,3 +184,4 @@ const SystemBackup = ({ currentAuthUser }) => {
 };
 
 export default SystemBackup;
+

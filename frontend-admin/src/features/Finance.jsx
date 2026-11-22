@@ -558,7 +558,7 @@ const Finance = ({ tab }) => {
       {/* Upper Navigation & Tabs */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-slate-200 dark:border-white/5 pb-4">
         <div>
-          <h2 className="text-2xl font-extrabold text-slate-800 dark:text-white tracking-tight font-['Outfit']">{t('finance_page.title')}</h2>
+          <h2 className="text-2xl font-extrabold text-slate-800 dark:text-white tracking-tight ">{t('finance_page.title')}</h2>
           <p className="text-xs text-slate-500 dark:text-gray-400 font-medium">{t('finance_page.desc')}</p>
         </div>
 
@@ -654,7 +654,7 @@ const Finance = ({ tab }) => {
               <div className="glass-card p-5 rounded-2xl border border-slate-200 dark:border-white/5 bg-white dark:bg-[#111827]/80 space-y-3">
                 <div className="flex items-center justify-between">
                   <div>
-                    <h4 className="text-xs font-extrabold text-slate-800 dark:text-white tracking-tight flex items-center gap-1.5 font-['Outfit']">
+                    <h4 className="text-xs font-extrabold text-slate-800 dark:text-white tracking-tight flex items-center gap-1.5 ">
                       📥 Kassaga topshirilishi kutilayotgan pullar (Kuryerlarda)
                     </h4>
                     <p className="text-[10px] text-slate-400 dark:text-gray-500 font-medium">
@@ -686,7 +686,7 @@ const Finance = ({ tab }) => {
                         {oh.description || "Tavsif yo'q"}
                       </p>
                       <div className="flex items-center gap-1.5">
-                        <p className="text-[9px] font-bold text-amber-600 font-['Outfit']">
+                        <p className="text-[9px] font-bold text-amber-600 ">
                           {new Intl.NumberFormat('uz-UZ').format(oh.collectedPrice)} UZS
                         </p>
                         {oh.paymentMethod && (
@@ -719,7 +719,7 @@ const Finance = ({ tab }) => {
               >
                 <div className="flex justify-between items-center border-b border-slate-100 dark:border-white/5 pb-2">
                   <div>
-                    <h3 className="text-sm font-bold text-slate-800 dark:text-white font-['Outfit']">Buyurtma tafsiloti</h3>
+                    <h3 className="text-sm font-bold text-slate-800 dark:text-white ">Buyurtma tafsiloti</h3>
                     <p className="text-[9px] text-slate-400 font-mono">
                       Buyurtma № {selectedHandover.id ? selectedHandover.id.slice(0, 8).toUpperCase() : "Noma'lum"}
                     </p>
@@ -830,7 +830,7 @@ const Finance = ({ tab }) => {
                   )}
                   <div className="flex justify-between items-center bg-amber-500/5 px-3 py-2.5 rounded-xl border border-amber-500/10">
                     <span className="font-extrabold text-amber-600 uppercase text-[9px] tracking-wide">Qabul qilingan summa</span>
-                    <span className="font-black text-sm text-amber-600 font-['Outfit']">
+                    <span className="font-black text-sm text-amber-600 ">
                       {new Intl.NumberFormat('uz-UZ').format(selectedHandover.collectedPrice)} UZS
                     </span>
                   </div>
@@ -861,7 +861,7 @@ const Finance = ({ tab }) => {
             <div className="glass-card p-5 rounded-2xl border border-slate-200 dark:border-white/5 bg-white dark:bg-[#111827]/80 space-y-3">
               <div className="flex items-center justify-between">
                 <div>
-                  <h4 className="text-xs font-extrabold text-slate-800 dark:text-white tracking-tight flex items-center gap-1.5 font-['Outfit']">
+                  <h4 className="text-xs font-extrabold text-slate-800 dark:text-white tracking-tight flex items-center gap-1.5 ">
                     💰 Tasdiq kutayotgan tranzaksiyalar (Kuryerlar kiritgan)
                   </h4>
                   <p className="text-[10px] text-slate-400 dark:text-gray-500 font-medium">
@@ -891,7 +891,7 @@ const Finance = ({ tab }) => {
                       <p className="text-slate-400 text-[8px] font-medium leading-none">
                         Izoh: {tx.description || "Izoh yo'q"}
                       </p>
-                      <p className={`text-[9px] font-bold font-['Outfit'] ${tx.type === 'INCOME' ? 'text-emerald-600' : 'text-rose-600'}`}>
+                      <p className={`text-[9px] font-bold ${tx.type === 'INCOME' ? 'text-emerald-600' : 'text-rose-600'}`}>
                         {tx.type === 'INCOME' ? '+' : '-'}{new Intl.NumberFormat('uz-UZ').format(tx.amount)} UZS
                       </p>
                     </div>
@@ -976,3 +976,4 @@ const Finance = ({ tab }) => {
 };
 
 export default Finance;
+
